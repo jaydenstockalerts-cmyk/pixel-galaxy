@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pixel Galaxy</title>
-<link rel="stylesheet" href="style.css?v=4">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <main>
@@ -14,16 +14,18 @@
 <canvas id="st" width="128" height="64"></canvas>
 <p><small id="sthint"></small></p>
 <canvas id="cv" width="128" height="160"></canvas>
+<p><small>Map key: a hollow square is yours, C is Crimson Pact, V is Vael Collective.</small></p>
 <div class="box"><div class="row"><div id="info"></div><button id="atk" data-atk="1">Attack</button></div></div>
-<p id="log">Tap a system on the map. Claim worlds next to your territory, starting with the pirates.</p>
+<p id="log" style="white-space:pre-line">Tap a system on the map. Claim worlds next to your territory, starting with the pirates.</p>
 <div class="box"><h2>Fleet</h2><small id="slots"></small><div id="ships"></div><small id="sq"></small></div>
+<div class="box"><h2>Rivals</h2><small id="rvs"></small></div>
 <div class="box"><h2>Commanders</h2><small>Hire officers who level up as you play. One leads your fleet, one runs your station.</small><div id="cmds"></div></div>
 <div class="box"><h2>Research</h2><small id="rq"></small><div id="tech"></div></div>
 <div class="box"><h2>Station</h2><small id="bq"></small><div id="blds"></div></div>
 <button id="reset">Reset game</button>
-<p><small>Prototype v0.4. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
+<p><small>Prototype v0.5. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
 </main>
-<script src="data.js?v=4"></script>
-<script src="game.js?v=4"></script>
+<script src="data.js?v=5"></script>
+<script src="game.js?v=5"></script>
 </body>
 </html>

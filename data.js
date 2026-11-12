@@ -46,6 +46,8 @@ const Q=[
 {id:"q8",t:"Own 4 systems",ok:()=>S.won.length>=5,r:{credits:300,metal:200}},
 {id:"q9",t:"Build a Capital Ship",ok:()=>S.ships.capital>=1,r:{credits:300,crystal:150}},
 {id:"q10",t:"Conquer the Alien Hive Core",ok:()=>S.won.includes(7),r:{credits:1000}},
+{id:"q14",t:"Repel a rival raid",ok:()=>S.rep>=1,r:{credits:600,metal:300}},
+{id:"q15",t:"Capture a rival-held system",ok:()=>S.cap>=1,r:{credits:800,crystal:400}},
 {id:"q11",t:"Own 9 systems",ok:()=>S.won.length>=9,r:{credits:1500,metal:600}},
 {id:"q12",t:"Complete 6 technologies",ok:()=>S.tech.length>=6,r:{credits:2000,crystal:1000}},
 {id:"q13",t:"Conquer the Dark Nexus",ok:()=>S.won.includes(15),r:{credits:5000}}
@@ -73,3 +75,4 @@ const TECH=[
 {id:"c1",n:"Advanced Command",d:"Command Station max level 7",c:{credits:1000,crystal:500},t:300,k:"cmax",v:2},
 {id:"c2",n:"Fleet Doctrine",d:"Command Station max level 10",c:{credits:3000,crystal:2000},t:1200,req:"c1",k:"cmax",v:3}
 ];
+const RV={c:{n:"Crimson Pact",b:150},v:{n:"Vael Collective",b:250}};
