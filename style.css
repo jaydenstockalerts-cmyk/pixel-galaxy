@@ -18,3 +18,10 @@ button:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
 small{opacity:.85}
 #log{min-height:2.8em;margin:0 0 12px}
 #reset{background:none;color:var(--fg);border:2px solid var(--fg);min-height:36px;font-weight:normal}
+#top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:4px 0 2px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+#top .box{margin-bottom:8px;padding:6px}
+#tabs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none}
+#tabs button{flex:0 0 auto;min-width:0;background:none;color:var(--fg);border:2px solid var(--fg);padding:6px 10px;min-height:40px}
+#tabs button.on{background:var(--fg);color:var(--bg)}
+[hidden]{display:none!important}

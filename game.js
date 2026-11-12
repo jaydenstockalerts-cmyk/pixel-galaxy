@@ -1,5 +1,5 @@
 const $=s=>document.querySelector(s);
-const fresh=()=>({res:{energy:40,metal:40,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,pos:JSON.parse(JSON.stringify(POS0)),bq:[],sq:[],q:[],selB:null,tech:[],rq:null,cmds:[],cx:{},slot:{fleet:null,station:null},own:{},rv:{c:{cl:Date.now(),rd:Date.now()},v:{cl:Date.now(),rd:Date.now()}},min:0,rvi:0,rep:0,cap:0,feed:[],t:Date.now()});
+const fresh=()=>({res:{energy:40,metal:40,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,pos:JSON.parse(JSON.stringify(POS0)),bq:[],sq:[],q:[],selB:null,tech:[],rq:null,cmds:[],cx:{},slot:{fleet:null,station:null},own:{},rv:{c:{cl:Date.now(),rd:Date.now()},v:{cl:Date.now(),rd:Date.now()}},min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now()});
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.res&&j.b&&j.ships&&j.pos)return Object.assign(fresh(),j)}catch(e){}return fresh()}
 function save(){try{S.t=Date.now();localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let S=load();
@@ -127,7 +127,8 @@ if(best>=0){S.sel=best;update();save()}
 document.body.addEventListener("click",e=>{
 const b=e.target.closest("button");if(!b)return;
 const d=b.dataset;done();
-if(d.up){const id=d.up,l=eff(id),c=cost(id,l);
+if(d.tab){S.tab=d.tab}
+else if(d.up){const id=d.up,l=eff(id),c=cost(id,l);
 if(l<lvlCap(id)&&S.bq.length<2&&can(c)){pay(c);const s0=Math.max(Date.now(),S.bq.length?S.bq[S.bq.length-1].end:0);S.bq.push({id,end:s0+dur(l)*1000});msg(B[id].n+" upgrade started.")}}
 else if(d.build){const k=d.build,u=U[k];
 if(S.b.hangar>=u.h&&usedQ()+u.sz<=scap()&&S.sq.length<5&&can(u.c)){pay(u.c);const s0=Math.max(Date.now(),S.sq.length?S.sq[S.sq.length-1].end:0);S.sq.push({k,end:s0+DUR[k]*1000*tmul()});msg(u.n+" construction started.")}}
@@ -160,7 +161,8 @@ let g=0;while(now-r.cl>=360000&&g++<2){r.cl+=360000;if(Object.keys(S.own).filter
 if(now-r.cl>=720000)r.cl=now;
 g=0;while(now-r.rd>=300000&&g++<1){r.rd+=300000;if(S.min<10)continue;const t=S.won.filter(i=>i>0&&nb(id,i));if(t.length&&Math.random()<.7){const i=t[Math.floor(Math.random()*t.length)],rp=rstr(id)*(.85+Math.random()*.3);if(rp>dpower()){S.won.splice(S.won.indexOf(i),1);S.own[i]=id;for(const k in U)S.ships[k]=Math.ceil(S.ships[k]*.75);msg(RV[id].n+" raided "+SYS[i].n+" and took it!")}else{S.rep++;gain("fleet",1);msg("Your fleet repelled "+RV[id].n+" at "+SYS[i].n+".")}}}
 if(now-r.rd>=600000)r.rd=now}}
-function upd2(){const now=Date.now();
+function showTab(){const t=S.tab||"map";document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=e.dataset.pg!==t});document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;$("#tq").textContent=n?"Quests ("+n+")":"Quests"}
+function upd2(){const now=Date.now();showTab();
 $("#rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
 TECH.forEach(t=>{const dn=S.tech.includes(t.id),av=!dn&&(!t.req||S.tech.includes(t.req));$("#tr-"+t.id).style.display=av?"":"none";if(av){$("#tc-"+t.id).textContent="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul());$("#tb-"+t.id).disabled=!!S.rq||!can(t.c)}});
 $("#rq").textContent=(S.rq?"Researching: "+TECH.find(z=>z.id===S.rq.id).n+" ("+left(S.rq.end-now)+"). ":"Lab idle. ")+"Completed "+S.tech.length+" of "+TECH.length+".";

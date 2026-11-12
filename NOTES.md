@@ -11,7 +11,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - `data.js`: game data only (resources `R`, buildings `B`, ships `U`, weaknesses `WEAK`, star systems `SYS`)
 - `game.js`: state, save/load, production, UI updates, map drawing, attacks, game loop
 
-## Current features (v0.5)
+## Current features (v0.5.1)
 - 4 resources: energy, metal, crystal, credits. Storage cap grows with Command Station level.
 - 6 buildings with levels; level cap = Command Station level x 2 + 1 (Command Station max 5).
 - 3 ship types (Fighter, Cruiser, Capital) limited by Hangar slots; Cruiser needs Hangar Lv2, Capital needs Lv4.
@@ -26,6 +26,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - v0.4 additions: 16-system galaxy (Dark Nexus is the new final boss), 12-tech research tree (one lab slot; `TECH` in data.js), 6 commanders (`CM`; one fleet slot, one station slot; they level from XP: +2 per victory for fleet, +1 per finished build/research for station). Commander types: fleet power, production, build speed.
 - Storage cap is now 100 + 500 x Command Station level; Command max level is 5, 7 or 10 via research.
 - v0.5 additions: two AI rivals (Crimson Pact, Vael Collective; `RV` in data.js, logic in `rivalTick()` in game.js). They start at far systems, claim an adjacent neutral system every 6 min (max 6 each), and raid player systems next to their territory every 5 min after 10 min of play. Rival strength grows with play time (`S.min`, capped at 6x) and territory. Raid beats home defense (`dpower()`) -> system lost and 25% of ships. Rival-held systems need 1.4x power to take. Event feed shows the last 3 messages. Rivals get no free turns while the tab is closed beyond 2 claims and 1 raid per rival per visit.
+- v0.5.1: tab menus (Galaxy, Station, Fleet, Crew, Research, Quests). Pages are `<section data-pg="...">` in index.html; `showTab()` in game.js toggles them, and the current tab is saved in `S.tab`. Resource bar and tab bar are sticky at the top. Quests tab shows a count of claimable quests.
 - Save key is now `pixelgalaxy-v3` (v0.2 saves do not carry over).
 
 ## Roadmap
@@ -40,7 +41,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - Build times and costs, quest rewards, adjacency bonus size, ship timers
 
 ## Rules for working on this
-- index.html loads files as `data.js?v=5` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
+- index.html loads files as `data.js?v=6` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
 - Keep game data in `data.js`, logic in `game.js`.
 - Ask for targeted edits to specific functions, not full rewrites.
 - If the save format changes, bump the localStorage key.
