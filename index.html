@@ -10,13 +10,18 @@
 <main>
 <h1>PIXEL GALAXY</h1>
 <div class="box"><div class="res" id="res"></div><small id="cap"></small></div>
-<canvas id="cv" width="128" height="80"></canvas>
+<div class="box"><h2>Quests</h2><div id="quests"></div></div>
+<canvas id="st" width="128" height="64"></canvas>
+<p><small id="sthint"></small></p>
+<canvas id="cv" width="128" height="160"></canvas>
 <div class="box"><div class="row"><div id="info"></div><button id="atk" data-atk="1">Attack</button></div></div>
 <p id="log">Tap a system on the map. Claim worlds next to your territory, starting with the pirates.</p>
-<div class="box"><h2>Fleet</h2><small id="slots"></small><div id="ships"></div></div>
-<div class="box"><h2>Station</h2><div id="blds"></div></div>
+<div class="box"><h2>Fleet</h2><small id="slots"></small><div id="ships"></div><small id="sq"></small></div>
+<div class="box"><h2>Commanders</h2><small>Hire officers who level up as you play. One leads your fleet, one runs your station.</small><div id="cmds"></div></div>
+<div class="box"><h2>Research</h2><small id="rq"></small><div id="tech"></div></div>
+<div class="box"><h2>Station</h2><small id="bq"></small><div id="blds"></div></div>
 <button id="reset">Reset game</button>
-<p><small>Prototype v0.2. Saves automatically in this browser, and your empire keeps earning while you are away.</small></p>
+<p><small>Prototype v0.4. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
 </main>
 <script src="data.js"></script>
 <script src="game.js"></script>
