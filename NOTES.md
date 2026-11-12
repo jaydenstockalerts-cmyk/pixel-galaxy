@@ -27,7 +27,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - Storage cap is now 100 + 500 x Command Station level; Command max level is 5, 7 or 10 via research.
 - v0.5 additions: two AI rivals (Crimson Pact, Vael Collective; `RV` in data.js, logic in `rivalTick()` in game.js). They start at far systems, claim an adjacent neutral system every 6 min (max 6 each), and raid player systems next to their territory every 5 min after 10 min of play. Rival strength grows with play time (`S.min`, capped at 6x) and territory. Raid beats home defense (`dpower()`) -> system lost and 25% of ships. Rival-held systems need 1.4x power to take. Event feed shows the last 3 messages. Rivals get no free turns while the tab is closed beyond 2 claims and 1 raid per rival per visit.
 - v0.5.1: tab menus (Galaxy, Station, Fleet, Crew, Research, Quests). Pages are `<section data-pg="...">` in index.html; `showTab()` in game.js toggles them, and the current tab is saved in `S.tab`. Resource bar and tab bar are sticky at the top. Quests tab shows a count of claimable quests.
-- v0.6: animated battle screen (`battle()` / `bframe()` in game.js). The outcome is rolled first as before; the animation only shows it (Skip button). Pixel planets on the star map with twinkling stars. Synth sound effects via WebAudio (`sfx()`, no audio files), Sound toggle in the tab bar (`S.mute`). Phone polish: `manifest.json`, `apple-touch-icon.png`, `icon-512.png`, standalone display, status-bar and safe-area handling. Add to Home Screen only works from the GitHub Pages link.
+- v0.6: animated battle screen (`battle()` / `bframe()` in game.js). The outcome is rolled first as before; the animation only shows it (Skip button). Pixel planets on the star map with twinkling stars. Synth sound effects via WebAudio (`sfx()`, no audio files), Sound toggle button next to the title (tabs wrap onto two rows on narrow screens) (`S.mute`). Phone polish: `manifest.json`, `apple-touch-icon.png`, `icon-512.png`, standalone display, status-bar and safe-area handling. Add to Home Screen only works from the GitHub Pages link.
 - Save key is now `pixelgalaxy-v3` (v0.2 saves do not carry over).
 
 ## Roadmap
@@ -42,7 +42,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - Build times and costs, quest rewards, adjacency bonus size, ship timers
 
 ## Rules for working on this
-- index.html loads files as `data.js?v=7` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
+- index.html loads files as `data.js?v=8` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
 - Keep game data in `data.js`, logic in `game.js`.
 - Ask for targeted edits to specific functions, not full rewrites.
 - If the save format changes, bump the localStorage key.
