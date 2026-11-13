@@ -314,7 +314,7 @@ function sizeCanvases(){measureUI();sizeCanvas(cv);sizeCanvas(st);if(camFitted)f
 if(typeof window!=="undefined"&&window.addEventListener)window.addEventListener("resize",()=>{sizeCanvases();update()});
 sizeCanvases();
 function pal(){const cs=getComputedStyle(document.documentElement),c={};[["b","--bg"],["h","--hi"],["m","--mid"],["f","--fg"]].forEach(a=>c[a[0]]=cs.getPropertyValue(a[1]).trim());return c}
-function draw(){drawGalaxy(x,CAM,{sx:(cv.width||384)/2,sy:safeCyCv()});drawBase(y,STCAM,{sx:(st.width||384)/2,sy:safeCySt(),safeTop:UIIN.top});drawMinimap()} // v2.0: safeTop lets drawBase clamp labels below the HUD (live v1.9: the keep's label slid under the HUD at max zoom)
+function draw(){drawGalaxy(x,CAM,{sx:(cv.width||384)/2,sy:safeCyCv()});drawBase(y,STCAM,{sx:(st.width||384)/2,sy:safeCySt()});drawMinimap()} // v2.1: safeTop is no longer passed — labels sit a fixed 20px above their sprite with NO clamp (live v2.0: the clamp pinned labels to the top bar)
 // v0.9.1 station: drag to pan, pinch / wheel / double-tap to zoom,
 // tap a building to open it, tap an open plot to see what can be built there.
 // Tap vs drag: a pointer that moves more than 8px is a drag, never a tap.
