@@ -78,6 +78,7 @@ button.secondary{background:none;color:var(--fg);border:2px solid var(--fg)}
    thin bar underneath. Tap the strip to expand storage detail. */
 .res{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;min-width:0;cursor:pointer}
 .res .pill{border:2px solid var(--fg);border-radius:var(--radius-sm);padding:3px 4px 4px;background:var(--panel);display:flex;flex-direction:column;align-items:stretch;line-height:var(--lh-tight);overflow:hidden;min-width:0}
+.res .pill .rlabel{font-size:10px;line-height:1.2;color:var(--ink-2);letter-spacing:.5px;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .res .pill .pline{display:flex;align-items:center;gap:3px;white-space:nowrap;overflow:hidden}
 .res .pill .ric{font-size:13px;line-height:1}
 .res .pill b{font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
