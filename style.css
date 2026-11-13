@@ -123,13 +123,13 @@ body.ui-hidden #uishow{display:block}
 #pop-panel{text-align:left}
 .pophead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .pophead h2{margin:0;font-size:17px;letter-spacing:1px}
-#pop-x{min-width:44px;min-height:44px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#pop-x{min-width:48px;min-height:48px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
 #pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);border-radius:var(--radius-sm);background:#0a0e2a;image-rendering:pixelated}
 #pop-body{margin-bottom:10px}
 #pop-body .stat{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--hi);font-size:var(--fs-sm)}
 #pop-body .stat:last-child{border-bottom:0}
 #pop-actions{display:flex;flex-direction:column;gap:6px}
-#pop-actions button{min-width:0;width:100%}
+#pop-actions button{min-width:0;width:100%;min-height:48px} /* v1.4: touch targets >=48px */
 
 /* --- page headers (menu pages) --- */
 .pagehead{display:flex;align-items:baseline;gap:10px;margin:4px 0 10px}
@@ -173,4 +173,17 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #reset{background:none;color:var(--fg);border:2px solid var(--fg);min-height:36px;font-weight:normal}
 .ttl{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .bg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.bg button{min-width:0;padding:6px 8px}
+.bg button{min-width:0;padding:6px 8px;min-height:48px} /* v1.4: popup Place buttons >=48px */
+
+/* --- v1.3 tutorial: overlay card, map visible behind it. The wrapper
+   never blocks the map (pointer-events none); only the card is clickable. */
+#tut{position:fixed;left:0;right:0;bottom:calc(var(--dock-h) + 24px);z-index:18;display:flex;justify-content:center;padding:0 16px;pointer-events:none}
+#tut .tutcard{pointer-events:auto;width:100%;max-width:440px;margin:0;animation:popIn .18s ease}
+.tuthead{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tuthead h2{margin:0}
+#tut-skip{min-width:0;min-height:36px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#tut-body{margin:8px 0}
+#tut-dots{display:flex;gap:6px;justify-content:center;margin:6px 0 10px}
+#tut-dots .dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--fg);background:transparent}
+#tut-dots .dot.on{background:var(--fg)}
+.tutbtns button{min-height:44px}
