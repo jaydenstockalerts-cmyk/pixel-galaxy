@@ -114,7 +114,7 @@ function clampStCam(){// v1.2: the keep sits near the top of the iso diamond (is
 // (with half a view of margin), and centres the world when the whole
 // diamond fits in view.
 const sc=stScale(),hw=(st.width||384)/(2*sc),hh=stSafeH()/(2*sc);if(hw>=384)STCAM.cx=0;else STCAM.cx=Math.max(-384+hw/2,Math.min(384-hw/2,STCAM.cx));if(hh>=192)STCAM.cy=Math.max(192-hh,Math.min(192+hh,STCAM.cy));else STCAM.cy=Math.max(-48+hh/2,Math.min(432-hh/2,STCAM.cy))}
-function setStZoom(z,px,py){stCamFitted=false;const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
+function setStZoom(z,px,py){stCamFitted=false;const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(1,Math.min(5,z)); /* v1.9: max station zoom is 5 (was 2.5) — at 2.5 the keep was only ~200-250px tall on a 1920px screen and the player could not get a proper close look (live v1.8, #14). */if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
 // v1.3: station cameras fit the OCCUPIED building cluster, not the
 // whole 12x12 diamond (live bug: the map was ~80% empty in both Home
 // and Fit, and the default view centred the clump in the upper third).
@@ -334,7 +334,7 @@ const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if
  update();save()}stStart=null;stDrag=false};
 st.addEventListener("pointerup",stEnd);st.addEventListener("pointercancel",stEnd);
 st.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=st.getBoundingClientRect();setStZoom(STCAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*st.width,(e.clientY-q.top)/q.height*st.height);update()},{passive:false});
-st.addEventListener("dblclick",e=>{const q=st.getBoundingClientRect();setStZoom(STCAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*st.width,(e.clientY-q.top)/q.height*st.height);update()});
+st.addEventListener("dblclick",e=>{const q=st.getBoundingClientRect();setStZoom(STCAM.zoom>=4?1:4,(e.clientX-q.left)/q.width*st.width,(e.clientY-q.top)/q.height*st.height);update()});
 // UI OVERHAUL v0.9 — interactive galaxy map: drag to pan, pinch / wheel /
 // double-tap to zoom, tap to open a system. Tap vs drag: a pointer that
 // moves more than 8px is a drag and never selects anything.
