@@ -12,17 +12,42 @@
 <meta name="apple-mobile-web-app-title" content="Pixel Galaxy">
 <meta name="theme-color" content="#070b1f" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#e6f4ff" media="(prefers-color-scheme: light)">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 <main>
-<div id="top"><div class="box hud"><span class="brand">PIXEL GALAXY</span><div class="res" id="res"></div><span class="hudbtns"><button id="logb" data-log="1">Log</button><button id="snd">Sound</button></span></div></div>
+<!-- v1.0 HUD: one slim glass strip. Brand + menu on the left, resource
+     chips in the middle, Hide-UI + Sound on the right. Log / Empire /
+     Reset live in the slide-in menu, not on the bar. -->
+<header id="top"><div class="hud">
+<button id="menubtn" data-menu="1" aria-label="Open menu">☰</button>
+<span class="brand">PIXEL GALAXY</span>
+<div class="res" id="res" data-resexpand="1" title="Tap for storage details"></div>
+<span class="hudbtns"><button id="hidebtn" data-hide="1" aria-label="Hide interface">◐</button><button id="snd" aria-label="Toggle sound">Sound</button></span>
+</div></header>
+
+<!-- Slide-in menu (v1.0): Empire + Log are menu pages, not floating buttons. -->
+<div id="menubk" data-mclose="1" hidden></div>
+<aside id="menu" aria-label="Menu" hidden>
+<div class="menuhead"><span class="menu-title">COMMANDER</span><button id="mclose" data-mclose="1" aria-label="Close menu">✕</button></div>
+<p class="menu-sub">Your empire, at a glance.</p>
+<button class="mitem" data-mitem="empire"><span class="ic">✦</span><span>Empire</span><span class="chev">›</span></button>
+<button class="mitem" data-mitem="log"><span class="ic">≡</span><span>Event log</span><span class="chev">›</span></button>
+<button class="mitem" data-mitem="sound"><span class="ic">♪</span><span>Sound: <b id="m-sound">on</b></span><span class="chev">›</span></button>
+<button class="mitem" data-mitem="hide"><span class="ic">◐</span><span>Hide interface</span><span class="chev">›</span></button>
+<button class="mitem danger" data-mitem="reset"><span class="ic">✕</span><span>Reset game</span><span class="chev">›</span></button>
+<p class="menu-foot">Pixel Galaxy v1.0 — saves automatically in this browser.</p>
+</aside>
+
+<!-- Immersive mode: when the HUD/dock are hidden, this small floating
+     button is the only chrome left on the map. -->
+<button id="uishow" data-showui="1" aria-label="Show interface" hidden>◐</button>
+
 <section data-pg="map">
 <div class="mapwrap">
 <canvas id="cv" width="384" height="480"></canvas>
 <canvas id="mm" width="96" height="120" title="Minimap — tap to jump"></canvas>
 <div class="mapchip hint">Drag to pan · pinch to zoom · tap a planet</div>
-<button data-page="empire" id="empireb" class="mapchip">Empire</button>
 <div class="mapctl"><button data-zout="1" id="zout" title="Zoom out">−</button><button data-zin="1" id="zin" title="Zoom in">+</button><button data-zhome="1" id="zhome" title="Go to Home World">Home</button><button data-zfit="1" id="zfit" title="Fit whole galaxy">Fit</button></div>
 </div>
 </section>
@@ -35,33 +60,40 @@
 </div>
 </section>
 <section data-pg="fleet">
-<div class="box"><h2>Fleet</h2><small id="fpw"></small><br><small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br><small id="slots"></small><div id="ships"></div><small id="sq"></small><div class="pbar"><div id="pb-ship"></div></div></div>
+<div class="pagehead"><h2>Fleet</h2><span class="page-sub" id="fpw-sub"></span></div>
+<div class="card"><small id="fpw"></small><br><small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br><small id="slots"></small><div id="ships"></div><small id="fleet-empty" class="empty" hidden>No ships yet — build a Fighter to start your fleet.</small><small id="sq"></small><div class="pbar"><div id="pb-ship"></div></div></div>
 </section>
 <section data-pg="crew">
-<div class="box"><h2>Commanders</h2><small>Hire officers who level up as you play. One leads your fleet, one runs your station.</small><div id="cmds"></div></div>
+<div class="pagehead"><h2>Commanders</h2><span class="page-sub">Officers level up as you play.</span></div>
+<div class="card"><div id="cmds"></div></div>
 </section>
 <section data-pg="research">
-<div class="box"><h2>Research</h2><small id="rq"></small><div class="pbar"><div id="pb-res"></div></div><div id="tech"></div></div>
+<div class="pagehead"><h2>Research</h2><span class="page-sub" id="rq-sub"></span></div>
+<div class="card"><small id="rq"></small><div class="pbar"><div id="pb-res"></div></div><div id="tech"></div></div>
 </section>
 <section data-pg="quests">
-<div class="box"><h2>Quests</h2><div id="quests"></div></div>
+<div class="pagehead"><h2>Quests</h2><span class="page-sub">Claim rewards as you play.</span></div>
+<div class="card"><div id="quests"></div></div>
 </section>
 <section data-pg="empire" hidden>
 <div class="pagehead"><button data-back="1" id="back-emp">‹ Back</button><h2>Empire</h2></div>
-<div class="box"><h2>Your systems</h2><small id="emp-sum"></small><div id="emp-list"></div></div>
-<div class="box"><h2>Rivals</h2><small id="e-rvs"></small></div>
+<div class="card"><h2>Your systems</h2><small id="emp-sum"></small><div id="emp-list"></div></div>
+<div class="card"><h2>Rivals</h2><small id="e-rvs"></small></div>
+</section>
+<section data-pg="log" hidden>
+<div class="pagehead"><button data-back="1" id="back-log">‹ Back</button><h2>Event log</h2></div>
+<div class="card"><div id="hlog"></div></div>
 </section>
 <nav id="tabs"><button data-tab="map"><span class="ic">✦</span><span>Galaxy</span></button><button data-tab="station"><span class="ic">▦</span><span>Station</span></button><button data-tab="fleet"><span class="ic">▲</span><span>Fleet</span></button><button data-tab="crew"><span class="ic">★</span><span>Crew</span></button><button data-tab="research"><span class="ic">⚙</span><span>Research</span></button><button data-tab="quests" id="tq"><span class="ic">✓</span><span>Quests</span><span class="badge" id="tq-badge" hidden></span></button></nav>
 <div id="toasts"></div>
 <div id="bbox" hidden><div class="box bpanel"><canvas id="bt" width="192" height="96"></canvas><small id="bcap"></small><br><button id="bskip" data-skip="1">Skip</button></div></div>
-<div id="hbox" hidden><div class="box bpanel"><h2>Event log</h2><div id="hlog"></div><button data-hclose="1">Close</button></div></div>
 <div id="rbox" hidden><div class="box bpanel"><h2>Reset game?</h2><p>This deletes all your progress and cannot be undone.</p><button data-rcancel="1">Cancel</button> <button data-rgo="1">Yes, reset</button></div></div>
 <div id="pop" hidden><div class="box bpanel" id="pop-panel"><div class="pophead"><h2 id="pop-title"></h2><button id="pop-x" data-pclose="1" aria-label="Close popup">✕</button></div><canvas id="pop-hero" width="96" height="96"></canvas><div id="pop-body"></div><div class="bg" id="pop-actions"></div></div></div>
 <div id="pagefoot"><button id="reset">Reset game</button>
-<p><small>Prototype v0.9.3. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p></div>
+<p><small>Pixel Galaxy v1.0. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p></div>
 </main>
-<script src="data.js?v=15"></script>
-<script src="art.js?v=15"></script>
-<script src="game.js?v=15"></script>
+<script src="data.js?v=16"></script>
+<script src="art.js?v=16"></script>
+<script src="game.js?v=16"></script>
 </body>
 </html>

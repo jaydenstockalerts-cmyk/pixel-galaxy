@@ -11,6 +11,8 @@ s.bq=(j.bq||[]).map(q=>{let b=s.bl.find(z=>z.t===q.id);if(!b){b={u:s.nu++,t:q.id
 delete s.pos;delete s.selB;return s}}catch(e){}return fresh()}
 function save(){try{S.t=Date.now();localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let S=load();recalc();
+// UI OVERHAUL v1.0 — camera, page and UI-hide state are VIEW-ONLY: they
+// are never saved in S and never change the save format (still pixelgalaxy-v3).
 // UI OVERHAUL v0.9 — camera and page state are VIEW-ONLY: they are never
 // saved in S and never change the save format (still pixelgalaxy-v3).
 const WORLD={w:640,h:800,px:5}; // galaxy world, SYS x/y * 5 (v0.9.1: bigger, detailed map)
@@ -18,14 +20,46 @@ let CAM={cx:80,cy:200,zoom:1.8}; // centre (world units), zoom 1-2.5; default 1.
 let PAGE={kind:"tab"}; // tab | empire only — system/building/plot are popups now (v0.9.2)
 // v0.9.2 popups: VIEW-ONLY, never saved. Map/station stay visible behind.
 let POP=null; // null | {kind:"system",i} | {kind:"building",u} | {kind:"plot",x,y}
+// v1.0 immersive mode + camera safe area: the HUD and dock are glass
+// overlays, but map content must never sit under them. UIIN is the
+// safe-area inset in CANVAS pixels (top = under the HUD, bottom =
+// above the dock). UIHIDE hides all chrome for a clean full-screen map.
+let UIHIDE=false;
+let UIIN={top:64,bottom:88};
+function measureUI(){
+  if(UIHIDE){UIIN={top:0,bottom:0};return}
+  let top=64,bottom=88;
+  try{
+    const t=$("#top");
+    if(t&&t.offsetHeight) top=Math.round(t.offsetHeight*1.15);
+    const d=$("#tabs");
+    if(d&&d.offsetHeight) bottom=Math.round(d.offsetHeight+20);
+  }catch(e){}
+  UIIN={top,bottom};
+}
+const safeTop=()=>UIIN.top, safeBottom=()=>UIIN.bottom;
+const safeCyCv=()=>(UIIN.top+(cv.height-UIIN.bottom))/2;
+const safeCySt=()=>(UIIN.top+(st.height-UIIN.bottom))/2;
+function setUIHidden(h){
+  UIHIDE=!!h;
+  document.body.classList.toggle("ui-hidden",UIHIDE);
+  const sh=$("#uishow"); if(sh) sh.hidden=!UIHIDE;
+  measureUI(); sizeCanvases(); update();
+}
+function openMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.hidden=false; requestAnimationFrame(()=>m.classList.add("open"));} if(b)b.hidden=false;}
+function closeMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.classList.remove("open"); setTimeout(()=>{if(!m.classList.contains("open"))m.hidden=true},230);} if(b)b.hidden=true;}
+function syncMenuSound(){const el=$("#m-sound"); if(el) el.textContent=S.mute?"off":"on";}
+
 // v0.9.1 station camera — VIEW-ONLY like the galaxy camera, never saved.
 // Station world: 12x12 plots x 48 = 576x576. Old 6x6 settled area is
 // plots 0-5; plots 6-11 are open land. Default: zoomed in on the buildings.
 const STWORLD={w:576,h:576,cell:48,plots:12};
 let STCAM={cx:104,cy:104,zoom:2.2}; // v0.9.3: centred on the settled buildings; zoom 2.2 lets the camera reach them on wide screens
 const stScale=()=>((st.height||384)/STWORLD.h)*STCAM.zoom;
-const stWorldToScreen=(wx,wy)=>{const sc=stScale();return{x:(st.width||384)/2+(wx-STCAM.cx)*sc,y:(st.height||384)/2+(wy-STCAM.cy)*sc}};
-const stScreenToWorld=(sx,sy)=>{const sc=stScale();return{x:STCAM.cx+(sx-(st.width||384)/2)/sc,y:STCAM.cy+(sy-(st.height||384)/2)/sc}};
+// v1.0: station camera centres on the SAFE area (between HUD and dock),
+// not the raw canvas centre, so buildings are never hidden under a bar.
+const stWorldToScreen=(wx,wy)=>{const sc=stScale();return{x:(st.width||384)/2+(wx-STCAM.cx)*sc,y:safeCySt()+(wy-STCAM.cy)*sc}};
+const stScreenToWorld=(sx,sy)=>{const sc=stScale();return{x:STCAM.cx+(sx-(st.width||384)/2)/sc,y:STCAM.cy+(sy-safeCySt())/sc}};
 function clampStCam(){// v0.9.3: station camera may centre anywhere in the world — past the
 // edge is just more grass (the canvas is grass-filled), so the settled
 // buildings can be centred even on a wide screen, where the view is
@@ -36,12 +70,16 @@ function fitStCam(){const vh=st.height||384,vw=st.width||384;STCAM={cx:288,cy:28
 function homeStCam(){let x=0,y=0,n=0;S.bl.forEach(b=>{x+=b.x*48+24;y+=b.y*48+24;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}STCAM.zoom=Math.max(STCAM.zoom,2.2);clampStCam()}
 function openPlot(x,y){POP={kind:"plot",x,y};showPopup();update()}
 const camScale=()=>((cv.height||480)/WORLD.h)*CAM.zoom;
-const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:(cv.width||384)/2+(wx-CAM.cx)*sc,y:(cv.height||480)/2+(wy-CAM.cy)*sc}};
-const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-(cv.width||384)/2)/sc,y:CAM.cy+(sy-(cv.height||480)/2)/sc}};
-function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=(cv.height||480)/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
+// v1.0: galaxy camera centres on the SAFE area (between HUD and dock).
+// Visible world height is the safe height, so nothing the camera shows
+// is ever drawn under the top or bottom bar.
+const safeH=()=>Math.max(1,(cv.height||480)-UIIN.top-UIIN.bottom);
+const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:(cv.width||384)/2+(wx-CAM.cx)*sc,y:safeCyCv()+(wy-CAM.cy)*sc}};
+const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-(cv.width||384)/2)/sc,y:CAM.cy+(sy-safeCyCv())/sc}};
+function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=safeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
 function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-(cv.height||480)/2)/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-(cv.height||480)/2)/s1}clampCam()}
 function flyTo(i){const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
-function fitCam(){const vh=cv.height||480,vw=cv.width||384;CAM={cx:320,cy:400,zoom:Math.max(.5,Math.min(vw*WORLD.h/(WORLD.w*vh),1))};clampCam()}
+function fitCam(){const vh=safeH(),vw=cv.width||384;CAM={cx:320,cy:400,zoom:Math.max(.5,Math.min(vw*WORLD.h/(WORLD.w*vh),1))};clampCam()}
 function homeCam(){flyTo(0)}
 function openSystem(i){S.sel=i;POP={kind:"system",i};flyTo(i);showPopup();update();save()}
 function openBuilding(u){S.bsel=u;POP={kind:"building",u};showPopup();update();save()}
@@ -90,7 +128,10 @@ function toast(t){const c=$("#toasts"),el=document.createElement("div");el.class
 const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(t);if(S.feed.length>30)S.feed.shift();toast(t)};
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
 
-$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="dot dot-${r}"></span>${r}<b id="v-${r}"></b><small id="r-${r}"></small><small class="cap" id="c-${r}"></small></div>`).join("");
+const RICON={energy:"⚡",metal:"▣",crystal:"◆",credits:"●"};
+$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b><span class="rate" id="r-${r}"></span></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("");
+const resEl=$("#res");
+if(resEl)resEl.addEventListener("click",()=>{resEl.classList.toggle("expanded")});
 const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
 $("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}</small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
 
@@ -100,7 +141,9 @@ let qKey="";
 function update(){
 done();
 const r=rates(),now=Date.now();
-R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap())});
+R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap());const sb=$("#sb-"+k);if(sb)sb.style.width=Math.round(Math.max(0,Math.min(1,S.res[k]/cap()))*100)+"%";});
+const fe=$("#fleet-empty"); if(fe) fe.hidden=!(total()===0&&S.sq.length===0);
+syncMenuSound();
 $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command Station to store more.";
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
@@ -127,11 +170,11 @@ const cv=$("#cv"),x=cv.getContext("2d"),st=$("#st"),y=st.getContext("2d");
 // circles, not stretched ellipses. Called on load, on resize, and on tab
 // switch (a hidden canvas reports 0 size, so keep the old size then).
 function sizeCanvas(c){try{const r=c.getBoundingClientRect();if(!r||r.width<10||r.height<10)return;let w=Math.round(r.width),h=Math.round(r.height);const k=Math.min(1,1600/w,1200/h);w=Math.max(320,Math.round(w*k));h=Math.max(320,Math.round(h*k));if(c.width!==w||c.height!==h){c.width=w;c.height=h}}catch(e){}}
-function sizeCanvases(){sizeCanvas(cv);sizeCanvas(st);clampCam();clampStCam()}
+function sizeCanvases(){measureUI();sizeCanvas(cv);sizeCanvas(st);clampCam();clampStCam()}
 if(typeof window!=="undefined"&&window.addEventListener)window.addEventListener("resize",()=>{sizeCanvases();update()});
 sizeCanvases();
 function pal(){const cs=getComputedStyle(document.documentElement),c={};[["b","--bg"],["h","--hi"],["m","--mid"],["f","--fg"]].forEach(a=>c[a[0]]=cs.getPropertyValue(a[1]).trim());return c}
-function draw(){drawGalaxy(x,CAM);drawBase(y,STCAM);drawMinimap()}
+function draw(){drawGalaxy(x,CAM,{sx:(cv.width||384)/2,sy:safeCyCv()});drawBase(y,STCAM,{sx:(st.width||384)/2,sy:safeCySt()});drawMinimap()}
 // v0.9.1 station: drag to pan, pinch / wheel / double-tap to zoom,
 // tap a building to open it, tap an open plot to see what can be built there.
 // Tap vs drag: a pointer that moves more than 8px is a drag, never a tap.
@@ -154,7 +197,7 @@ cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=c
 cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*cv.width,(e.clientY-q.top)/q.height*cv.height);update()});
 const popEl=$("#pop");
 if(popEl)popEl.addEventListener("click",e=>{if(e.target===popEl)closePopup()});
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(POP)closePopup();else if(!$("#hbox").hidden)$("#hbox").hidden=true}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){const m=$("#menu");if(m&&!m.hidden&&m.classList.contains("open"))closeMenu();else if(POP)closePopup();else if(PAGE.kind!=="tab")goBack();}});
 const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
 document.body.addEventListener("click",e=>{
 const b=e.target.closest("button");if(!b)return;
@@ -173,9 +216,13 @@ else if(d.shome){homeStCam()}
 else if(d.sfit){fitStCam()}
 else if(d.place){const t=d.place;if(POP&&POP.kind==="plot"){placeB(t,POP.x,POP.y);closePopup()}}
 else if(d.pclose){closePopup()}
+else if(d.menu){openMenu()}
+else if(d.mclose){closeMenu()}
+else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}}
+else if(d.hide){setUIHidden(true)}
+else if(d.showui){setUIHidden(false)}
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
-else if(d.log){$("#hlog").innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"No events yet.";$("#hbox").hidden=false}
-else if(d.hclose){$("#hbox").hidden=true}
+else if(d.log){PAGE={kind:"log"};update()}
 else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b.t,l);if(l<lvlCap(b.t)&&S.bq.length<bqcap()&&can(c)){pay(c);{const s0=Math.max(Date.now(),...S.bq.filter(j=>j.u===b.u).map(j=>j.end));S.bq.push({u:b.u,s:s0,end:s0+dur(l)*1000})}msg(B[b.t].n+" upgrade started.")}}}
 else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
@@ -259,7 +306,7 @@ else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
 $("#bi-up").hidden=false;$("#bi-mv").hidden=false;$("#bi-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bi-mv").textContent=S.mv===sel.u?"Cancel move":"Move"}}
-function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
+function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
 function popupUI(){
 const p=$("#pop");
 if(!POP){if(p)p.hidden=true;return}
@@ -272,9 +319,18 @@ if(POP.kind==="system"){
 const i=S.sel,s=SYS[i],own=S.won.includes(i),av=avail(i);
 title.textContent=s.n;
 if(hq){const sp=planetSprite(i);hq.drawImage(sp,16,16,64,64)}
-if(i===0){body.innerHTML="<small>Your base. Build your station and fleet here.</small><br><small>Systems owned: "+S.won.length+" of 16 &middot; Fleet power: "+Math.round(fpt())+".</small>";
+if(i===0){const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
+body.innerHTML="<small>Your base. Build your station and fleet here.</small>"
++stat("Systems owned",S.won.length+" of 16")
++stat("Fleet power",Number.isFinite(fpt())?String(Math.round(fpt())):"0");
 acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
-else{body.innerHTML="<b>"+s.n+"</b><br><small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+"</small><br><small>Needs "+spw(i)+" power. Your fleet vs "+s.t+": "+fpower(i).toFixed(1)+".<br>Loot: "+cstr(s.r)+"<br>Counter: bring "+WEAK[s.t]+"s (+50%).</small>";
+else{const need=spw(i),fp=fpower(i),loot=s.r?cstr(s.r):"";
+const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
+body.innerHTML="<small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+"</small>"
++stat("Needs",Number.isFinite(need)?need+" power":"—")
++stat("Your fleet vs "+s.t,Number.isFinite(fp)?fp.toFixed(1):"0.0")
++(loot?stat("Loot",loot):"")
++stat("Counter","Bring "+WEAK[s.t]+"s (+50%)");
 acts.innerHTML='<button data-atk="1" class="grow" '+(own||!av||total()<1?"disabled":"")+'>'+(own?"Owned":"Attack")+'</button><button data-pclose="1" class="grow">Close</button>';}
 }else if(POP.kind==="building"){
 const b=S.bl.find(z=>z.u===POP.u);
@@ -303,7 +359,7 @@ function progressBars(){const now=Date.now();const set=(id,p)=>{const el=$(id);i
 const bq=S.bq.slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0);
 if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()):0)}else set("#pb-res",0);
 const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()):0)}
-function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o==="c"?"#e0584a":o==="v"?"#b07cf0":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=cv.width/sc/WORLD.w*96,vh=cv.height/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
+function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o==="c"?"#e0584a":o==="v"?"#b07cf0":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=cv.width/sc/WORLD.w*96,vh=safeH()/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";

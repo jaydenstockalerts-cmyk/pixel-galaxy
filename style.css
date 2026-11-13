@@ -1,97 +1,176 @@
-:root{--bg:#e6f4ff;--hi:#9ec5ee;--mid:#2a4f9a;--fg:#070b1f;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#070b1f;--hi:#1a2a63;--mid:#4fc3f7;--fg:#e6f4ff;color-scheme:dark}}
-:root[data-theme="dark"]{--bg:#070b1f;--hi:#1a2a63;--mid:#4fc3f7;--fg:#e6f4ff;color-scheme:dark}
+/* ============================================================
+   Pixel Galaxy v1.0 — design system
+   One set of tokens, one panel style, one button style, one
+   popup style, used on every screen. Plain CSS, no libraries.
+   Tokens extend the original 4-colour palette (--bg/--hi/--mid/--fg).
+   ============================================================ */
+:root{
+  --bg:#e6f4ff; --hi:#9ec5ee; --mid:#2a4f9a; --fg:#070b1f;
+  color-scheme:light; box-sizing:border-box;
+  /* v1.0 tokens */
+  --panel:#e6f4ff; --panel-2:#d3e8fb; --ink:#070b1f; --ink-2:#33415e;
+  --accent:#2a4f9a; --accent-2:#4fc3f7; --good:#2d7a46; --warn:#e0584a;
+  --gold:#ffe066; --glass:rgba(230,244,255,.88); --glass-dark:rgba(7,11,31,.72);
+  --radius:10px; --radius-sm:6px;
+  --shadow:4px 4px 0 var(--mid); --shadow-sm:2px 2px 0 var(--mid);
+  --hud-h:56px; --dock-h:64px;
+  --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px;
+  --fs-title:20px; --fs-h:15px; --fs-body:14px; --fs-sm:12px;
+  --lh:1.5; --lh-tight:1.3;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#070b1f; --hi:#1a2a63; --mid:#4fc3f7; --fg:#e6f4ff; color-scheme:dark;
+    --panel:#0d1430; --panel-2:#16204a; --ink:#e6f4ff; --ink-2:#aab4c9;
+    --accent:#4fc3f7; --glass:rgba(13,20,48,.88);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#070b1f; --hi:#1a2a63; --mid:#4fc3f7; --fg:#e6f4ff; color-scheme:dark;
+  --panel:#0d1430; --panel-2:#16204a; --ink:#e6f4ff; --ink-2:#aab4c9;
+  --accent:#4fc3f7; --glass:rgba(13,20,48,.88);
+}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
-body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 "Courier New",ui-monospace,monospace}
+body{margin:0;background:var(--bg);color:var(--fg);font:var(--fs-body)/var(--lh) "Courier New",ui-monospace,monospace}
 main{margin:0;padding:0;max-width:none}
-h1{font-size:22px;margin:4px 0 10px;letter-spacing:2px}
-h2{font-size:15px;margin:0 0 6px}
-.box{border:3px solid var(--fg);padding:8px;margin-bottom:12px;box-shadow:4px 4px 0 var(--mid);background:var(--bg)}
-.res{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center}
-.res b{display:block;font-size:17px}
-.res .pill{border:2px solid var(--fg);padding:4px 2px;background:var(--bg);display:flex;flex-direction:column;align-items:center;line-height:1.3;overflow:hidden;min-width:0}
-.res .pill b{font-size:15px;line-height:1.2}
-.res .pill small{font-size:11px;line-height:1.2;display:block;white-space:nowrap}
-.res .dot{display:inline-block;width:10px;height:10px;border:2px solid var(--fg);margin-right:3px;vertical-align:-1px}
-.res .dot-energy{background:#ffe066}.res .dot-metal{background:#aab4c9}.res .dot-crystal{background:#9be8ff}.res .dot-credits{background:#ff9a3c}
-.res .cap{font-size:11px;opacity:.75}
-canvas{width:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;border:3px solid var(--fg);margin-bottom:12px;cursor:pointer}
-.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:2px dashed var(--hi)}
-.row:last-child{border-bottom:0}
-button{font:inherit;font-weight:bold;background:var(--fg);color:var(--bg);border:0;padding:8px 12px;min-height:44px;min-width:84px;cursor:pointer}
-button:disabled{opacity:.35;cursor:default}
-button:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
-small{opacity:.85}
-#log{min-height:2.8em;margin:0 0 12px}
-#reset{background:none;color:var(--fg);border:2px solid var(--fg);min-height:36px;font-weight:normal}
-#top{position:fixed;top:0;left:0;right:0;z-index:15;padding:calc(4px + env(safe-area-inset-top,0px)) 8px 0;pointer-events:none}
-#top .hud{pointer-events:auto;display:flex;align-items:center;gap:6px;margin:0;padding:6px 8px;min-height:56px;background:var(--bg);opacity:.97}
-#top .brand{font-weight:bold;letter-spacing:1px;font-size:13px;white-space:nowrap}
-#top .hudbtns{display:flex;gap:4px}
-#top .res{flex:1}
-#top .res b{font-size:15px}
-@media (max-width:520px){#top .brand{display:none}}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
+h1{font-size:var(--fs-title);margin:4px 0 10px;letter-spacing:2px;line-height:var(--lh-tight)}
+h2{font-size:var(--fs-h);margin:0 0 6px;line-height:var(--lh-tight);letter-spacing:1px}
+small{opacity:.85;font-size:var(--fs-sm);line-height:var(--lh)}
 [hidden]{display:none!important}
 body{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 html{overscroll-behavior-y:none}
 button{user-select:none;-webkit-user-select:none}
-.ttl{display:flex;justify-content:space-between;align-items:center;gap:8px}
-#snd{min-width:0;min-height:36px;padding:4px 10px;font-weight:normal;background:none;color:var(--fg);border:2px solid var(--fg)}
-#logb{min-width:0;min-height:36px;padding:4px 10px;font-weight:normal;background:none;color:var(--fg);border:2px solid var(--fg)}
-.bg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.bg button{min-width:0;padding:6px 8px}
-#toasts{position:fixed;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:15;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
-.toast{background:var(--fg);color:var(--bg);padding:8px 12px;max-width:min(92vw,520px);border:2px solid var(--mid);font-weight:bold}
-#bbox,#hbox,#rbox,#pop{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
-.bpanel{background:var(--bg);width:100%;max-width:440px;max-height:80vh;overflow-y:auto;margin:0}
-#hlog .row{display:block;font-size:13px}
-#st{width:min(100%,56vh);height:auto;aspect-ratio:1;margin:0 auto 8px;display:block}
-#cv{width:100%;height:auto;margin:0}
-.mapctl button{min-width:0;min-height:36px;padding:4px 10px;background:var(--fg);color:var(--bg);border:2px solid var(--mid)}
-.pagehead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0 10px}
-.pagehead h2{margin:0;font-size:18px;letter-spacing:1px}
-.pagehead button{min-width:0;min-height:36px;padding:4px 10px}
-#shero,#bhero{width:160px;height:160px;margin:0 auto 12px;border:3px solid var(--fg);background:#0a0e2a}
-#bhero{background:#5fae4f}
-.pbar{height:10px;border:2px solid var(--fg);margin:6px 0;background:var(--hi)}
-.pbar div{height:100%;width:0;background:var(--mid)}
-#tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:10;display:flex;gap:4px;width:min(560px,calc(100vw - 16px));background:var(--bg);border:3px solid var(--fg);box-shadow:4px 4px 0 var(--mid);padding:4px}
-#tabs button{flex:1 1 0;min-width:0;min-height:52px;padding:4px 2px;background:none;color:var(--fg);border:2px solid transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;position:relative}
-#tabs button .ic{font-size:17px;line-height:1}
-#tabs button.on{background:var(--fg);color:var(--bg)}
-#tabs .badge{position:absolute;top:2px;right:6px;min-width:18px;height:18px;line-height:18px;background:#e0584a;color:#fff;border:2px solid var(--fg);font-size:11px;text-align:center;padding:0 3px}
-.emp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:2px dashed var(--hi)}
-.emp-row:last-child{border-bottom:0}
-.emp-row button{min-width:0;min-height:36px;padding:4px 10px}
 
-/* v0.9.2 popups: same overlay pattern as #bbox / #hbox / #rbox — map stays
-   visible behind, dimmed. Centred panel, max 440px like the other popups. */
+/* --- panels & rows: one card style everywhere --- */
+.box,.card{border:3px solid var(--fg);border-radius:var(--radius);padding:var(--sp-3);margin-bottom:var(--sp-3);box-shadow:var(--shadow);background:var(--panel)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-2);padding:10px 0;border-bottom:1px solid var(--hi)}
+.row:last-child{border-bottom:0}
+.row>div{min-width:0}
+.empty{display:block;padding:var(--sp-3);text-align:center;color:var(--ink-2);font-size:var(--fs-sm)}
+
+/* --- buttons: one style, press feedback, 44px targets --- */
+button{font:inherit;font-weight:bold;background:var(--fg);color:var(--bg);border:0;border-radius:var(--radius-sm);padding:8px 12px;min-height:44px;min-width:44px;cursor:pointer;transition:transform .12s ease,opacity .12s ease,background .12s ease}
+button:active{transform:scale(.96)}
+button:disabled{opacity:.35;cursor:default;transform:none}
+button:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
+button.secondary{background:none;color:var(--fg);border:2px solid var(--fg)}
+
+/* --- progress bars --- */
+.pbar{height:10px;border:2px solid var(--fg);border-radius:5px;margin:6px 0;background:var(--hi);overflow:hidden}
+.pbar div{height:100%;width:0;background:var(--mid);transition:width .3s ease}
+
+/* ============================================================
+   HUD — one slim glass strip. Translucent, so the map shows
+   through at the edges; the camera safe area keeps map content
+   out from under it (see game.js measureUI / safeCy).
+   ============================================================ */
+#top{position:fixed;top:0;left:0;right:0;z-index:15;padding:calc(4px + env(safe-area-inset-top,0px)) 8px 0;pointer-events:none}
+#top .hud{pointer-events:auto;display:flex;align-items:center;gap:6px;margin:0;padding:4px 8px;min-height:var(--hud-h);background:var(--glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:3px solid var(--fg);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+#top .brand{font-weight:bold;letter-spacing:1px;font-size:13px;white-space:nowrap}
+#menubtn{min-width:44px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#top .hudbtns{display:flex;gap:4px}
+#top .hudbtns button{min-width:44px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#snd{min-height:36px}
+@media (max-width:520px){#top .brand{display:none}}
+
+/* Resource chips: icon + amount + rate on ONE line, storage as a
+   thin bar underneath. Tap the strip to expand storage detail. */
+.res{flex:1;display:grid;grid-template-columns:repeat(4,1fr);gap:4px;min-width:0;cursor:pointer}
+.res .pill{border:2px solid var(--fg);border-radius:var(--radius-sm);padding:3px 4px 4px;background:var(--panel);display:flex;flex-direction:column;align-items:stretch;line-height:var(--lh-tight);overflow:hidden;min-width:0}
+.res .pill .pline{display:flex;align-items:center;gap:3px;white-space:nowrap;overflow:hidden}
+.res .pill .ric{font-size:13px;line-height:1}
+.res .pill b{font-size:14px;line-height:1.2;overflow:hidden;text-overflow:ellipsis}
+.res .pill .rate{font-size:11px;line-height:1.2;color:var(--ink-2);white-space:nowrap}
+.res .pill .sbar{height:4px;border:1px solid var(--fg);border-radius:2px;margin-top:3px;background:var(--hi);overflow:hidden}
+.res .pill .sbar i{display:block;height:100%;width:0;background:var(--mid);transition:width .3s ease}
+.res .pill .cap{display:none;font-size:11px;line-height:1.2;color:var(--ink-2);margin-top:2px;white-space:nowrap}
+.res.expanded .pill .cap{display:block}
+.res .dot-energy{color:#b8860b}.res .dot-metal{color:#7c849c}.res .dot-crystal{color:#2a9dc4}.res .dot-credits{color:#d07000}
+
+/* ============================================================
+   Slide-in menu + immersive mode
+   ============================================================ */
+#menubk{position:fixed;inset:0;z-index:30;background:rgba(7,11,31,.6);border:0}
+#menu{position:fixed;top:0;left:0;bottom:0;z-index:31;width:min(320px,86vw);background:var(--panel);border-right:3px solid var(--fg);box-shadow:6px 0 0 var(--mid);padding:calc(12px + env(safe-area-inset-top,0px)) 12px 12px;transform:translateX(-102%);transition:transform .22s ease;display:flex;flex-direction:column;gap:6px}
+#menu.open{transform:translateX(0)}
+.menuhead{display:flex;justify-content:space-between;align-items:center}
+.menu-title{font-size:var(--fs-title);font-weight:bold;letter-spacing:2px}
+.menu-sub{font-size:var(--fs-sm);color:var(--ink-2);margin:0 0 6px}
+.mitem{display:flex;align-items:center;gap:10px;width:100%;text-align:left;background:var(--panel-2);color:var(--fg);border:2px solid var(--fg);border-radius:var(--radius-sm);padding:10px 12px;min-height:48px}
+.mitem .ic{font-size:17px}
+.mitem .chev{margin-left:auto;opacity:.6}
+.mitem.danger{border-color:var(--warn);color:var(--warn)}
+.menu-foot{margin-top:auto;font-size:var(--fs-sm);color:var(--ink-2)}
+#mclose{min-width:44px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#uishow{position:fixed;left:10px;top:calc(10px + env(safe-area-inset-top,0px));z-index:25;width:44px;height:44px;border-radius:50%;background:var(--glass);color:var(--fg);border:2px solid var(--fg);box-shadow:var(--shadow-sm)}
+/* Immersive mode: hide every piece of chrome, keep only #uishow. */
+body.ui-hidden #top,body.ui-hidden #tabs,body.ui-hidden .mapctl,body.ui-hidden #mm,body.ui-hidden .mapchip{opacity:0;pointer-events:none}
+body.ui-hidden #uishow{display:block}
+#top,#tabs,.mapctl,#mm,.mapchip{transition:opacity .2s ease}
+
+/* --- toasts --- */
+#toasts{position:fixed;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:15;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
+.toast{background:var(--fg);color:var(--bg);padding:8px 12px;max-width:min(92vw,520px);border:2px solid var(--mid);border-radius:var(--radius-sm);font-weight:bold;animation:toastIn .18s ease}
+@keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* --- popups: one centred card style, fade/scale in --- */
+#bbox,#hbox,#rbox,#pop{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
+.bpanel{background:var(--panel);width:100%;max-width:440px;max-height:80vh;overflow-y:auto;margin:0;animation:popIn .18s ease}
+@keyframes popIn{from{opacity:0;transform:scale(.96) translateY(6px)}to{opacity:1;transform:none}}
+#hlog .row{display:block;font-size:13px}
 #pop{z-index:20}
 #pop-panel{text-align:left}
 .pophead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .pophead h2{margin:0;font-size:17px;letter-spacing:1px}
-#pop-x{min-width:0;min-height:36px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
-#pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);background:#0a0e2a;image-rendering:pixelated}
+#pop-x{min-width:44px;min-height:44px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);border-radius:var(--radius-sm);background:#0a0e2a;image-rendering:pixelated}
 #pop-body{margin-bottom:10px}
+#pop-body .stat{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--hi);font-size:var(--fs-sm)}
+#pop-body .stat:last-child{border-bottom:0}
 #pop-actions{display:flex;flex-direction:column;gap:6px}
 #pop-actions button{min-width:0;width:100%}
-#pop-actions .grow{grid-column:1 / -1}
 
-/* v0.9.2 full-screen maps: Galaxy and Station ARE the screen. The HUD
-   floats over the top, the dock floats over the bottom. Other dock pages
-   stay centred text pages with room for the floating HUD. */
+/* --- page headers (menu pages) --- */
+.pagehead{display:flex;align-items:baseline;gap:10px;margin:4px 0 10px}
+.pagehead h2{margin:0;font-size:var(--fs-title);letter-spacing:1px}
+.pagehead .page-sub{font-size:var(--fs-sm);color:var(--ink-2)}
+.pagehead button{min-width:44px;min-height:36px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#shero,#bhero{width:160px;height:160px;margin:0 auto 12px;border:3px solid var(--fg);background:#0a0e2a}
+#bhero{background:#5fae4f}
+
+/* --- bottom dock: slim floating glass icon dock --- */
+#tabs{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:10;display:flex;gap:2px;width:min(560px,calc(100vw - 16px));background:var(--glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:3px solid var(--fg);border-radius:var(--radius);box-shadow:var(--shadow);padding:4px}
+#tabs button{flex:1 1 0;min-width:0;min-height:52px;padding:4px 2px;background:none;color:var(--fg);border:2px solid transparent;border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;position:relative}
+#tabs button .ic{font-size:17px;line-height:1}
+#tabs button.on{background:var(--fg);color:var(--bg)}
+#tabs button:active{transform:scale(.95)}
+#tabs .badge{position:absolute;top:2px;right:6px;min-width:18px;height:18px;line-height:18px;background:#e0584a;color:#fff;border:2px solid var(--fg);border-radius:9px;font-size:11px;text-align:center;padding:0 3px}
+.emp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--hi)}
+.emp-row:last-child{border-bottom:0}
+.emp-row button{min-width:0;min-height:44px;padding:4px 10px}
+
+/* ============================================================
+   Maps — full screen. The canvas IS the screen on Galaxy /
+   Station; HUD + dock float over it as glass. The camera safe
+   area (game.js) keeps map content out from under them.
+   ============================================================ */
 section[data-pg="map"],section[data-pg="station"]{position:fixed;inset:0;z-index:1}
 section[data-pg="station"] .mapwrap{background:#59a64a}
-section[data-pg="fleet"],section[data-pg="crew"],section[data-pg="research"],section[data-pg="quests"],section[data-pg="empire"]{max-width:560px;margin:0 auto;padding:76px 12px 96px}
+section[data-pg="fleet"],section[data-pg="crew"],section[data-pg="research"],section[data-pg="quests"],section[data-pg="empire"],section[data-pg="log"]{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px + env(safe-area-inset-top,0px)) 12px calc(var(--dock-h) + 24px)}
 .mapwrap{position:absolute;inset:0;border:0;margin:0;background:#0a0e2a}
-.mapwrap #cv{border:0;margin:0;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none}
-.mapwrap #st{border:0;margin:0 auto;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none}
-#mm{position:absolute;top:calc(84px + env(safe-area-inset-top,0px));right:8px;width:72px;height:90px;border:2px solid var(--fg);margin:0;background:#0a0e2a;cursor:pointer;z-index:2}
-.mapctl{position:absolute;left:6px;bottom:calc(84px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;z-index:2}
-.mapchip{position:absolute;z-index:2;background:var(--bg);color:var(--fg);border:2px solid var(--fg);padding:4px 8px;font-size:12px;opacity:.95}
-.mapchip.hint{top:calc(84px + env(safe-area-inset-top,0px));left:8px;max-width:60vw}
-.mapchip.capchip{top:calc(84px + env(safe-area-inset-top,0px));right:8px}
-#empireb{top:calc(184px + env(safe-area-inset-top,0px));right:8px;min-height:36px}
-#pagefoot{max-width:560px;margin:0 auto;padding:76px 12px 96px}
+.mapwrap #cv,.mapwrap #st{border:0;margin:0;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges}
+canvas{image-rendering:pixelated;image-rendering:crisp-edges}
+#mm{position:absolute;top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px;width:72px;height:90px;border:2px solid var(--fg);border-radius:var(--radius-sm);margin:0;background:#0a0e2a;cursor:pointer;z-index:2}
+.mapctl{position:absolute;left:6px;bottom:calc(var(--dock-h) + 16px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;z-index:2}
+.mapctl button{min-width:44px;min-height:44px;padding:4px 10px;background:var(--glass);color:var(--fg);border:2px solid var(--fg);border-radius:var(--radius-sm)}
+.mapchip{position:absolute;z-index:2;background:var(--glass);color:var(--fg);border:2px solid var(--fg);border-radius:var(--radius-sm);padding:4px 8px;font-size:12px}
+.mapchip.hint{top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));left:8px;max-width:60vw}
+.mapchip.capchip{top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px}
+#pagefoot{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px) 12px calc(var(--dock-h) + 24px)}
 body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-pg="station"]:not([hidden])) #pagefoot{display:none}
+#log{min-height:2.8em;margin:0 0 12px}
+#reset{background:none;color:var(--fg);border:2px solid var(--fg);min-height:36px;font-weight:normal}
+.ttl{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.bg{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.bg button{min-width:0;padding:6px 8px}
