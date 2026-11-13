@@ -67,7 +67,7 @@ function clampStCam(){// v0.9.3: station camera may centre anywhere in the world
 STCAM.cx=Math.max(0,Math.min(STWORLD.w,STCAM.cx));STCAM.cy=Math.max(0,Math.min(STWORLD.h,STCAM.cy))}
 function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-(st.height||384)/2)/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-(st.height||384)/2)/s1}clampStCam()}
 function fitStCam(){const vh=st.height||384,vw=st.width||384;STCAM={cx:288,cy:288,zoom:Math.max(.5,Math.min(vw/vh,1))};clampStCam()}
-function homeStCam(){let x=0,y=0,n=0;S.bl.forEach(b=>{x+=b.x*48+24;y+=b.y*48+24;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}STCAM.zoom=Math.max(STCAM.zoom,2.2);clampStCam()}
+function homeStCam(){const keep=S.bl.find(b=>b.t==="command");if(keep){STCAM.cx=keep.x*48+24;STCAM.cy=keep.y*48+24}else{let x=0,y=0,n=0;S.bl.forEach(b=>{x+=b.x*48+24;y+=b.y*48+24;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}}STCAM.zoom=Math.max(STCAM.zoom,2.2);clampStCam()}
 function openPlot(x,y){POP={kind:"plot",x,y};showPopup();update()}
 const camScale=()=>((cv.height||480)/WORLD.h)*CAM.zoom;
 // v1.0: galaxy camera centres on the SAFE area (between HUD and dock).
@@ -343,13 +343,13 @@ if(b.l===0)st="Under construction. ";
 else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s (neighbors +"+Math.round((m-1)*100)+"%). ";
 else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
-body.innerHTML="<small>"+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
+const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};body.innerHTML="<small><b>"+(DISTNAME[t]||"")+"</b> — "+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
 acts.innerHTML='<button data-bup="1" '+((max||S.bq.length>=bqcap()||!can(c))?"disabled":"")+'>Upgrade</button><button data-bmv="1">'+(S.mv===b.u?"Cancel move":"Move")+'</button><button data-pclose="1">Close</button>';
 }else if(POP.kind==="plot"){
 const x=POP.x,y=POP.y;
-title.textContent="Open land ("+(x+1)+", "+(y+1)+")";
+title.textContent="Open land ("+(x+1)+", "+(y+1)+")";const _kp=S.bl.find(b=>b.t==="command");const _dn=_kp?(x<_kp.x-1?"West — near the Military quarter":x>_kp.x+1?"East — near the Industrial quarter":y<_kp.y-1?"North — near the Power fields":"South — near the Trade quarter"):"Open land";
 if(hq){hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96)}
-body.innerHTML="<small>What can you build here? Each new copy costs 1.5x the last. Buildings next to each other produce +15%.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");
+body.innerHTML="<small>"+_dn+". What can you build here? Each new copy costs 1.5x the last. Buildings next to each other produce +15%.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");
 acts.innerHTML="";
 }}
 function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of 16 systems. Each owned system pays +0.3 credits/s.";
