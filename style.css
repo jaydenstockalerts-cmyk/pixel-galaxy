@@ -9,11 +9,13 @@ h2{font-size:15px;margin:0 0 6px}
 .box{border:3px solid var(--fg);padding:8px;margin-bottom:12px;box-shadow:4px 4px 0 var(--mid);background:var(--bg)}
 .res{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;text-align:center}
 .res b{display:block;font-size:17px}
-.res .pill{border:2px solid var(--fg);padding:4px 2px;background:var(--bg)}
+.res .pill{border:2px solid var(--fg);padding:4px 2px;background:var(--bg);display:flex;flex-direction:column;align-items:center;line-height:1.3;overflow:hidden;min-width:0}
+.res .pill b{font-size:15px;line-height:1.2}
+.res .pill small{font-size:11px;line-height:1.2;display:block;white-space:nowrap}
 .res .dot{display:inline-block;width:10px;height:10px;border:2px solid var(--fg);margin-right:3px;vertical-align:-1px}
 .res .dot-energy{background:#ffe066}.res .dot-metal{background:#aab4c9}.res .dot-crystal{background:#9be8ff}.res .dot-credits{background:#ff9a3c}
 .res .cap{font-size:11px;opacity:.75}
-canvas{width:100%;display:block;image-rendering:pixelated;border:3px solid var(--fg);margin-bottom:12px;cursor:pointer}
+canvas{width:100%;display:block;image-rendering:pixelated;image-rendering:crisp-edges;border:3px solid var(--fg);margin-bottom:12px;cursor:pointer}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:2px dashed var(--hi)}
 .row:last-child{border-bottom:0}
 button{font:inherit;font-weight:bold;background:var(--fg);color:var(--bg);border:0;padding:8px 12px;min-height:44px;min-width:84px;cursor:pointer}
@@ -23,7 +25,7 @@ small{opacity:.85}
 #log{min-height:2.8em;margin:0 0 12px}
 #reset{background:none;color:var(--fg);border:2px solid var(--fg);min-height:36px;font-weight:normal}
 #top{position:fixed;top:0;left:0;right:0;z-index:15;padding:calc(4px + env(safe-area-inset-top,0px)) 8px 0;pointer-events:none}
-#top .hud{pointer-events:auto;display:flex;align-items:center;gap:6px;margin:0;padding:4px 6px;background:var(--bg);opacity:.96}
+#top .hud{pointer-events:auto;display:flex;align-items:center;gap:6px;margin:0;padding:6px 8px;min-height:56px;background:var(--bg);opacity:.97}
 #top .brand{font-weight:bold;letter-spacing:1px;font-size:13px;white-space:nowrap}
 #top .hudbtns{display:flex;gap:4px}
 #top .res{flex:1}
@@ -70,24 +72,26 @@ button{user-select:none;-webkit-user-select:none}
 .pophead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .pophead h2{margin:0;font-size:17px;letter-spacing:1px}
 #pop-x{min-width:0;min-height:36px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
-#pop-hero{width:120px;height:120px;margin:0 auto 10px;border:3px solid var(--fg);background:#0a0e2a}
+#pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);background:#0a0e2a;image-rendering:pixelated}
 #pop-body{margin-bottom:10px}
-#pop-actions button{min-width:0}
+#pop-actions{display:flex;flex-direction:column;gap:6px}
+#pop-actions button{min-width:0;width:100%}
 #pop-actions .grow{grid-column:1 / -1}
 
 /* v0.9.2 full-screen maps: Galaxy and Station ARE the screen. The HUD
    floats over the top, the dock floats over the bottom. Other dock pages
    stay centred text pages with room for the floating HUD. */
 section[data-pg="map"],section[data-pg="station"]{position:fixed;inset:0;z-index:1}
+section[data-pg="station"] .mapwrap{background:#59a64a}
 section[data-pg="fleet"],section[data-pg="crew"],section[data-pg="research"],section[data-pg="quests"],section[data-pg="empire"]{max-width:560px;margin:0 auto;padding:76px 12px 96px}
 .mapwrap{position:absolute;inset:0;border:0;margin:0;background:#0a0e2a}
 .mapwrap #cv{border:0;margin:0;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none}
 .mapwrap #st{border:0;margin:0 auto;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none}
-#mm{position:absolute;top:calc(64px + env(safe-area-inset-top,0px));right:6px;width:72px;height:90px;border:2px solid var(--fg);margin:0;background:#0a0e2a;cursor:pointer;z-index:2}
+#mm{position:absolute;top:calc(84px + env(safe-area-inset-top,0px));right:8px;width:72px;height:90px;border:2px solid var(--fg);margin:0;background:#0a0e2a;cursor:pointer;z-index:2}
 .mapctl{position:absolute;left:6px;bottom:calc(84px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;z-index:2}
 .mapchip{position:absolute;z-index:2;background:var(--bg);color:var(--fg);border:2px solid var(--fg);padding:4px 8px;font-size:12px;opacity:.95}
-.mapchip.hint{top:calc(64px + env(safe-area-inset-top,0px));left:6px;max-width:60vw}
-.mapchip.capchip{top:calc(64px + env(safe-area-inset-top,0px));right:6px}
-#empireb{top:calc(168px + env(safe-area-inset-top,0px));right:6px;min-height:36px}
+.mapchip.hint{top:calc(84px + env(safe-area-inset-top,0px));left:8px;max-width:60vw}
+.mapchip.capchip{top:calc(84px + env(safe-area-inset-top,0px));right:8px}
+#empireb{top:calc(184px + env(safe-area-inset-top,0px));right:8px;min-height:36px}
 #pagefoot{max-width:560px;margin:0 auto;padding:76px 12px 96px}
 body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-pg="station"]:not([hidden])) #pagefoot{display:none}

@@ -84,11 +84,12 @@ function glyph(q,p,x,y){q.fillStyle="#161628";for(let i=0;i<15;i++)if(p[i]==="1"
 // the old 6x6 settled area in the top-left, open land around it.
 // drawBase(q) with no camera draws the fit view; drawBase(q, cam) draws
 // the camera window (cam={cx,cy,zoom}, zoom 1-2.5). Camera is view-only.
-function drawBase(q,cam){const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv,cam2=cam||{cx:288,cy:288,zoom:1},fit=Math.min(384/576,384/576),sc=fit*cam2.zoom,ox=192-cam2.cx*sc,oy=192-cam2.cy*sc,CS=48*sc,k=CS/48;
+function drawBase(q,cam){const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv,cam2=cam||{cx:288,cy:288,zoom:1},vw=q.canvas.width||384,vh=q.canvas.height||384,sc=(vh/576)*cam2.zoom,ox=vw/2-cam2.cx*sc,oy=vh/2-cam2.cy*sc,CS=48*sc,k=CS/48;
+q.fillStyle="#59a64a";q.fillRect(0,0,vw,vh);
 const pad=memo("pad",()=>spr(46,46,R=>{bev(R,0,0,46,46,"e","s","S");[11,23,34].forEach(v=>{R(v,0,1,46,"S");R(0,v,46,1,"S")})}));
 q.drawImage(ground(),ox,oy,576*sc,576*sc);
 for(let j=0;j<12;j++)for(let i=0;i<12;i++){const a=ox+i*48*sc,b=oy+j*48*sc,bd=bAt(i,j);
-if(!bd){const dc=decor(i,j),ds=CS*.8;q.drawImage(dc,a+(CS-ds)/2,b+(CS-ds)/2,ds,ds);if(go){q.fillStyle=F&1?"#ffffff":"#8fe070";[[2,2],[43,2],[2,43],[43,43]].forEach(p=>q.fillRect(a+p[0]*k,b+p[1]*k,3*k,3*k));q.fillRect(a+22*k,b+16*k,4*k,16*k);q.fillRect(a+16*k,b+22*k,16*k,4*k)}continue}
+if(!bd){if((i*3+j*5)%4!==0){const dc=decor(i,j),ds=CS*.55;q.drawImage(dc,a+(CS-ds)/2,b+(CS-ds)/2,ds,ds);}if(go){q.fillStyle=F&1?"#ffffff":"#8fe070";[[2,2],[43,2],[2,43],[43,43]].forEach(p=>q.fillRect(a+p[0]*k,b+p[1]*k,3*k,3*k));q.fillRect(a+22*k,b+16*k,4*k,16*k);q.fillRect(a+16*k,b+22*k,16*k,4*k)}continue}
 q.drawImage(pad,a,b,CS,CS);q.globalAlpha=.28;q.fillStyle="#000";q.fillRect(a+8*k,b+40*k,34*k,5*k);q.globalAlpha=1;
 const t=tier(bd.l),sp=bd.l>0?memo(bd.t+t,()=>spr(44,44,R=>BS[bd.t](R,t))):memo("scaf",()=>spr(44,44,SC));
 q.drawImage(sp,a+CS*.02,b+CS*.02,CS*.96,CS*.96)}
@@ -104,8 +105,9 @@ if(bd.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(a+22*k,b+5*k,
 if(bd.t==="command"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(a+22*k,b+2*k,4*k,2*k)}
 if(bd.t==="solar"){q.fillStyle="#fff";q.fillRect(a+7*k+(F*4)%34*k,b+24*k,2*k,1*k)}}
 if(bd.u===S.bsel||bd.u===S.mv){q.fillStyle=F&1?"#ffe066":"#ffffff";const c1=1*k,c2=9*k,c3=38*k,c4=45*k;q.fillRect(a+c1,b+c1,c2,2*k);q.fillRect(a+c1,b+c1,2*k,c2);q.fillRect(a+c3,b+c1,c2,2*k);q.fillRect(a+c4,b+c1,2*k,c2);q.fillRect(a+c1,b+c4,c2,2*k);q.fillRect(a+c1,b+c3,2*k,c2);q.fillRect(a+c3,b+c4,c2,2*k);q.fillRect(a+c4,b+c3,2*k,c2)}})}
-const gbg=()=>memo("gbg",()=>{const c=document.createElement("canvas");c.width=384;c.height=480;const q=c.getContext("2d");q.fillStyle="#0a0e2a";q.fillRect(0,0,384,480);
-for(let k=0;k<14;k++){const cx=(k*71)%384,cy=(k*97)%480,r=40+k*6;q.fillStyle=k%3===0?"#1a1442":k%3===1?"#121a46":"#241a4a";for(let dy=-r;dy<=r;dy+=2)for(let dx=-r;dx<=r;dx+=2)if(dx*dx+dy*dy<r*r&&(((dx>>1)+(dy>>1))&1)===0)q.fillRect(cx+dx,cy+dy,2,2)}return c});
+const gbgFor=(w,h)=>memo("gbg"+w+"x"+h,()=>{const c=document.createElement("canvas");c.width=w;c.height=h;const q=c.getContext("2d");q.fillStyle="#0a0e2a";q.fillRect(0,0,w,h);
+for(let k=0;k<14;k++){const cx=(k*71)%w,cy=(k*97)%h,r=40+k*6;q.fillStyle=k%3===0?"#1a1442":k%3===1?"#121a46":"#241a4a";for(let dy=-r;dy<=r;dy+=2)for(let dx=-r;dx<=r;dx+=2)if(dx*dx+dy*dy<r*r&&(((dx>>1)+(dy>>1))&1)===0)q.fillRect(cx+dx,cy+dy,2,2)}return c});
+const gbg=()=>gbgFor(384,480);
 const GP={p:["#d8ffd0","#5fc66a","#2d7a46"],c:["#ffd0c8","#e0584a","#8f2a22"],v:["#e0d0ff","#9a74f0","#563aa8"],l:["#7c849c","#4a5270","#2e3552"],swarm:["#ffe0b0","#e8a050","#a8602a"],armored:["#dff2ff","#82aadc","#486c9e"],fortress:["#f0d6ff","#b078f0","#6a40b0"]};
 function psp(i,st){return memo("p"+i+st,()=>{const s=SYS[i],r=i===0?18:i===15?20:14,W=2*r+28,pl=GP[st==="a"?s.t:st],cx=W>>1;
 return spr(W,W,R=>{ball(R,cx,cx,r,pl[0],pl[1],pl[2],"#ffffff");
@@ -119,23 +121,26 @@ if(s.t==="fortress"||s.t==="armored"){for(let b=-1;b<=1;b++){const yy=cx+b*5;for
 if(s.t==="armored"||i===0)for(let a=0;a<6.3;a+=.08){const px=Math.round(cx+Math.cos(a)*(r+7)),py=Math.round(cx+Math.sin(a)*(r*.45));if(Math.sin(a)>0||Math.hypot(px-cx,py-cx)>r+.5)R(px,py,2,1,pl[0])}})})}
 // v0.9.1 labels: pixel-font text on the canvas, dark-backed so it reads
 // on the starfield. Uses fillText (real canvas) — the headless stub counts it.
-function drawLabel(q,text,cx,cy,color){try{q.font="bold 11px 'Courier New',monospace"}catch(e){}q.textAlign="center";q.textBaseline="middle";let w=text.length*7;try{if(q.measureText)w=Math.ceil(q.measureText(text).width)}catch(e){}q.fillStyle="#161628";q.fillRect(Math.round(cx-w/2-3),Math.round(cy-7),w+6,14);q.fillStyle=color||"#ffffff";q.fillText(text,Math.round(cx),Math.round(cy))}
+function drawLabel(q,text,cx,cy,color,fs){const vw=q.canvas.width||384,vh=q.canvas.height||480,f=Math.max(11,fs||11);try{q.font="bold "+f+"px 'Courier New',monospace"}catch(e){}q.textAlign="center";q.textBaseline="middle";let w=text.length*7;try{if(q.measureText)w=Math.ceil(q.measureText(text).width)}catch(e){}const hh=Math.ceil(f*1.3);cx=Math.max(w/2+4,Math.min(vw-w/2-4,cx));cy=Math.max(hh/2+2,Math.min(vh-hh/2-2,cy));q.fillStyle="#161628";q.fillRect(Math.round(cx-w/2-3),Math.round(cy-hh/2),w+6,hh);q.fillStyle=color||"#ffffff";q.fillText(text,Math.round(cx),Math.round(cy))}
 function glyph2(q,p,x,y,s){for(let i=0;i<15;i++)if(p[i]==="1"){q.fillStyle="#161628";q.fillRect(x+(i%3)*s-1,y+Math.floor(i/3)*s-1,s+2,s+2);q.fillStyle="#ffffff";q.fillRect(x+(i%3)*s,y+Math.floor(i/3)*s,s,s)}}
 // v0.9.1: galaxy world is 640x800 world units (SYS x/y * 5), canvas 384x480.
 // drawGalaxy(q) with no camera still works: it defaults to the fit view
 // (whole world visible, zoom 1). Planets are ~2x larger and labelled.
 // drawGalaxy(q, cam) draws the camera window: cam={cx,cy,zoom}, zoom 1-2.5,
 // cx/cy = world point at the centre of the canvas. Sprites scale with zoom.
-function drawGalaxy(q,cam){const F=Math.floor(Date.now()/500),cam2=cam||{cx:320,cy:400,zoom:1},fit=Math.min(384/640,480/800),sc=fit*cam2.zoom,ox=192-cam2.cx*sc,oy=240-cam2.cy*sc,PX=wx=>ox+wx*sc,PY=wy=>oy+wy*sc,WX=s=>s.x*5,WY=s=>s.y*5;
-q.drawImage(gbg(),0,0);
-for(let i=0;i<120;i++){const sz=i%9===0?3:i%3===0?2:1;q.fillStyle=(i+F)%13===0?"#ffffff":i%3?"#5a6bb0":"#8fa0e0";q.fillRect((i*37)%382,(i*53)%478,sz,sz)}
+function drawGalaxy(q,cam){const F=Math.floor(Date.now()/500),cam2=cam||{cx:320,cy:400,zoom:1},vw=q.canvas.width||384,vh=q.canvas.height||480,sc=(vh/800)*cam2.zoom,ox=vw/2-cam2.cx*sc,oy=vh/2-cam2.cy*sc,PX=wx=>ox+wx*sc,PY=wy=>oy+wy*sc,WX=s=>s.x*5,WY=s=>s.y*5,fs=Math.max(11,Math.round(11*sc/1.2));
+q.drawImage(gbgFor(vw,vh),0,0);
+for(let i=0;i<120;i++){const sz=i%9===0?3:i%3===0?2:1;q.fillStyle=(i+F)%13===0?"#ffffff":i%3?"#5a6bb0":"#8fa0e0";q.fillRect((i*37)%Math.max(1,vw-2),(i*53)%Math.max(1,vh-2),sz,sz)}
 SYS.forEach((s,i)=>s.l.forEach(j=>{if(j>i){const a=PX(WX(s)),b=PY(WY(s)),c=PX(WX(SYS[j])),d=PY(WY(SYS[j])),n=Math.max(2,Math.round(Math.hypot(c-a,d-b)/4)),both=S.won.includes(i)&&S.won.includes(j),th=both?3:2;q.fillStyle=both?"#6ee7f5":"#3a4a9a";for(let k=1;k<n;k++)q.fillRect(Math.round(a+(c-a)*k/n),Math.round(b+(d-b)*k/n),th,th)}}));
-SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l"),sp=psp(i,st),cx=PX(WX(s)),cy=PY(WY(s)),baseR=i===0?18:i===15?20:14,zw=sp.width*sc*1.5,zh=sp.height*sc*1.5,r=baseR*sc*1.5;
+const labels=[];
+SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l"),sp=psp(i,st),cx=PX(WX(s)),cy=PY(WY(s)),baseR=i===0?18:i===15?20:14,zw=sp.width*sc*1.2,zh=sp.height*sc*1.2,r=baseR*sc*1.2;
 q.drawImage(sp,cx-(zw>>1),cy-(zh>>1),zw,zh);
 if(own&&i>0){const fw=Math.max(8,Math.round(r*.7));q.fillStyle="#fff";q.fillRect(Math.round(cx+r-2),Math.round(cy-r-fw),2,fw);q.fillStyle="#6ee7f5";q.fillRect(Math.round(cx+r-1),Math.round(cy-r-fw),Math.max(8,fw),Math.max(4,fw>>1))}
 if(o)glyph2(q,o==="c"?"111100100100111":"101101101101010",Math.round(cx-3),Math.round(cy-3),2);
 if(i===S.sel){q.fillStyle=F&1?"#ffe066":"#ffffff";const z=r+8,bs=Math.max(3,Math.round(2*cam2.zoom));[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(d=>{q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?bs*2:0)),Math.round(cy+d[1]*z-(d[1]>0?1:0)),bs*2+1,bs);q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?1:0)),Math.round(cy+d[1]*z-(d[1]>0?bs*2:0)),bs,bs*2+1)})}
-if(cam2.zoom>=1.5){drawLabel(q,s.n,cx,cy+zh/2+12,own?"#6ee7f5":o==="c"?"#ff9a8a":o==="v"?"#d0b0ff":avail(i)?"#ffe066":"#aab4c9");if(cam2.zoom>=1.8&&s.pw!==undefined)drawLabel(q,"PWR "+spw(i),cx,cy+zh/2+28,"#ffffff")}})}
+if(cam2.zoom>=1.5)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o==="c"?"#ff9a8a":o==="v"?"#d0b0ff":avail(i)?"#ffe066":"#aab4c9",fs});
+if(cam2.zoom>=2&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});});
+labels.forEach(l=>drawLabel(q,l.text,l.cx,l.cy,l.color,l.fs));}
 // UI OVERHAUL v0.9: sprite helpers for the full System / Building pages.
 // They reuse the exact sprites drawGalaxy / drawBase already draw.
 function planetSprite(i){const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l");return psp(i,st)}

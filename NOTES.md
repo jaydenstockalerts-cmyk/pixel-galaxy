@@ -48,7 +48,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - Build times and costs, quest rewards, adjacency bonus size, ship timers
 
 ## Rules for working on this
-- index.html loads files as `data.js?v=14` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
+- index.html loads files as `data.js?v=15` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
 - Keep game data in `data.js`, logic in `game.js`.
 - Ask for targeted edits to specific functions, not full rewrites.
 - If the save format changes, bump the localStorage key.
@@ -56,3 +56,5 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 
 ## Ideas next
 Building-specific bonuses, decorations/roads, defense buildings against raids, bigger base map via Command level, formations and commander abilities in battle.
+
+- v0.9.3 live visual-bug repair: internal canvas resized to viewport aspect (planets are circles, not ellipses), labels clamped inside the canvas, HUD/hint/minimap clear of each other, Home World popup has its own base text (no NaN), popups are full-width buttons, station camera centred on buildings at zoom 2.2. `?v=15`.
