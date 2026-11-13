@@ -17,6 +17,7 @@ let S=load();recalc();
 // saved in S and never change the save format (still pixelgalaxy-v3).
 const WORLD={w:640,h:800,px:5}; // galaxy world, SYS x/y * 5 (v0.9.1: bigger, detailed map)
 let CAM={cx:320,cy:400,zoom:0.8}; // v1.5 default = fit view (whole galaxy in the safe area, bottom row visible). Home button still zooms to Home World at 1.8.
+let camFitted=false; // v1.6: true while the camera is still in its default fit state — a resize refits it; any deliberate zoom/pan clears it.
 let PAGE={kind:"tab"}; // tab | empire only — system/building/plot are popups now (v0.9.2)
 // v0.9.2 popups: VIEW-ONLY, never saved. Map/station stay visible behind.
 let POP=null; // null | {kind:"system",i} | {kind:"building",u} | {kind:"plot",x,y}
@@ -140,14 +141,22 @@ const camScale=()=>((cv.height||480)/WORLD.h)*CAM.zoom;
 // Visible world height is the safe height, so nothing the camera shows
 // is ever drawn under the top or bottom bar.
 const safeH=()=>Math.max(1,(cv.height||480)-UIIN.top-UIIN.bottom);
+// v1.6 GALAXY BOTTOM MARGIN: the galaxy camera must keep the lowest
+// planet LABEL at least ~60px above the dock at full size. Live v1.5:
+// at ~1100px wide the Dark Nexus label was clipped by the dock, and
+// even at full size it sat only ~25px above it. fitCam/clampCam now
+// work against a safe height 120 canvas px shorter, so the world
+// bottom (and its labels) sit ~60px above the dock instead of on it.
+const GAL_BOT_PAD=140; // ~60px+ above the dock at full size (see below)
+const galSafeH=()=>Math.max(1,safeH()-GAL_BOT_PAD);
 const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:(cv.width||384)/2+(wx-CAM.cx)*sc,y:safeCyCv()+(wy-CAM.cy)*sc}};
 const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-(cv.width||384)/2)/sc,y:CAM.cy+(sy-safeCyCv())/sc}};
-function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=safeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
-function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-safeCyCv())/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-safeCyCv())/s1}clampCam()}
-function flyTo(i){const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
-function fitCam(){const vh=safeH(),vw=cv.width||384,ch=cv.height||480;
+function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=galSafeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
+function setZoom(z,px,py){camFitted=false;const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-safeCyCv())/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-safeCyCv())/s1}clampCam()}
+function flyTo(i){camFitted=false;const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
+function fitCam(){const vh=galSafeH(),vw=cv.width||384,ch=cv.height||480;
   const sc=Math.min(vw/WORLD.w,vh/WORLD.h); // world must fit the SAFE area
-  CAM={cx:320,cy:400,zoom:Math.max(.3,Math.min(2.5,sc*WORLD.h/ch))};clampCam()}
+  CAM={cx:320,cy:400,zoom:Math.max(.3,Math.min(2.5,sc*WORLD.h/ch))};clampCam();camFitted=true}
 function homeCam(){flyTo(0)}
 function openSystem(i){S.sel=i;POP={kind:"system",i};flyTo(i);showPopup();update();save()}
 function openBuilding(u){S.bsel=u;POP={kind:"building",u};showPopup();update();save()}
@@ -267,7 +276,12 @@ if(inf)inf.innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring 
 if(a){a.disabled=own||!av||total()<1;a.textContent=own?"Owned":"Attack"}}}
 baseUI(now);
 upd2();
-const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok()).slice(0,3)),key=open.map(q=>q.id+(q.ok()?1:0)).join();
+// v1.6: show ALL quests. Live v1.5: only completed + the first 3
+// incomplete were shown, so q14 "Repel a rival raid" was invisible
+// on a fresh profile (only Build a Crystal Mine / Build a Hangar /
+// Launch your first ship were listed). Display only — no quest
+// condition or reward changes.
+const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok())),key=open.map(q=>q.id+(q.ok()?1:0)).join();
 if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — repel one with a stronger fleet. How raids work: see the Empire page.</small>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
 popupUI();empireUI();activityUI();progressBars();
 draw();
@@ -278,7 +292,10 @@ const cv=$("#cv"),x=cv.getContext("2d"),st=$("#st"),y=st.getContext("2d");
 // circles, not stretched ellipses. Called on load, on resize, and on tab
 // switch (a hidden canvas reports 0 size, so keep the old size then).
 function sizeCanvas(c){try{const r=c.getBoundingClientRect();if(!r||r.width<10||r.height<10)return;let w=Math.round(r.width),h=Math.round(r.height);const k=Math.min(1,1600/w,1200/h);w=Math.max(320,Math.round(w*k));h=Math.max(320,Math.round(h*k));if(c.width!==w||c.height!==h){c.width=w;c.height=h}}catch(e){}}
-function sizeCanvases(){measureUI();sizeCanvas(cv);sizeCanvas(st);clampCam();clampStCam()}
+// v1.6: a resize refits the galaxy camera ONLY while it is still in
+// its default fit state — otherwise a window resize would yank the
+// camera away from wherever the player deliberately zoomed/panned it.
+function sizeCanvases(){measureUI();sizeCanvas(cv);sizeCanvas(st);if(camFitted)fitCam();clampCam();clampStCam()}
 if(typeof window!=="undefined"&&window.addEventListener)window.addEventListener("resize",()=>{sizeCanvases();update()});
 sizeCanvases();
 function pal(){const cs=getComputedStyle(document.documentElement),c={};[["b","--bg"],["h","--hi"],["m","--mid"],["f","--fg"]].forEach(a=>c[a[0]]=cs.getPropertyValue(a[1]).trim());return c}
@@ -309,7 +326,7 @@ st.addEventListener("dblclick",e=>{const q=st.getBoundingClientRect();setStZoom(
 const pointers=new Map();let pStart=null,pDrag=false,pPinch=0;
 cv.addEventListener("pointerdown",e=>{if(POP)return; // v1.4: map cannot steal a popup tap
 if(cv.setPointerCapture)try{cv.setPointerCapture(e.pointerId)}catch(_){}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){pStart={x:e.clientX,y:e.clientY};pDrag=false}else if(pointers.size===2){const a=[...pointers.values()];pPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);pDrag=true}});
-cv.addEventListener("pointermove",e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=cv.getBoundingClientRect();if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(pPinch>0)setZoom(CAM.zoom*d/pPinch,(mx-q.left)/q.width*cv.width,(my-q.top)/q.height*cv.height);pPinch=d;update();return}if(pStart){const dx=e.clientX-pStart.x,dy=e.clientY-pStart.y;if(Math.abs(dx)+Math.abs(dy)>8)pDrag=true;if(pDrag){const sc=camScale();CAM.cx-=dx/q.width*cv.width/sc;CAM.cy-=dy/q.height*cv.height/sc;pStart={x:e.clientX,y:e.clientY};clampCam();update()}}});
+cv.addEventListener("pointermove",e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=cv.getBoundingClientRect();if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(pPinch>0)setZoom(CAM.zoom*d/pPinch,(mx-q.left)/q.width*cv.width,(my-q.top)/q.height*cv.height);pPinch=d;update();return}if(pStart){const dx=e.clientX-pStart.x,dy=e.clientY-pStart.y;if(Math.abs(dx)+Math.abs(dy)>8)pDrag=true;if(pDrag){camFitted=false;const sc=camScale();CAM.cx-=dx/q.width*cv.width/sc;CAM.cy-=dy/q.height*cv.height/sc;pStart={x:e.clientX,y:e.clientY};clampCam();update()}}});
 const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(pointers.size===0&&pStart&&!pDrag){const q=cv.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*cv.width,sy=(e.clientY-q.top)/q.height*cv.height,w=screenToWorld(sx,sy),lx=w.x/WORLD.px,ly=w.y/WORLD.px;let best=-1,bd=100;SYS.forEach((s,i)=>{const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});if(best>=0)openSystem(best)}pStart=null;pDrag=false};
 cv.addEventListener("pointerup",cvEnd);cv.addEventListener("pointercancel",cvEnd);
 cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=cv.getBoundingClientRect();setZoom(CAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*cv.width,(e.clientY-q.top)/q.height*cv.height);update()},{passive:false});
@@ -318,7 +335,7 @@ const popEl=$("#pop");
 if(popEl){popEl.addEventListener("click",e=>{if(e.target===popEl)closePopup()});
 popEl.addEventListener("pointerup",e=>{if(e.target===popEl)closePopup()});} // v1.4: backdrop works on touch too
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){const m=$("#menu");if(m&&!m.hidden&&m.classList.contains("open"))closeMenu();else if(POP)closePopup();else if(PAGE.kind!=="tab")goBack();}});
-const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
+const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{camFitted=false;const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
 function handleBodyClick(e){
 const b=e.target.closest("button");if(!b)return;
 const d=b.dataset;ac();sfx("click");done();
