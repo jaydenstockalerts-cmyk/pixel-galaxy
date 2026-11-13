@@ -175,7 +175,16 @@ section[data-pg="fleet"],section[data-pg="crew"],section[data-pg="research"],sec
 .mapwrap{position:absolute;inset:0;border:0;margin:0;background:#0a0e2a}
 .mapwrap #cv,.mapwrap #st{border:0;margin:0;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges}
-#mm{position:absolute;top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px;width:72px;height:90px;border:2px solid var(--fg);border-radius:var(--radius-sm);margin:0;background:#0a0e2a;cursor:pointer;z-index:2}
+#mm{position:fixed;top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px;width:72px;height:90px;border:2px solid var(--fg);border-radius:var(--radius-sm);margin:0;background:#0a0e2a;cursor:pointer;z-index:2}
+/* v1.7: the minimap is FIXED to the viewport, not absolute inside the
+   map wrap — at ~1100px wide and below it was clipped by the right
+   edge of the screen (live v1.6), which only happens if its
+   containing block is wider than the viewport. Fixed + right:8px
+   makes it inside the viewport by construction. It also shrinks at
+   narrow widths so it never crowds the hint chip, and it is never
+   half-clipped: full minimap or (below 360px) a small one. */
+@media (max-width:700px){#mm{width:56px;height:70px}}
+@media (max-width:420px){#mm{width:44px;height:55px}}
 .mapctl{position:absolute;left:6px;bottom:calc(var(--dock-h) + 16px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;z-index:2}
 .mapctl button{min-width:44px;min-height:44px;padding:4px 10px;background:var(--glass);color:var(--fg);border:2px solid var(--fg);border-radius:var(--radius-sm)}
 .mapchip{position:absolute;z-index:2;background:var(--glass);color:var(--fg);border:2px solid var(--fg);border-radius:var(--radius-sm);padding:4px 8px;font-size:12px}
