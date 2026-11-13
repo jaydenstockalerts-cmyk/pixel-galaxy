@@ -92,12 +92,15 @@ function glyph(q,p,x,y){q.fillStyle="#161628";for(let i=0;i<15;i++)if(p[i]==="1"
 // for grid coords (gx,gy); a tile is a 64x32 diamond (axes ~26.57°).
 // Ground is drawn first, then buildings / decor / wall in painter's
 // order (back-to-front by x+y), so nearer buildings cover farther ones.
-// Buildings are extruded iso blocks: the existing pixel sprite is
-// sheared onto the TOP (roof) face, and the two visible front faces
-// are the same roof colour darkened (left 0.72x, right 0.52x), so the
-// block reads as solid. Height grows with level; the Command Station
-// (the keep) is the tallest. A purple level shield floats above each
-// building, like Hobbit's level shields (1, 2, 5, 10).
+// v1.6: buildings are NOT extruded blocks. The extruded cube (v1.2–
+// v1.5) swallowed the sprite and its yellow top read as another grey
+// cube — the live v1.5 station was a pile of yellow-topped cubes.
+// Now a building is a LARGE upright pixel sprite standing on a FLAT
+// roof-coloured plinth diamond on the ground plane, with a drop
+// shadow under it. A purple level shield floats just above each
+// building, like Hobbit's level shields (1, 2, 5, 10). The plaza is
+// a flat stone diamond on the ground plane — never a block. The wall
+// and towers are flat stone diamonds too, at the city edge only.
 // v1.1 city dressing is kept in iso form: keep/plaza, districts by
 // building type, roads (cross through the keep + spur to every
 // building), wall + gates + corner towers that grow with the city,
@@ -116,7 +119,7 @@ function isoPt(gx,gy){return{x:(gx-gy)*ISO_TW/2,y:(gx+gy)*ISO_TH/2}}
 // tall, roof-coloured so the type colour reads) with the pixel sprite
 // drawn LARGE and upright on it (40x40 world units, keep 48x48).
 // Level is shown by the sprite tier + the level shield, not by height.
-const ISO_PLINTH_H=6, ISO_PLINTH_KEEP_H=8;
+const ISO_PLINTH_H=2, ISO_PLINTH_KEEP_H=3; // v1.6: plinth is FLAT (was 6/8 tall) — a low coloured platform, not a cube
 const ISO_SPRITE_W=40, ISO_SPRITE_H=40, ISO_SPRITE_KEEP_W=48, ISO_SPRITE_KEEP_H=48;
 function isoPlinthH(b){return b&&b.t==="command"?ISO_PLINTH_KEEP_H:ISO_PLINTH_H}
 function isoSpriteSize(b){return b&&b.t==="command"?{w:ISO_SPRITE_KEEP_W,h:ISO_SPRITE_KEEP_H}:{w:ISO_SPRITE_W,h:ISO_SPRITE_H}}
@@ -124,18 +127,25 @@ function isoHeight(b){const s=isoSpriteSize(b);return isoPlinthH(b)+s.h} // top 
 function isoCellFromPoint(wx,wy){const gx=wx/(ISO_TW/2),gy=wy/(ISO_TH/2);return{i:Math.floor((gx+gy)/2),j:Math.floor((gy-gx)/2)}}
 function shade(hex,f){const n=parseInt(hex.slice(1),16);return"rgb("+Math.round(((n>>16)&255)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")"}
 function isoBuildingHit(wx,wy,b){
-  // v1.5: the hitbox is the WHOLE visible building — ground diamond +
-  // low plinth + the full upright sprite + the level shield above it.
-  // v1.4 only tested the tiny sprite, so taps on the big cube/roof and
-  // side wall did nothing. Now a tap on the roof centre, a side wall,
-  // the sprite, or the shield all select the same building.
+  // v1.6 TIGHT hitbox: the WHOLE visible building, but nothing more.
+  // Live v1.5: taps on the blue tiles above the Solar Array selected
+  // it — the old hitbox was the full sprite rectangle (40 wide, 46
+  // tall) plus a 12-radius shield circle, so it swallowed the ground
+  // behind/above the building. Now:
+  //  (1) shield: radius 9, only the diamond itself;
+  //  (2) sprite BODY: the lower part of the sprite only, width
+  //      s.w/2-4 — the tall top of the sprite no longer claims the
+  //      plot behind it, and a tap one tile above/beside (offset
+  //      +/-32 in x in iso space) falls outside it;
+  //  (3) plinth: the actual plinth diamond (rx 22 / ry 11, keep
+  //      26/13), not the oversized 26/13 ground diamond.
+  // Roof centre (plinth centre), plinth side and sprite body all
+  // select the building; ground one tile away selects that plot.
   const c=isoC(b.x,b.y), s=isoSpriteSize(b), ph=isoPlinthH(b);
-  // (1) level shield above the sprite
-  if(Math.hypot(wx-c.x,wy-(c.y-ph-s.h-14))<=12)return true;
-  // (2) the sprite itself: an upright rectangle above the plinth
-  if(Math.abs(wx-c.x)<=s.w/2+3&&wy>=c.y-ph-s.h-2&&wy<=c.y-ph+4)return true;
-  // (3) the low plinth / ground diamond the building sits on
-  return Math.abs(wx-c.x)/26+Math.abs(wy-c.y)/13<=1.05;
+  if(Math.hypot(wx-c.x,wy-(c.y-ph-s.h-14))<=9)return true;
+  if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=c.y-ph-s.h+14&&wy<=c.y-ph+2)return true;
+  const rx=b.t==="command"?26:22, ry=b.t==="command"?13:11;
+  return Math.abs(wx-c.x)/rx+Math.abs(wy-c.y)/ry<=1.0;
 }
 const DISTTINT={solar:"#ffe066",foundry:"#ff9a3c",mine:"#b07cf0",hub:"#9be8ff",hangar:"#4aa3df",command:"#f4f6ff"};
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};
@@ -166,7 +176,8 @@ const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Indus
 //     gone with the gates.
 //  7. Shields tiny/misplaced — now drawn in SCREEN space at a fixed
 //     13px radius, one per building, in a second pass on top of
-//     everything, with a stem connecting the shield to its building.
+//     everything. (v1.6: the stem that connected shield to building
+//     is removed — it read as a purple plumb-line through the sprite.)
 //  8. Trees pasted on buildings — decor now only on empty plots
 //     OUTSIDE the wall, never adjacent to a building, ground-anchored.
 const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#5a6b8a",command:"#ffd84a"}; // v1.5: hangar slate-blue (was grey #7c849c, read as another grey cube)
@@ -233,11 +244,14 @@ function drawBase(q,cam,opts){
   cells.forEach(([i,j])=>{
     const c=isoC(i,j);
     if(i<0||j<0||i>11||j>11){
-      if(i===-1&&j>=0&&j<=11){ // river band along the NW edge, clear of plots
-        dia(c.x,c.y,32,16,"#2f78b0");
-        dia(c.x,c.y,24,12,"#4aa3df");
-        q.globalAlpha=.85;q.fillStyle="#9be8ff";q.fillRect(X(c.x-14),Y(c.y-1),Math.max(4,28*k),Math.max(1,2*k));q.globalAlpha=1;
-        diaStroke(c.x,c.y,32,16,"#cdb98a",Math.max(1,2*k)); // sand banks
+      if(i===-1&&j>=0&&j<=11){ // v1.6 river: NARROW (20x10, was 32x16),
+        // deep blue with a sand bank on each side and a light flow
+        // line down the middle — it must read as one continuous
+        // stream, not a field of bright-blue tiles.
+        dia(c.x,c.y,20,10,"#cdb98a"); // sand banks (outer)
+        dia(c.x,c.y,16,8,"#2f78b0"); // water
+        dia(c.x,c.y,11,5,"#4aa3df"); // lighter centre flow
+        q.fillStyle="#9be8ff";q.fillRect(X(c.x)-Math.max(2,6*k),Y(c.y)-1,Math.max(4,12*k),Math.max(1,2*k));
       } else { // terrain outside the city: grass, never void
         dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#5fae4f"); // v1.5: one grass tone, no checker
       }
@@ -249,8 +263,7 @@ function drawBase(q,cam,opts){
     else if(keep&&Math.abs(i-keep.x)<=1&&Math.abs(j-keep.y)<=1)base="#c9c3b0"; // keep plaza ring (the big plaza diamond covers it)
     dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,base); // spaced diamond: grass gap between plots
     diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"rgba(0,0,0,0.05)",1); // faint border only
-    if(bd0)dia(c.x,c.y,24,12,DISTTINT[bd0.t]||"#ffffff",.12); // district tint, inset diamond, subtle
-    else if((i<wx0||i>wx1||j<wy0||j>wy1)&&(i*3+j*7)%29===0&&farmN<5){ // v1.5: farmland is ~5 muted plots, not one per tile
+    if(!bd0&&(i<wx0||i>wx1||j<wy0||j>wy1)&&(i*3+j*7)%29===0&&farmN<5){ // v1.5: farmland is ~5 muted plots, not one per tile
       farmN++;
       for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,12,2,(i+j+r)%2?"#d8c98a":"#6fae4f",.55);
     }
@@ -292,15 +305,6 @@ function drawBase(q,cam,opts){
     Object.values(dist2).forEach(bs=>{const cx2=Math.round(bs.reduce((s,b)=>s+b.x,0)/bs.length),cy2=Math.round(bs.reduce((s,b)=>s+b.y,0)/bs.length);roadLine([[keep.x,keep.y],[cx2,keep.y],[cx2,cy2]])});
   }
   // --- objects: wall, towers, buildings, decor — painter's order ---
-  // block(): extruded iso block with a CLEAN roof diamond (no sheared
-  // sprite — the sprite is drawn upright on top afterwards).
-  const block=(cx,cy,H,base,top,rx,ry)=>{
-    rx=rx||32;ry=ry||16;
-    dia(cx,cy+2,rx*.9,ry*.9,"#000000",.25); // ground shadow = the gap between neighbours
-    poly([[cx-rx,cy-H],[cx,cy-H+ry],[cx,cy+ry],[cx-rx,cy]],shade(base,.72));
-    poly([[cx+rx,cy-H],[cx,cy-H+ry],[cx,cy+ry],[cx+rx,cy]],shade(base,.52));
-    dia(cx,cy-H,rx,ry,top||shade(base,1.2));
-  };
   const objs=[];
   const keepX=keep?keep.x:-1,keepY=keep?keep.y:-1;
   for(let i=wx0;i<=wx1;i++){
@@ -327,20 +331,23 @@ function drawBase(q,cam,opts){
   const labels=[]; // second pass: shields + names drawn on top, screen space
   objs.forEach(o=>{
     if(o.kind==="wall"){
+      // v1.6: the wall is FLAT — a stone ring drawn on the ground
+      // plane, no extruded block. Live v1.5: the 12-tall grey wall
+      // blocks + gold towers ringed the tiny fresh cluster so closely
+      // that the centre read as a stack of yellow-topped grey cubes.
       const c=isoC(o.i,o.j);
-      // v1.5: a LOW wall (12 tall, ry 13 = its ground diamond, so its
-      // front point exactly meets the ground instead of overhanging it
-      // and looking floating). Was 22 tall / ry 16 — another grey cube.
-      block(c.x,c.y,12,"#8f8a76","#c9c3b0",32,13);
-      // Crenellations sit ON the wall top, touching it.
-      [-14,0,14].forEach(dx=>{const px=X(c.x+dx),py=Y(c.y-12-(dx===0?8:4));q.fillStyle="#c9c3b0";q.fillRect(px-2,py-2,Math.max(2,3*k),Math.max(2,3*k))});
+      dia(c.x,c.y,26,13,"#8f8a76");
+      dia(c.x,c.y,20,10,"#c9c3b0");
+      [-12,0,12].forEach(dx=>{q.fillStyle="#8f8a76";q.fillRect(X(c.x+dx)-Math.max(1,1.5*k),Y(c.y-8)-Math.max(1,1.5*k),Math.max(2,3*k),Math.max(2,3*k))});
       return;
     }
     if(o.kind==="tower"){
+      // v1.6: towers are flat stone diamonds with a gold centre dot —
+      // corner markers, not cubes.
       const c=isoC(o.i,o.j);
-      // v1.5: towers are small corner markers (14 tall, 32x16), NOT the
-      // four huge 36-tall gold cubes that dominated the v1.4 base.
-      block(c.x,c.y,14,"#8f8a76","#ffd84a",16,8);
+      dia(c.x,c.y,16,8,"#8f8a76");
+      dia(c.x,c.y,10,5,"#c9c3b0");
+      q.fillStyle="#ffd84a";q.fillRect(X(c.x)-Math.max(1,2*k),Y(c.y)-Math.max(1,2*k),Math.max(2,4*k),Math.max(2,4*k));
       return;
     }
     if(o.kind==="decor"){
@@ -351,15 +358,20 @@ function drawBase(q,cam,opts){
     const b=o.b,c=isoC(b.x,b.y),isKeep=keep&&b.u===keep.u;
     const roof=ROOF[b.t]||"#aab4c9";
     const ph=isoPlinthH(b), ssz=isoSpriteSize(b);
-    // v1.5: the sprite IS the building. A LOW plinth (6u, roof-coloured)
-    // grounds it; the sprite is drawn LARGE and upright on the plinth.
-    // The tall extruded cube is gone — it swallowed the sprite.
+    // v1.6: the sprite IS the building, standing on a FLAT plinth.
+    // The extruded block is gone entirely (it swallowed the sprite
+    // in v1.4/v1.5 and its yellow top read as another cube). The
+    // plinth is a flat coloured diamond on the ground plane, the
+    // sprite is drawn LARGE and upright with its bottom overlapping
+    // the plinth by 3u — so there is NO white gap under the sprite —
+    // and a dark translucent shadow diamond grounds the whole thing.
     const rx=isKeep?26:22,ry=isKeep?13:11; // plinth 44x22 (keep 52x26) on a 64x32 pitch
-    block(c.x,c.y,ph,roof,shade(roof,1.18),rx,ry);
-    dia(c.x,c.y-ph,rx*.62,ry*.62,shade(roof,1.35)); // lighter plinth top, visible as a coloured rim around the sprite
+    dia(c.x,c.y+3,rx+4,ry+2,"#000000",.28); // drop shadow on the ground
+    dia(c.x,c.y,rx,ry,shade(roof,.85)); // flat plinth, roof-coloured
+    dia(c.x,c.y,rx*.62,ry*.62,shade(roof,1.3)); // lighter centre, a coloured rim around the sprite
     const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));
     const ssw=Math.round(ssz.w*k),ssh=Math.round(ssz.h*k),spx=X(c.x),spy=Y(c.y-ph);
-    q.drawImage(sp,spx-ssw/2,spy-ssh,ssw,ssh);
+    q.drawImage(sp,spx-ssw/2,spy-ssh+Math.max(2,3*k),ssw,ssh); // bottom overlaps the plinth: no gap
     // Production effects, anchored to the sprite (never floating above it).
     if(b.l>0){
       const sTop=spy-ssh;
@@ -379,10 +391,12 @@ function drawBase(q,cam,opts){
     if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H:isoHeight(b)});
   });
   // --- second pass: level shields + names, screen space, always on top.
-  // Shield: fixed 13px radius, stem connects it to its own building.
+  // Shield: fixed 13px radius, just above the sprite (no stem, v1.6).
   labels.forEach(L=>{
     const shx=L.roofX,shy=L.roofY-L.ss-16;
-    q.fillStyle="#7a4fc0";q.fillRect(shx-1,shy+12,2,L.ss+4); // stem down to the sprite
+    // v1.6: NO stem — the old purple plumb-line ran down through
+    // the sprite and reinforced the floating look. The shield sits
+    // just above the sprite with a small gap; the name sits above it.
     q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-13);q.lineTo(shx+13,shy);q.lineTo(shx,shy+13);q.lineTo(shx-13,shy);q.closePath();q.fill();
     q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
     try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
@@ -426,7 +440,9 @@ q.drawImage(sp,cx-(zw>>1),cy-(zh>>1),zw,zh);
 if(own&&i>0){const fw=Math.max(8,Math.round(r*.7));q.fillStyle="#fff";q.fillRect(Math.round(cx+r-2),Math.round(cy-r-fw),2,fw);q.fillStyle="#6ee7f5";q.fillRect(Math.round(cx+r-1),Math.round(cy-r-fw),Math.max(8,fw),Math.max(4,fw>>1))}
 if(o)glyph2(q,o==="c"?"111100100100111":"101101101101010",Math.round(cx-3),Math.round(cy-3),2);
 if(i===S.sel){q.fillStyle=F&1?"#ffe066":"#ffffff";const z=r+8,bs=Math.max(3,Math.round(2*cam2.zoom));[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(d=>{q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?bs*2:0)),Math.round(cy+d[1]*z-(d[1]>0?1:0)),bs*2+1,bs);q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?1:0)),Math.round(cy+d[1]*z-(d[1]>0?bs*2:0)),bs,bs*2+1)})}
-if(cam2.zoom>=0.55)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o==="c"?"#ff9a8a":o==="v"?"#d0b0ff":avail(i)?"#ffe066":"#aab4c9",fs});
+// v1.6: name threshold was 0.55 — the extra galaxy bottom margin
+// lowers the fit zoom on narrow screens, and names must still show.
+if(cam2.zoom>=0.4)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o==="c"?"#ff9a8a":o==="v"?"#d0b0ff":avail(i)?"#ffe066":"#aab4c9",fs});
 if(cam2.zoom>=1.2&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});});
 labels.forEach(l=>drawLabel(q,l.text,l.cx,l.cy,l.color,l.fs));}
 // UI OVERHAUL v0.9: sprite helpers for the full System / Building pages.
