@@ -168,11 +168,12 @@ function isoPt(gx,gy){return{x:(gx-gy)*ISO_TW/2,y:(gx+gy)*ISO_TH/2}}
 // building — it was drawn far too big relative to the sprite, so the
 // sprite looked tiny and buried inside a huge yellow/grey cube, and the
 // four corner towers (36 tall, gold roof) read as the four huge yellow
-// cubes that dominated the base. Now a building is a LOW plinth (6u
-// tall, roof-coloured so the type colour reads) with the pixel sprite
-// drawn LARGE and upright on it (40x40 world units, keep 48x48).
+// cubes that dominated the base. Now a building is a small neutral
+// basalt platform (v2.3: 24x12, #4b4b57 — was a LOW roof-coloured
+// plinth) with the pixel sprite drawn LARGE and upright on it
+// (36x36 world units, keep 42x42).
 // Level is shown by the sprite tier + the level shield, not by height.
-const ISO_PLINTH_H=2, ISO_PLINTH_KEEP_H=3; // v1.6: plinth is FLAT (was 6/8 tall) — a low coloured platform, not a cube
+const ISO_PLINTH_H=2, ISO_PLINTH_KEEP_H=3; // v1.6: plinth is FLAT (was 6/8 tall) — a low platform, not a cube (v2.3: the platform is basalt, not roof-coloured)
 const ISO_SPRITE_W=36, ISO_SPRITE_H=36, ISO_SPRITE_KEEP_W=42, ISO_SPRITE_KEEP_H=42; // v1.9: smaller (was 40/48) — adjacent buildings keep clear ground between them (live v1.8: the Foundry abutted the keep)
 function isoPlinthH(b){return b&&b.t==="command"?ISO_PLINTH_KEEP_H:ISO_PLINTH_H}
 function isoSpriteSize(b){return b&&b.t==="command"?{w:ISO_SPRITE_KEEP_W,h:ISO_SPRITE_KEEP_H}:{w:ISO_SPRITE_W,h:ISO_SPRITE_H}}
@@ -208,7 +209,12 @@ function isoBuildingHit(wx,wy,b,k){
     const hw=wy<yTop+12?10:21;
     if(Math.abs(wx-c.x)<=hw&&wy>=yTop&&wy<=yBot)return true;
   } else if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=yTop&&wy<=yBot)return true;
-  const rx=b.t==="command"?22:20, ry=b.t==="command"?11:10; // v2.0: plinths are 40x20 (keep 44x22)
+  // v2.3: the HIT zone stays the plot-sized ground diamond (40x20,
+  // keep 44x22) — a generous tap target on phones — even though the
+  // DRAWN plinth is now a small 24x12 basalt platform. Hit-testing
+  // and drawing are deliberately separate: shrinking the plinth must
+  // never shrink the tap target.
+  const rx=b.t==="command"?22:20, ry=b.t==="command"?11:10;
   return Math.abs(wx-c.x)/rx+Math.abs(wy-c.y)/ry<=1.0;
 }
 const DISTTINT={solar:"#ffe066",foundry:"#ff9a3c",mine:"#b07cf0",hub:"#9be8ff",hangar:"#4aa3df",command:"#f4f6ff"};
@@ -251,15 +257,18 @@ const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Indus
 //     is removed — it read as a purple plumb-line through the sprite.)
 //  8. Trees pasted on buildings — decor now only on empty plots
 //     OUTSIDE the wall, never adjacent to a building, ground-anchored.
-const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#5a6b8a",command:"#c9a86a"}; // v1.5: hangar slate-blue (was grey #7c849c, read as another grey cube). v1.9: command is a MUTED gold (was saturated lemon #ffd84a — the keep's plinth read as a bright yellow tile, live v1.8).
+const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#5a6b8a",command:"#c9a86a"}; // Per-type colours: they live in the SPRITE art and the selection outline ONLY. v2.3: ROOF no longer colours any ground fill — the plot-sized roof-coloured plinths read as coloured tiles (the blue Solar plinth was a pond, the gold keep plinth hid the plaza). v1.9: command is a MUTED gold (was saturated lemon #ffd84a — the keep's plinth read as a bright yellow tile, live v1.8).
 // ---- v1.5 sprite-is-the-building + clean ground + visible roads ----
 // Live v1.4 defects (seen at 1919x998, NOT headless): the four huge
 // yellow-topped cubes were the corner TOWERS (36 tall, gold roof) and
 // the wall segments (22 tall, beige top) — they dominated the base
 // while the real sprites were tiny and buried. The fix:
-//   plinth ................ FLAT 2u (keep 3u), 40x20 (keep 48x24),
-//     roof-coloured so the type colour reads as a rim around the sprite
-//     (v1.6: was a 6u/8u extruded block; v1.9: was 44x22 / 52x26)
+//   plinth ................ v2.3: ONE small neutral basalt platform
+//     (24x12, #4b4b57) for ALL types, keep included, + a soft
+//     y-offset shadow (alpha .18). The v2.2 plot-sized roof-coloured
+//     plinths (40x20, keep 44x22) read as coloured tiles on the
+//     ground, and the keep's hid the plaza entirely. Type colour
+//     lives ONLY in the sprite now.
 //   sprite ................ 36x36 world units, upright, LARGE (keep
 //     42x42) — the sprite IS the building, the plinth just grounds it (v1.9: was 40/48)
 //   wall .................. v2.1: DELETED ENTIRELY. The v2.0 thin
@@ -276,8 +285,9 @@ const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hanga
 //     rocks/craters/crystals, all outside the city.
 //   roads/plaza ........... v2.0: NO roads at all (Jayden had the
 //     paths removed entirely — they were complained about in every
-//     version). Plaza is ONE small flat stone diamond under the
-//     keep's own plot only.
+//     version). v2.3: NO plaza either — the v2.2 plaza diamond was
+//     drawn under the keep's plinth and never showed; the keep's
+//     basalt platform IS the plaza now.
 //   hitbox ................ isoBuildingHit is now the whole building
 //     (ground diamond + sprite rectangle + shield), not just the sprite.
 // Tile pitch stays 64x32, so the projection and tap math are untouched.
@@ -308,6 +318,18 @@ const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hanga
 // basalt diamond + soft shadow only, ground is Mars rust/sand with
 // NO green anywhere, river is a lava channel (basalt banks, molten
 // orange, bright centre), decor is rocks/craters/crystals only.
+// v2.3 (live v2.2): the Command plot still read wrong — a khaki
+// diamond ringed by a thick dark rim, and NO plaza visible. Root
+// cause: the "plaza" (28x14) was drawn UNDER the keep's 44x22
+// plinth, so it was fully covered (the v2.2 comment claiming it
+// was "just larger" than the plinth was wrong), and every
+// building's plot-sized roof-coloured plinth read as a coloured
+// tile (the Solar Array's blue plinth was a blue pond). Fixes:
+// plaza DELETED entirely (the keep's plinth IS the basalt
+// platform), every plinth is ONE small neutral basalt platform
+// (24x12, #4b4b57) + a soft y-offset shadow (alpha .18), and the
+// gold selection outline hugs the small platform and is drawn
+// BEFORE the sprite so it never crosses the building.
 const ISO_DIA_RX=26, ISO_DIA_RY=13;
 function drawBase(q,cam,opts){
   const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv;
@@ -320,7 +342,8 @@ function drawBase(q,cam,opts){
   const dia=(cx,cy,rx,ry,fill,al)=>poly([[cx,cy-ry],[cx+rx,cy],[cx,cy+ry],[cx-rx,cy]],fill,al);
   const diaStroke=(cx,cy,rx,ry,color,lw)=>{q.beginPath();q.moveTo(X(cx),Y(cy-ry));q.lineTo(X(cx+rx),Y(cy));q.lineTo(X(cx),Y(cy+ry));q.lineTo(X(cx-rx),Y(cy));q.closePath();q.strokeStyle=color;q.lineWidth=lw;q.stroke()};
   q.fillStyle="#c98a5a";q.fillRect(0,0,vw,vh); // v2.2 MARS: gaps between diamonds are light Mars sand, not a dark void
-  const keep=S.bl.find(b=>b.t==="command")||null;
+  // (v2.3: the `keep` lookup is gone with the plaza — nothing in
+  // drawBase needs the Command Station specially any more.)
   let mnx=12,mxx=-1,mny=12,mxy=-1;
   S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
   if(mxx<0){mnx=3;mxx=5;mny=3;mxy=5}
@@ -394,10 +417,10 @@ function drawBase(q,cam,opts){
     // a stray mark on a locked plot (live v2.1, SE quadrant) — it was
     // decorative clutter Jayden never asked for. Nothing replaces it.
     // v1.9: NO dim overlay on locked plots — a locked plot is clean
-    // green grass exactly like an unlocked one; the lock icon is drawn
-    // in a LAST pass (after plaza/roads/objects), so the plaza and the
-    // roads can no longer paint over it (live v1.8: locks were missing
-    // from plots near the keep and on road lines).
+    // rust exactly like an unlocked one; the lock icon is drawn
+    // in a LAST pass (after ground AND objects), so the ground and
+    // the buildings can no longer paint over it (live v1.8: locks
+    // were missing from plots near the keep and on road lines).
     // Foundation pad ONLY in Place/Move mode — normal ground is terrain, not grid.
     if(!bd0&&go&&!plotLocked(i,j)){
       dia(c.x,c.y,22,11,"#8f8a76");
@@ -408,20 +431,17 @@ function drawBase(q,cam,opts){
       q.globalAlpha=1;
     }
   });
-  // --- v2.2 plaza (no wall, no roads) ---
-  // The plaza is ONE flat diamond sized to the KEEP'S OWN PLOT only
-  // (28x14, just larger than the keep's 44x22 plinth) — a single
-  // diamond, never concentric ones (live v1.8: the stacked plaza
-  // diamonds read as "filled-in squares"). v2.2 MARS: dark basalt
-  // grey (#4b4b57, was beige/tan stone) + a SOFT shadow only — the
-  // hard border stroke read as a second rim around the diamond
-  // (live v2.1: grey-brown band on the SE edge, pale beige band on
-  // the NE edge).
-  if(keep){
-    const kpc=isoC(keep.x,keep.y);
-    dia(kpc.x,kpc.y+1,30,15,"#000000",.15); // soft shadow under the plaza
-    dia(kpc.x,kpc.y,28,14,"#4b4b57");
-  }
+  // --- v2.3: NO plaza diamond at all (deleted). The v2.2 plaza was
+  // a 28x14 basalt diamond drawn UNDER the keep's 44x22 plinth, so
+  // it was fully covered and never visible — the comment claiming
+  // it was "just larger than the keep's 44x22 plinth" was wrong
+  // (28x14 < 44x22). What the player actually saw on the Command
+  // plot was the khaki plinth ringed by its own dark shadow: a
+  // coloured tile with a thick dark rim, and no plaza. The keep's
+  // plinth IS the basalt platform now (see the objects loop below),
+  // so there is nothing left for a separate plaza to do. Future
+  // check: assert the keep plot's VISIBLE fills, never that a plaza
+  // draw call exists — a draw call under an opaque fill is dead code.
   // --- objects: buildings, decor — painter's order ---
   // v2.1: NO wall/tower objects — the wall is deleted entirely, so no
   // plot ever carries a wall tile.
@@ -445,23 +465,39 @@ function drawBase(q,cam,opts){
       q.drawImage(dc,X(c.x)-ds/2,Y(c.y+8)-ds,ds,ds); // bottom anchored to the ground
       return;
     }
-    const b=o.b,c=isoC(b.x,b.y),isKeep=keep&&b.u===keep.u;
-    const roof=ROOF[b.t]||"#aab4c9";
+    const b=o.b,c=isoC(b.x,b.y);
     const ph=isoPlinthH(b), ssz=isoSpriteSize(b);
-    // v1.6: the sprite IS the building, standing on a FLAT plinth.
-    // The extruded block is gone entirely (it swallowed the sprite
-    // in v1.4/v1.5 and its yellow top read as another cube). The
-    // plinth is a flat coloured diamond on the ground plane, the
-    // sprite is drawn LARGE and upright with its bottom overlapping
-    // the plinth by 3u — so there is NO white gap under the sprite —
-    // and a dark translucent shadow diamond grounds the whole thing.
-    // v2.1: the base is EXACTLY TWO fills — a soft drop shadow and ONE
-    // flat plinth diamond. The old stack (stone foundation + shadow +
-    // plinth + lighter centre = four concentric diamonds) read as
-    // stacked tiles under the building (live v2.0).
-    const rx=isKeep?22:20,ry=isKeep?11:10; // v2.0: plinth 40x20 (keep 44x22) on a 64x32 pitch — the keep plinth read as stacked tiles (live v1.9)
-    dia(c.x,c.y+3,rx+4,ry+2,"#000000",.32); // soft drop shadow on the ground
-    dia(c.x,c.y,rx,ry,shade(roof,.85)); // ONE flat plinth diamond, roof-coloured
+    // v2.3: the sprite IS the building, standing on a SMALL neutral
+    // basalt platform — the same 24x12 diamond for ALL six types,
+    // keep included. The v2.2 plot-sized roof-coloured plinths
+    // (40x20, keep 44x22) read as coloured tiles on the ground: the
+    // Solar Array's blue plinth was a blue pond, and the keep's
+    // muted-gold plinth completely covered the 28x14 plaza drawn
+    // under it (the plaza never showed — see the note above). Type
+    // colour now lives ONLY in the sprite/roof, never in a ground
+    // fill. The platform is clearly smaller than the 52x26 plot
+    // diamond, so it reads as a pad the building stands on, not a
+    // coloured tile. The sprite is drawn LARGE and upright with its
+    // bottom overlapping the platform by 3u — so there is NO white
+    // gap under the sprite.
+    // The base is EXACTLY TWO fills: a soft y-offset drop shadow
+    // (same 24x12 size, shifted down 2u, alpha .18 — it peeks below
+    // the platform as a crescent, never a uniform dark ring) and
+    // ONE flat basalt platform (#4b4b57). The old stack (stone
+    // foundation + shadow + plinth + lighter centre = four
+    // concentric diamonds) read as stacked tiles (live v2.0).
+    const rx=12,ry=6; // v2.3: platform 24x12, all types
+    dia(c.x,c.y+2,rx,ry,"#000000",.18); // soft drop shadow, y-offset only
+    dia(c.x,c.y,rx,ry,"#4b4b57"); // ONE flat basalt platform
+    // v2.3: THIN muted selection outline (fixed 2 canvas px, dull
+    // gold) that hugs the SMALL platform — same 24x12 diamond, so
+    // its extents stay within the platform bounds +1px (the stroke
+    // width). It is drawn BEFORE the sprite, so the sprite paints
+    // over any part of it that would cross the building: the v2.2
+    // plot-sized outline (52x26) crossed in front of the solar
+    // panels' lower edge. What stays visible is the gold rim on the
+    // platform's lower edge, below the sprite.
+    if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,rx,ry,"#c9a86a",2);
     const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));
     const ssw=Math.round(ssz.w*k),ssh=Math.round(ssz.h*k),spx=X(c.x),spy=Y(c.y-ph);
     q.drawImage(sp,spx-ssw/2,spy-ssh+Math.max(2,3*k),ssw,ssh); // bottom overlaps the plinth: no gap
@@ -488,10 +524,9 @@ function drawBase(q,cam,opts){
     const job=S.bq.filter(j=>j.u===b.u).sort((u,v)=>u.end-v.end)[0];
     if(job&&job.s){const p=Math.min(1,(now-job.s)/(job.end-job.s));q.fillStyle="#161628";q.fillRect(X(c.x)-18,Y(c.y+20),36,5);q.fillStyle="#ffe066";q.fillRect(X(c.x)-17,Y(c.y+21),Math.max(1,Math.round(34*p)),3)}
     else if(job){q.fillStyle="#ffe066";q.fillRect(X(c.x)-18,Y(c.y+20),8,5)}
-    // v2.0: THIN muted selection outline (fixed 2 canvas px, dull gold).
-    // The old 2k-wide lemon-gold outline read as a thick bright yellow
-    // diamond around the selected building (live v1.9: Solar Array).
-    if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#c9a86a",2);
+    // (v2.3: the selection outline is drawn BEFORE the sprite now —
+    // see the platform code above. A plot-sized outline drawn here,
+    // after the sprite, crossed in front of the panels' lower edge.)
     // v2.2: label anchor = VISIBLE content top of the sprite, not the
     // canvas top. ct is the screen y of the first drawn pixel row
     // (sp._top, measured in spr()). The shield sits 20 screen px
@@ -501,7 +536,9 @@ function drawBase(q,cam,opts){
     labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss:ssh,ct:ctY});
     if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H:isoHeight(b)});
   });
-  // --- v2.1 LOCKS, drawn LAST (after plaza, ground AND objects).
+  // --- v2.1 LOCKS, drawn LAST (after ground AND objects).
+  // (v2.3: the plaza is gone — the keep's plinth IS the basalt
+  // platform — so there is no plaza left to draw after.)
   // No wall at all, so EVERY locked plot gets a padlock. A clear
   // padlock on clean green grass: a white shackle ARC + a dark body
   // + a gold keyhole, sized with a pixel floor so it reads at default
