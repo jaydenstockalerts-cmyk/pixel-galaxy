@@ -12,31 +12,29 @@
 <meta name="apple-mobile-web-app-title" content="Pixel Galaxy">
 <meta name="theme-color" content="#070b1f" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#e6f4ff" media="(prefers-color-scheme: light)">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
 <main>
-<div class="ttl"><h1>PIXEL GALAXY</h1><button id="snd">Sound</button></div>
+<div class="ttl"><h1>PIXEL GALAXY</h1><span><button id="logb" data-log="1">Log</button> <button id="snd">Sound</button></span></div>
 <div id="top">
 <div class="box"><div class="res" id="res"></div></div>
 <nav id="tabs"><button data-tab="map">Galaxy</button><button data-tab="station">Station</button><button data-tab="fleet">Fleet</button><button data-tab="crew">Crew</button><button data-tab="research">Research</button><button data-tab="quests" id="tq">Quests</button></nav>
 </div>
-<p id="log" style="white-space:pre-line">Tap a system on the map. Claim worlds next to your territory, starting with the pirates.</p>
 <section data-pg="map">
-<div class="box" id="bbox" hidden><canvas id="bt" width="128" height="64"></canvas><small id="bcap"></small><br><button id="bskip" data-skip="1">Skip</button></div>
-<canvas id="cv" width="128" height="160"></canvas>
-<p><small>Map key: a hollow square is yours, C is Crimson Pact, V is Vael Collective.</small></p>
+<canvas id="cv" width="192" height="240"></canvas>
+<p><small>Tap a planet to inspect it. A flag marks your systems, C is Crimson Pact, V is Vael Collective.</small></p>
 <div class="box"><div class="row"><div id="info"></div><button id="atk" data-atk="1">Attack</button></div></div>
 <div class="box"><h2>Rivals</h2><small id="rvs"></small></div>
 </section>
 <section data-pg="station">
 <p><small id="cap"></small></p>
-<canvas id="st" width="128" height="64"></canvas>
-<p><small id="sthint"></small></p>
-<div class="box"><h2>Station</h2><small id="bq"></small><div id="blds"></div></div>
+<canvas id="st" width="288" height="288"></canvas>
+<div class="box" id="binfo"><b id="bi-name"></b><br><small id="bi-stats"></small><br><small id="bi-cost"></small><div class="bg"><button id="bi-up" data-bup="1">Upgrade</button><button id="bi-mv" data-bmv="1">Move</button></div></div>
+<div class="box"><h2>Build</h2><small id="bq"></small><div id="bmenu"></div></div>
 </section>
 <section data-pg="fleet">
-<div class="box"><h2>Fleet</h2><small id="slots"></small><div id="ships"></div><small id="sq"></small></div>
+<div class="box"><h2>Fleet</h2><small id="fpw"></small><br><small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br><small id="slots"></small><div id="ships"></div><small id="sq"></small></div>
 </section>
 <section data-pg="crew">
 <div class="box"><h2>Commanders</h2><small>Hire officers who level up as you play. One leads your fleet, one runs your station.</small><div id="cmds"></div></div>
@@ -47,10 +45,15 @@
 <section data-pg="quests">
 <div class="box"><h2>Quests</h2><div id="quests"></div></div>
 </section>
+<div id="toasts"></div>
+<div id="bbox" hidden><div class="box bpanel"><canvas id="bt" width="192" height="96"></canvas><small id="bcap"></small><br><button id="bskip" data-skip="1">Skip</button></div></div>
+<div id="hbox" hidden><div class="box bpanel"><h2>Event log</h2><div id="hlog"></div><button data-hclose="1">Close</button></div></div>
+<div id="rbox" hidden><div class="box bpanel"><h2>Reset game?</h2><p>This deletes all your progress and cannot be undone.</p><button data-rcancel="1">Cancel</button> <button data-rgo="1">Yes, reset</button></div></div>
 <button id="reset">Reset game</button>
-<p><small>Prototype v0.6. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
+<p><small>Prototype v0.8. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
 </main>
-<script src="data.js?v=8"></script>
-<script src="game.js?v=8"></script>
+<script src="data.js?v=11"></script>
+<script src="art.js?v=11"></script>
+<script src="game.js?v=11"></script>
 </body>
 </html>

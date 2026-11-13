@@ -39,9 +39,10 @@ const Q=[
 {id:"q3",t:"Launch your first ship",ok:()=>total()>=1,r:{energy:60,credits:20}},
 {id:"q4",t:"Conquer the Pirate Outpost",ok:()=>S.won.includes(1),r:{credits:80}},
 {id:"q5",t:"Upgrade the Command Station to Lv 2",ok:()=>S.b.command>=2,r:{metal:100,crystal:60}},
+{id:"q5d",t:"Build a second Solar Array",ok:()=>cnt("solar")>=2,r:{metal:80}},
 {id:"q5b",t:"Research your first technology",ok:()=>S.tech.length>=1,r:{credits:80,crystal:40}},
 {id:"q5c",t:"Hire a commander",ok:()=>S.cmds.length>=1,r:{credits:100}},
-{id:"q6",t:"Cluster buildings for a +30% bonus",ok:()=>Object.keys(B).some(id=>S.b[id]>0&&mult(id)>=1.3),r:{credits:60}},
+{id:"q6",t:"Cluster buildings for a +30% bonus",ok:()=>S.bl.some(b=>b.l>0&&mult(b)>=1.3),r:{credits:60}},
 {id:"q7",t:"Build a Cruiser",ok:()=>S.ships.cruiser>=1,r:{credits:100,crystal:60}},
 {id:"q8",t:"Own 4 systems",ok:()=>S.won.length>=5,r:{credits:300,metal:200}},
 {id:"q9",t:"Build a Capital Ship",ok:()=>S.ships.capital>=1,r:{credits:300,crystal:150}},
@@ -73,6 +74,10 @@ const TECH=[
 {id:"l1",n:"Bigger Hangars",d:"+2 ship slots per Hangar level",c:{credits:500,crystal:200},t:150,k:"slot",v:2},
 {id:"l2",n:"Orbital Docks",d:"+3 more ship slots per Hangar level",c:{credits:2000,crystal:800},t:500,req:"l1",k:"slot",v:3},
 {id:"c1",n:"Advanced Command",d:"Command Station max level 7",c:{credits:1000,crystal:500},t:300,k:"cmax",v:2},
-{id:"c2",n:"Fleet Doctrine",d:"Command Station max level 10",c:{credits:3000,crystal:2000},t:1200,req:"c1",k:"cmax",v:3}
+{id:"c2",n:"Fleet Doctrine",d:"Command Station max level 10",c:{credits:3000,crystal:2000},t:1200,req:"c1",k:"cmax",v:3},
+{id:"w4",n:"Singularity Cannons",d:"+60% fleet power",c:{credits:5000,crystal:3000},t:1800,req:"w3",k:"pw",v:.6},
+{id:"w5",n:"Reality Splitters",d:"+80% fleet power",c:{credits:5000,crystal:4000},t:2400,req:"w4",k:"pw",v:.8},
+{id:"l3",n:"Megastructure Docks",d:"+4 more ship slots per Hangar level",c:{credits:4500,crystal:3500},t:1500,req:"l2",k:"slot",v:4},
+{id:"c3",n:"Galactic Doctrine",d:"Command Station max level 13",c:{credits:4000,crystal:2500},t:1800,req:"c2",k:"cmax",v:3}
 ];
 const RV={c:{n:"Crimson Pact",b:150},v:{n:"Vael Collective",b:250}};

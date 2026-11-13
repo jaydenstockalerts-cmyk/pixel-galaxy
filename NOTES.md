@@ -11,7 +11,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - `data.js`: game data only (resources `R`, buildings `B`, ships `U`, weaknesses `WEAK`, star systems `SYS`)
 - `game.js`: state, save/load, production, UI updates, map drawing, attacks, game loop
 
-## Current features (v0.6)
+## Current features (v0.7)
 - 4 resources: energy, metal, crystal, credits. Storage cap grows with Command Station level.
 - 6 buildings with levels; level cap = Command Station level x 2 + 1 (Command Station max 5).
 - 3 ship types (Fighter, Cruiser, Capital) limited by Hangar slots; Cruiser needs Hangar Lv2, Capital needs Lv4.
@@ -28,6 +28,8 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - v0.5 additions: two AI rivals (Crimson Pact, Vael Collective; `RV` in data.js, logic in `rivalTick()` in game.js). They start at far systems, claim an adjacent neutral system every 6 min (max 6 each), and raid player systems next to their territory every 5 min after 10 min of play. Rival strength grows with play time (`S.min`, capped at 6x) and territory. Raid beats home defense (`dpower()`) -> system lost and 25% of ships. Rival-held systems need 1.4x power to take. Event feed shows the last 3 messages. Rivals get no free turns while the tab is closed beyond 2 claims and 1 raid per rival per visit.
 - v0.5.1: tab menus (Galaxy, Station, Fleet, Crew, Research, Quests). Pages are `<section data-pg="...">` in index.html; `showTab()` in game.js toggles them, and the current tab is saved in `S.tab`. Resource bar and tab bar are sticky at the top. Quests tab shows a count of claimable quests.
 - v0.6: animated battle screen (`battle()` / `bframe()` in game.js). The outcome is rolled first as before; the animation only shows it (Skip button). Pixel planets on the star map with twinkling stars. Synth sound effects via WebAudio (`sfx()`, no audio files), Sound toggle button next to the title (tabs wrap onto two rows on narrow screens) (`S.mute`). Phone polish: `manifest.json`, `apple-touch-icon.png`, `icon-512.png`, standalone display, status-bar and safe-area handling. Add to Home Screen only works from the GitHub Pages link.
+- v0.6.1: Galaxy map scaled to fit the screen (48vh) so the info panel stays visible; battle is a popup; messages are toasts (last 3, 5s) plus a Log popup (last 30); times show as 1m 50s; Fleet tab shows total power vs each enemy type and counter hints; ship queue = 5 + 2 x Hangar level, with x5/x10 build buttons; reset asks for confirmation in a popup; quests tab lists every claimable quest first; late-game research added (w4, w5, l3, c3: Command max 13, Hangar level cap 15).
+- v0.7 interactive base map: buildings are individual objects `S.bl=[{u,t,x,y,l}]` placed on a 6x6 block map (32px sprites, canvas 192x192). Tap a building for stats, Upgrade, Move; use the Build list to Place new copies. Copy limits `MAXC()` depend on Command level (command 1, hangar up to 4, others up to 6); new copies cost 1.5x per existing copy; builder slots `bqcap()` = 2 + Command/2 and build in parallel. Derived totals `S.b` (sum of levels per type) and `S.bx` (max level) come from `recalc()` so older code still works. Old saves migrate automatically (one building per old type).
 - Save key is now `pixelgalaxy-v3` (v0.2 saves do not carry over).
 
 ## Roadmap
@@ -42,8 +44,11 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - Build times and costs, quest rewards, adjacency bonus size, ship timers
 
 ## Rules for working on this
-- index.html loads files as `data.js?v=8` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
+- index.html loads files as `data.js?v=10` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
 - Keep game data in `data.js`, logic in `game.js`.
 - Ask for targeted edits to specific functions, not full rewrites.
 - If the save format changes, bump the localStorage key.
 - Keep the retro 4-color look (CSS variables --bg, --hi, --mid, --fg).
+
+## Ideas next
+Building-specific bonuses, decorations/roads, defense buildings against raids, bigger base map via Command level, formations and commander abilities in battle.
