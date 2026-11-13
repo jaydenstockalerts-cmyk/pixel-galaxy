@@ -328,7 +328,7 @@ const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if
  // (highest x+y first) against their iso silhouette (isoBuildingHit),
  // then fall back to the ground diamond the tap lands in.
  let hit=null;
- [...S.bl].sort((a,b)=>(b.x+b.y)-(a.x+a.y)).some(b=>{if(isoBuildingHit(w.x,w.y,b)){hit=b;return true}return false});
+ [...S.bl].sort((a,b)=>(b.x+b.y)-(a.x+a.y)).some(b=>{if(isoBuildingHit(w.x,w.y,b,stScale())){hit=b;return true}return false});
  if(hit){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(hit.u)}
  else{const cell=isoCellFromPoint(w.x,w.y),bx=cell.i,by=cell.j;if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){if(plotLocked(bx,by)){msg("Locked — upgrade the Command Station to Lv "+plotReqLv(bx,by)+" to unlock this plot.")}else{b.x=bx;b.y=by;S.mv=null;msg("Building moved.")}}else S.mv=null}else openPlot(bx,by)}}
  update();save()}stStart=null;stDrag=false};
@@ -530,7 +530,7 @@ const b=S.bl.find(z=>z.u===POP.u);
 if(!b){closePopup();return}
 const t=b.t,e=effL(b),max=e>=lvlCap(t),c=cost(t,e),m=mult(b),pr=Object.keys(B[t].p)[0];
 title.textContent=B[t].n+" Lv "+b.l;
-if(hq){hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
+if(hq){hq.fillStyle="#c98a5a";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
 let st=B[t].d+". ";
 if(b.l===0)st="Under construction. ";
 else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s. ";
@@ -541,7 +541,7 @@ acts.innerHTML='<button data-bup="1" '+((max||S.bq.length>=bqcap()||!can(c))?"di
 }else if(POP.kind==="plot"){
 const x=POP.x,y=POP.y,lk=plotLocked(x,y),un=unlockedCount();
 title.textContent=lk?"Locked land ("+(x+1)+", "+(y+1)+")":"Open land ("+(x+1)+", "+(y+1)+")";const _kp=S.bl.find(b=>b.t==="command");const _dn=_kp?(x<_kp.x-1?"West — near the Military quarter":x>_kp.x+1?"East — near the Industrial quarter":y<_kp.y-1?"North — near the Power fields":"South — near the Trade quarter"):"Open land";
-if(hq){hq.fillStyle=lk?"#6b7590":"#5fae4f";hq.fillRect(0,0,96,96)}
+if(hq){hq.fillStyle=lk?"#6b7590":"#c98a5a";hq.fillRect(0,0,96,96)}
 if(lk){body.innerHTML="<small>🔒 Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.</small><br><small>"+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". The city grows outward from the keep.</small>";acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
 else{body.innerHTML="<small>"+_dn+". "+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");acts.innerHTML="";}
 }}
