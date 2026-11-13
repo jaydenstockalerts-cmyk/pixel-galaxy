@@ -3,7 +3,7 @@
 :root[data-theme="dark"]{--bg:#070b1f;--hi:#1a2a63;--mid:#4fc3f7;--fg:#e6f4ff;color-scheme:dark}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 "Courier New",ui-monospace,monospace}
-main{max-width:560px;margin:0 auto;padding:12px 12px 96px}
+main{margin:0;padding:0;max-width:none}
 h1{font-size:22px;margin:4px 0 10px;letter-spacing:2px}
 h2{font-size:15px;margin:0 0 6px}
 .box{border:3px solid var(--fg);padding:8px;margin-bottom:12px;box-shadow:4px 4px 0 var(--mid);background:var(--bg)}
@@ -22,9 +22,14 @@ button:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
 small{opacity:.85}
 #log{min-height:2.8em;margin:0 0 12px}
 #reset{background:none;color:var(--fg);border:2px solid var(--fg);min-height:36px;font-weight:normal}
-#top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:4px 0 2px}
+#top{position:fixed;top:0;left:0;right:0;z-index:15;padding:calc(4px + env(safe-area-inset-top,0px)) 8px 0;pointer-events:none}
+#top .hud{pointer-events:auto;display:flex;align-items:center;gap:6px;margin:0;padding:4px 6px;background:var(--bg);opacity:.96}
+#top .brand{font-weight:bold;letter-spacing:1px;font-size:13px;white-space:nowrap}
+#top .hudbtns{display:flex;gap:4px}
+#top .res{flex:1}
+#top .res b{font-size:15px}
+@media (max-width:520px){#top .brand{display:none}}
 body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);background:var(--bg);z-index:10}
-#top .box{margin-bottom:8px;padding:6px}
 [hidden]{display:none!important}
 body{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
 html{overscroll-behavior-y:none}
@@ -36,16 +41,11 @@ button{user-select:none;-webkit-user-select:none}
 .bg button{min-width:0;padding:6px 8px}
 #toasts{position:fixed;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:15;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
 .toast{background:var(--fg);color:var(--bg);padding:8px 12px;max-width:min(92vw,520px);border:2px solid var(--mid);font-weight:bold}
-#bbox,#hbox,#rbox{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
+#bbox,#hbox,#rbox,#pop{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
 .bpanel{background:var(--bg);width:100%;max-width:440px;max-height:80vh;overflow-y:auto;margin:0}
 #hlog .row{display:block;font-size:13px}
 #st{width:min(100%,56vh);height:auto;aspect-ratio:1;margin:0 auto 8px;display:block}
-.mapwrap #st{border:0;margin:0 auto;display:block;touch-action:none;width:auto;height:60vh;max-width:100%}
 #cv{width:100%;height:auto;margin:0}
-.mapwrap{position:relative;border:3px solid var(--fg);margin-bottom:12px;background:#0a0e2a}
-.mapwrap #cv{border:0;margin:0 auto;display:block;touch-action:none;width:auto;height:65vh;max-width:100%}
-#mm{position:absolute;top:6px;right:6px;width:72px;height:90px;border:2px solid var(--fg);margin:0;background:#0a0e2a;cursor:pointer}
-.mapctl{position:absolute;left:6px;bottom:6px;display:flex;gap:4px}
 .mapctl button{min-width:0;min-height:36px;padding:4px 10px;background:var(--fg);color:var(--bg);border:2px solid var(--mid)}
 .pagehead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:4px 0 10px}
 .pagehead h2{margin:0;font-size:18px;letter-spacing:1px}
@@ -59,7 +59,35 @@ button{user-select:none;-webkit-user-select:none}
 #tabs button .ic{font-size:17px;line-height:1}
 #tabs button.on{background:var(--fg);color:var(--bg)}
 #tabs .badge{position:absolute;top:2px;right:6px;min-width:18px;height:18px;line-height:18px;background:#e0584a;color:#fff;border:2px solid var(--fg);font-size:11px;text-align:center;padding:0 3px}
-#open-sys,#open-bld{margin-top:8px;width:100%}
 .emp-row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:7px 0;border-bottom:2px dashed var(--hi)}
 .emp-row:last-child{border-bottom:0}
 .emp-row button{min-width:0;min-height:36px;padding:4px 10px}
+
+/* v0.9.2 popups: same overlay pattern as #bbox / #hbox / #rbox — map stays
+   visible behind, dimmed. Centred panel, max 440px like the other popups. */
+#pop{z-index:20}
+#pop-panel{text-align:left}
+.pophead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.pophead h2{margin:0;font-size:17px;letter-spacing:1px}
+#pop-x{min-width:0;min-height:36px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#pop-hero{width:120px;height:120px;margin:0 auto 10px;border:3px solid var(--fg);background:#0a0e2a}
+#pop-body{margin-bottom:10px}
+#pop-actions button{min-width:0}
+#pop-actions .grow{grid-column:1 / -1}
+
+/* v0.9.2 full-screen maps: Galaxy and Station ARE the screen. The HUD
+   floats over the top, the dock floats over the bottom. Other dock pages
+   stay centred text pages with room for the floating HUD. */
+section[data-pg="map"],section[data-pg="station"]{position:fixed;inset:0;z-index:1}
+section[data-pg="fleet"],section[data-pg="crew"],section[data-pg="research"],section[data-pg="quests"],section[data-pg="empire"]{max-width:560px;margin:0 auto;padding:76px 12px 96px}
+.mapwrap{position:absolute;inset:0;border:0;margin:0;background:#0a0e2a}
+.mapwrap #cv{border:0;margin:0;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none}
+.mapwrap #st{border:0;margin:0 auto;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none}
+#mm{position:absolute;top:calc(64px + env(safe-area-inset-top,0px));right:6px;width:72px;height:90px;border:2px solid var(--fg);margin:0;background:#0a0e2a;cursor:pointer;z-index:2}
+.mapctl{position:absolute;left:6px;bottom:calc(84px + env(safe-area-inset-bottom,0px));display:flex;gap:4px;z-index:2}
+.mapchip{position:absolute;z-index:2;background:var(--bg);color:var(--fg);border:2px solid var(--fg);padding:4px 8px;font-size:12px;opacity:.95}
+.mapchip.hint{top:calc(64px + env(safe-area-inset-top,0px));left:6px;max-width:60vw}
+.mapchip.capchip{top:calc(64px + env(safe-area-inset-top,0px));right:6px}
+#empireb{top:calc(168px + env(safe-area-inset-top,0px));right:6px;min-height:36px}
+#pagefoot{max-width:560px;margin:0 auto;padding:76px 12px 96px}
+body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-pg="station"]:not([hidden])) #pagefoot{display:none}

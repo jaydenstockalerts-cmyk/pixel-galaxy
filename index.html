@@ -12,34 +12,27 @@
 <meta name="apple-mobile-web-app-title" content="Pixel Galaxy">
 <meta name="theme-color" content="#070b1f" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#e6f4ff" media="(prefers-color-scheme: light)">
-<link rel="stylesheet" href="style.css?v=13">
+<link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
 <main>
-<div class="ttl"><h1>PIXEL GALAXY</h1><span><button id="logb" data-log="1">Log</button> <button id="snd">Sound</button></span></div>
-<div id="top">
-<div class="box"><div class="res" id="res"></div></div>
-</div>
+<div id="top"><div class="box hud"><span class="brand">PIXEL GALAXY</span><div class="res" id="res"></div><span class="hudbtns"><button id="logb" data-log="1">Log</button><button id="snd">Sound</button></span></div></div>
 <section data-pg="map">
-<div class="pagehead"><h2>Galaxy</h2><button data-page="empire" id="empireb">Empire</button></div>
 <div class="mapwrap">
 <canvas id="cv" width="384" height="480"></canvas>
 <canvas id="mm" width="96" height="120" title="Minimap — tap to jump"></canvas>
+<div class="mapchip hint">Drag to pan · pinch to zoom · tap a planet</div>
+<button data-page="empire" id="empireb" class="mapchip">Empire</button>
 <div class="mapctl"><button data-zout="1" id="zout" title="Zoom out">−</button><button data-zin="1" id="zin" title="Zoom in">+</button><button data-zhome="1" id="zhome" title="Go to Home World">Home</button><button data-zfit="1" id="zfit" title="Fit whole galaxy">Fit</button></div>
 </div>
-<p><small>Drag to move around the galaxy, pinch or use + / − to zoom, double-tap to zoom in. Tap a planet to open it. A flag marks your systems, C is Crimson Pact, V is Vael Collective.</small></p>
-<div class="box"><div class="row"><div id="info"></div><button id="atk" data-atk="1">Attack</button></div><button data-sys="1" id="open-sys">Open system</button></div>
-<div class="box"><h2>Rivals</h2><small id="rvs"></small></div>
 </section>
 <section data-pg="station">
-<div class="pagehead"><h2>Station</h2><small id="cap"></small></div>
 <div class="mapwrap">
 <canvas id="st" width="384" height="384"></canvas>
+<small id="cap" class="mapchip capchip"></small>
+<div class="mapchip hint">Drag to pan · pinch to zoom · tap a building or open land</div>
 <div class="mapctl"><button data-szout="1" title="Zoom out">−</button><button data-szin="1" title="Zoom in">+</button><button data-shome="1" title="Go to your buildings">Home</button><button data-sfit="1" title="Fit whole base">Fit</button></div>
 </div>
-<p><small>Drag to move around your homeland, pinch or use + / − to zoom. Tap a building to open it, tap open land to see what you can build there.</small></p>
-<div class="box" id="binfo"><b id="bi-name"></b><br><small id="bi-stats"></small><br><small id="bi-cost"></small><div class="bg"><button id="bi-up" data-bup="1">Upgrade</button><button id="bi-mv" data-bmv="1">Move</button></div><button data-bpg="1" id="open-bld">Open building</button></div>
-<div class="box"><h2>Build</h2><small id="bq"></small><div class="pbar"><div id="pb-build"></div></div><div id="bmenu"></div></div>
 </section>
 <section data-pg="fleet">
 <div class="box"><h2>Fleet</h2><small id="fpw"></small><br><small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br><small id="slots"></small><div id="ships"></div><small id="sq"></small><div class="pbar"><div id="pb-ship"></div></div></div>
@@ -53,21 +46,6 @@
 <section data-pg="quests">
 <div class="box"><h2>Quests</h2><div id="quests"></div></div>
 </section>
-<section data-pg="system" hidden>
-<div class="pagehead"><button data-back="1" id="back-sys">‹ Back</button><h2 id="s-name">System</h2></div>
-<canvas id="shero" width="96" height="96"></canvas>
-<div class="box"><div id="sinfo"></div></div>
-<div class="box"><div class="row"><div id="s-detail"></div><button id="satk" data-atk="1">Attack</button></div></div>
-</section>
-<section data-pg="building" hidden>
-<div class="pagehead"><button data-back="1" id="back-bld">‹ Back</button><h2 id="bp-name">Building</h2></div>
-<canvas id="bhero" width="96" height="96"></canvas>
-<div class="box"><div id="bp-stats"></div><br><small id="bp-cost"></small><div class="bg"><button id="bp-up" data-bup="1">Upgrade</button><button id="bp-mv" data-bmv="1">Move</button></div></div>
-</section>
-<section data-pg="plot" hidden>
-<div class="pagehead"><button data-back="1" id="back-plot">‹ Back</button><h2 id="plot-name">Open land</h2></div>
-<div class="box"><h2>What can you build here?</h2><div id="plot-list"></div></div>
-</section>
 <section data-pg="empire" hidden>
 <div class="pagehead"><button data-back="1" id="back-emp">‹ Back</button><h2>Empire</h2></div>
 <div class="box"><h2>Your systems</h2><small id="emp-sum"></small><div id="emp-list"></div></div>
@@ -78,11 +56,12 @@
 <div id="bbox" hidden><div class="box bpanel"><canvas id="bt" width="192" height="96"></canvas><small id="bcap"></small><br><button id="bskip" data-skip="1">Skip</button></div></div>
 <div id="hbox" hidden><div class="box bpanel"><h2>Event log</h2><div id="hlog"></div><button data-hclose="1">Close</button></div></div>
 <div id="rbox" hidden><div class="box bpanel"><h2>Reset game?</h2><p>This deletes all your progress and cannot be undone.</p><button data-rcancel="1">Cancel</button> <button data-rgo="1">Yes, reset</button></div></div>
-<button id="reset">Reset game</button>
-<p><small>Prototype v0.9.1. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
+<div id="pop" hidden><div class="box bpanel" id="pop-panel"><div class="pophead"><h2 id="pop-title"></h2><button id="pop-x" data-pclose="1" aria-label="Close popup">✕</button></div><canvas id="pop-hero" width="96" height="96"></canvas><div id="pop-body"></div><div class="bg" id="pop-actions"></div></div></div>
+<div id="pagefoot"><button id="reset">Reset game</button>
+<p><small>Prototype v0.9.2. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p></div>
 </main>
-<script src="data.js?v=13"></script>
-<script src="art.js?v=13"></script>
-<script src="game.js?v=13"></script>
+<script src="data.js?v=14"></script>
+<script src="art.js?v=14"></script>
+<script src="game.js?v=14"></script>
 </body>
 </html>

@@ -15,7 +15,9 @@ let S=load();recalc();
 // saved in S and never change the save format (still pixelgalaxy-v3).
 const WORLD={w:640,h:800,px:5}; // galaxy world, SYS x/y * 5 (v0.9.1: bigger, detailed map)
 let CAM={cx:80,cy:200,zoom:1.8}; // centre (world units), zoom 1-2.5; default 1.8 on Home World (v0.9.1)
-let PAGE={kind:"tab"}; // tab | system | building | empire | plot (S.tab is untouched by pages)
+let PAGE={kind:"tab"}; // tab | empire only — system/building/plot are popups now (v0.9.2)
+// v0.9.2 popups: VIEW-ONLY, never saved. Map/station stay visible behind.
+let POP=null; // null | {kind:"system",i} | {kind:"building",u} | {kind:"plot",x,y}
 // v0.9.1 station camera — VIEW-ONLY like the galaxy camera, never saved.
 // Station world: 12x12 plots x 48 = 576x576. Old 6x6 settled area is
 // plots 0-5; plots 6-11 are open land. Default: zoomed in on the buildings.
@@ -28,7 +30,7 @@ function clampStCam(){const sc=stScale(),hw=192/sc,hh=192/sc;if(hw>=STWORLD.w/2)
 function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-192)/s0,y:STCAM.cy+(py-192)/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-192)/s1;STCAM.cy=w.y-(py-192)/s1}clampStCam()}
 function fitStCam(){STCAM={cx:288,cy:288,zoom:1};clampStCam()}
 function homeStCam(){let x=0,y=0,n=0;S.bl.forEach(b=>{x+=b.x*48+24;y+=b.y*48+24;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}STCAM.zoom=Math.max(STCAM.zoom,1.8);clampStCam()}
-function openPlot(x,y){PAGE={kind:"plot",px:x,py:y};update()}
+function openPlot(x,y){POP={kind:"plot",x,y};showPopup();update()}
 const camScale=()=>Math.min(384/WORLD.w,480/WORLD.h)*CAM.zoom;
 const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:192+(wx-CAM.cx)*sc,y:240+(wy-CAM.cy)*sc}};
 const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-192)/sc,y:CAM.cy+(sy-240)/sc}};
@@ -37,10 +39,12 @@ function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(p
 function flyTo(i){const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
 function fitCam(){CAM={cx:320,cy:400,zoom:1};clampCam()}
 function homeCam(){flyTo(0)}
-function openSystem(i){S.sel=i;PAGE={kind:"system"};flyTo(i);update();save()}
-function openBuilding(u){S.bsel=u;PAGE={kind:"building"};update();save()}
+function openSystem(i){S.sel=i;POP={kind:"system",i};flyTo(i);showPopup();update();save()}
+function openBuilding(u){S.bsel=u;POP={kind:"building",u};showPopup();update();save()}
 function openEmpire(){PAGE={kind:"empire"};update()}
 function goBack(){PAGE={kind:"tab"};update()}
+function showPopup(){const p=$("#pop");if(p)p.hidden=!POP}
+function closePopup(){POP=null;const p=$("#pop");if(p)p.hidden=true;update()}
 const tsum=k=>TECH.filter(x=>S.tech.includes(x.id)&&x.k===k).reduce((a,x)=>a+x.v,0);
 const lv=id=>Math.min(10,1+Math.floor(Math.sqrt((S.cx[id]||0)/2)));
 const cb=t=>{const id=S.slot[t==="fleet"?"fleet":"station"];return id&&CM[id].t===t?CM[id].b*lv(id):0};
@@ -83,7 +87,7 @@ const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(t);if(S.feed.length>30)S.feed.s
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
 
 $("#res").innerHTML=R.map(r=>`<div class="pill"><span class="dot dot-${r}"></span>${r}<b id="v-${r}"></b><small id="r-${r}"></small><small class="cap" id="c-${r}"></small></div>`).join("");
-$("#bmenu").innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
+const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
 $("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}</small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
 
 $("#tech").innerHTML=TECH.map(t=>`<div class="row" id="tr-${t.id}"><div><b>${t.n}</b><br><small>${t.d}<br><span id="tc-${t.id}"></span></small></div><button data-tech="${t.id}" id="tb-${t.id}">Research</button></div>`).join("");
@@ -99,17 +103,18 @@ $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a littl
 $("#sq").textContent=S.sq.length?"Shipyard: "+S.sq.map(j=>U[j.k].n+" ("+left(j.end-now)+")").join(", "):"Shipyard idle ("+qcap()+" ships can be queued).";
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
 b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||usedQ()+U[k].sz>slots||S.sq.length>=qcap()||!can(U[k].c);$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled}
-const s=SYS[S.sel],a=$("#atk");
-if(S.sel===0){$("#info").innerHTML="<b>Home World</b><br><small>Your base. Build your station and fleet here.</small>";a.disabled=true;a.textContent="Home"}
+const s=SYS[S.sel],a=$("#atk"),inf=$("#info");
+if(a||inf){
+if(S.sel===0){if(inf)inf.innerHTML="<b>Home World</b><br><small>Your base. Build your station and fleet here.</small>";if(a){a.disabled=true;a.textContent="Home"}}
 else{
 const own=S.won.includes(S.sel),av=avail(S.sel);
-$("#info").innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring ${WEAK[s.t]}s (+50%). Needs ${spw(S.sel)} power.${S.own[S.sel]?" Held by "+RV[S.own[S.sel]].n+".":""} Your fleet: ${fpower(S.sel).toFixed(1)}.<br>Loot: ${cstr(s.r)}<br>${own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first."}</small>`;
-a.disabled=own||!av||total()<1;a.textContent=own?"Owned":"Attack"}
+if(inf)inf.innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring ${WEAK[s.t]}s (+50%). Needs ${spw(S.sel)} power.${S.own[S.sel]?" Held by "+RV[S.own[S.sel]].n+".":""} Your fleet: ${fpower(S.sel).toFixed(1)}.<br>Loot: ${cstr(s.r)}<br>${own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first."}</small>`;
+if(a){a.disabled=own||!av||total()<1;a.textContent=own?"Owned":"Attack"}}}
 baseUI(now);
 upd2();
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok()).slice(0,3)),key=open.map(q=>q.id+(q.ok()?1:0)).join();
 if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small></div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
-systemUI();buildingUI();empireUI();plotUI();progressBars();
+popupUI();empireUI();progressBars();
 draw();
 }
 
@@ -136,6 +141,9 @@ const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(poin
 cv.addEventListener("pointerup",cvEnd);cv.addEventListener("pointercancel",cvEnd);
 cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=cv.getBoundingClientRect();setZoom(CAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*384,(e.clientY-q.top)/q.height*480);update()},{passive:false});
 cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*384,(e.clientY-q.top)/q.height*480);update()});
+const popEl=$("#pop");
+if(popEl)popEl.addEventListener("click",e=>{if(e.target===popEl)closePopup()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){if(POP)closePopup();else if(!$("#hbox").hidden)$("#hbox").hidden=true}});
 const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
 document.body.addEventListener("click",e=>{
 const b=e.target.closest("button");if(!b)return;
@@ -143,8 +151,6 @@ const d=b.dataset;ac();sfx("click");done();
 if(d.tab){S.tab=d.tab;PAGE={kind:"tab"}}
 else if(d.page){openEmpire()}
 else if(d.back){goBack()}
-else if(d.sys){openSystem(S.sel)}
-else if(d.bpg){if(S.bsel)openBuilding(S.bsel)}
 else if(d.fly){const i=+d.fly;S.sel=i;PAGE={kind:"tab"};S.tab="map";flyTo(i)}
 else if(d.zin){setZoom(CAM.zoom*1.25)}
 else if(d.zout){setZoom(CAM.zoom/1.25)}
@@ -154,12 +160,13 @@ else if(d.szin){setStZoom(STCAM.zoom*1.25)}
 else if(d.szout){setStZoom(STCAM.zoom/1.25)}
 else if(d.shome){homeStCam()}
 else if(d.sfit){fitStCam()}
-else if(d.place){const t=d.place;if(PAGE.kind==="plot"&&PAGE.px!==undefined){placeB(t,PAGE.px,PAGE.py);PAGE={kind:"tab"};S.tab="station"}}
+else if(d.place){const t=d.place;if(POP&&POP.kind==="plot"){placeB(t,POP.x,POP.y);closePopup()}}
+else if(d.pclose){closePopup()}
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
 else if(d.log){$("#hlog").innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"No events yet.";$("#hbox").hidden=false}
 else if(d.hclose){$("#hbox").hidden=true}
 else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b.t,l);if(l<lvlCap(b.t)&&S.bq.length<bqcap()&&can(c)){pay(c);{const s0=Math.max(Date.now(),...S.bq.filter(j=>j.u===b.u).map(j=>j.end));S.bq.push({u:b.u,s:s0,end:s0+dur(l)*1000})}msg(B[b.t].n+" upgrade started.")}}}
-else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null}
+else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
 else if(d.build){const k=d.build,u=U[k],n=+d.n||1;let ok=0;for(let j=0;j<n;j++){if(S.bx.hangar>=u.h&&usedQ()+u.sz<=scap()&&S.sq.length<qcap()&&can(u.c)){pay(u.c);const s0=Math.max(Date.now(),S.sq.length?S.sq[S.sq.length-1].end:0);S.sq.push({k,end:s0+DUR[k]*1000*tmul()});ok++}else break}if(ok)msg(ok+"x "+u.n+" construction started.")}
 else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);for(const k in q.r)S.res[k]=Math.min(cap(),S.res[k]+q.r[k]);msg("Quest complete: "+q.t);sfx("claim")}}
@@ -172,6 +179,7 @@ const p=fpower(i)*(.85+Math.random()*.3),pre={...S.ships},need=spw(i),win=p>=nee
 if(win){for(const k in U)S.ships[k]=Math.ceil(S.ships[k]*Math.min(.95,.7+tsum("keep")));if(S.own[i]){S.cap++;delete S.own[i]}S.won.push(i);for(const k in s.r)S.res[k]=Math.min(cap(),S.res[k]+s.r[k]);
 gain("fleet",2);msg(i===15?"You conquered the Dark Nexus. The galaxy is yours!":i===7?"The Hive Core falls, but the galaxy is bigger than you thought.":"Victory! "+s.n+" is yours and now pays you credits.")}
 else{for(const k in U)S.ships[k]=Math.floor(S.ships[k]*(.4+tsum("keep")));msg("Defeat. Your fleet retreats with heavy losses. Build the ship type this enemy is weak to, or upgrade the Command Station.")}
+closePopup();
 battle(win,pre,s,p,need);
 }
 else if(b.id==="snd"){S.mute=S.mute?0:1;sfx("ok")}
@@ -222,6 +230,7 @@ function bend(){const b=BT;if(b.done)return;b.done=1;clearInterval(b.iv);msg(b.m
 function recalc(){const b={},m={};for(const t in B){b[t]=0;m[t]=0}S.bl.forEach(x=>{b[x.t]+=x.l;m[x.t]=Math.max(m[x.t],x.l)});S.b=b;S.bx=m}
 function placeB(t,x,y){const c=newCost(t);if(cnt(t)<MAXC(t)&&S.bq.length<bqcap()&&can(c)){pay(c);const b={u:S.nu++,t,x,y,l:0};S.bl.push(b);S.bq.push({u:b.u,s:Date.now(),end:Date.now()+dur(0)*1000});S.bsel=b.u;msg(B[t].n+" construction started.")}S.place=null}
 function baseUI(now){
+if(!$("#binfo"))return; // v0.9.2: station info/build boxes removed — popups cover this now.
 const sel=S.bl.find(b=>b.u===S.bsel);
 $("#bq").textContent=S.bq.length?"Building: "+S.bq.map(j=>{const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builders busy: "+S.bq.length+"/"+bqcap()+".":"Builders idle (up to "+bqcap()+" jobs at once).";
 for(const t in B){const n=cnt(t),mx=MAXC(t),c=newCost(t),b=$("#bmb-"+t);$("#bmn-"+t).textContent=n+"/"+mx;
@@ -240,18 +249,46 @@ $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
 $("#bi-up").hidden=false;$("#bi-mv").hidden=false;$("#bi-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bi-mv").textContent=S.mv===sel.u?"Cancel move":"Move"}}
 function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
-function systemUI(){if(PAGE.kind!=="system")return;const i=S.sel,s=SYS[i],own=S.won.includes(i),av=avail(i);$("#s-name").textContent=s.n;const hq=$("#shero").getContext("2d");if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#0a0e2a";hq.fillRect(0,0,96,96);const sp=planetSprite(i);hq.drawImage(sp,16,16,64,64)}
-$("#sinfo").innerHTML="<b>"+s.n+"</b><br><small>"+(s.t?s.t.toUpperCase()+" fleet":"Your home base")+". "+(own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+"</small>";
-$("#s-detail").innerHTML="Needs "+spw(i)+" power. Your fleet vs "+(s.t||"—")+": "+fpower(i).toFixed(1)+".<br><small>Loot: "+(i===0?"—":cstr(s.r))+"<br>Counter: bring "+(s.t?WEAK[s.t]+"s (+50%)":"—")+".</small>";
-const a=$("#satk");a.disabled=i===0||own||!av||total()<1;a.textContent=i===0?"Home":own?"Owned":"Attack"}
-function buildingUI(){if(PAGE.kind!=="building")return;const b=S.bl.find(z=>z.u===S.bsel);if(!b){$("#bp-name").textContent="Building";return}const t=b.t,e=effL(b),max=e>=lvlCap(t),c=cost(t,e),m=mult(b),pr=Object.keys(B[t].p)[0];$("#bp-name").textContent=B[t].n+" Lv "+b.l;const hq=$("#bhero").getContext("2d");if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
-let st=B[t].d+". ";if(b.l===0)st="Under construction. ";else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s (neighbors +"+Math.round((m-1)*100)+"%). ";else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
-$("#bp-stats").textContent=st;$("#bp-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);$("#bp-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bp-mv").textContent=S.mv===b.u?"Cancel move":"Move"}
+function popupUI(){
+const p=$("#pop");
+if(!POP){if(p)p.hidden=true;return}
+if(p)p.hidden=false;
+const title=$("#pop-title"),hero=$("#pop-hero"),body=$("#pop-body"),acts=$("#pop-actions");
+if(!title||!hero||!body||!acts)return;
+const hq=hero.getContext("2d");
+if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#0a0e2a";hq.fillRect(0,0,96,96)}
+if(POP.kind==="system"){
+const i=S.sel,s=SYS[i],own=S.won.includes(i),av=avail(i);
+title.textContent=s.n;
+if(hq){const sp=planetSprite(i);hq.drawImage(sp,16,16,64,64)}
+body.innerHTML="<b>"+s.n+"</b><br><small>"+(s.t?s.t.toUpperCase()+" fleet":"Your home base")+". "+(own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+"</small><br><small>Needs "+spw(i)+" power. Your fleet vs "+(s.t||"—")+": "+fpower(i).toFixed(1)+".<br>Loot: "+(i===0?"—":cstr(s.r))+"<br>Counter: bring "+(s.t?WEAK[s.t]+"s (+50%)":"—")+".</small>";
+acts.innerHTML='<button data-atk="1" class="grow" '+(i===0||own||!av||total()<1?"disabled":"")+'>'+(i===0?"Home":own?"Owned":"Attack")+'</button><button data-pclose="1">Close</button>';
+}else if(POP.kind==="building"){
+const b=S.bl.find(z=>z.u===POP.u);
+if(!b){closePopup();return}
+const t=b.t,e=effL(b),max=e>=lvlCap(t),c=cost(t,e),m=mult(b),pr=Object.keys(B[t].p)[0];
+title.textContent=B[t].n+" Lv "+b.l;
+if(hq){hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
+let st=B[t].d+". ";
+if(b.l===0)st="Under construction. ";
+else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s (neighbors +"+Math.round((m-1)*100)+"%). ";
+else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";
+else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
+body.innerHTML="<small>"+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
+acts.innerHTML='<button data-bup="1" '+((max||S.bq.length>=bqcap()||!can(c))?"disabled":"")+'>Upgrade</button><button data-bmv="1">'+(S.mv===b.u?"Cancel move":"Move")+'</button><button data-pclose="1">Close</button>';
+}else if(POP.kind==="plot"){
+const x=POP.x,y=POP.y;
+title.textContent="Open land ("+(x+1)+", "+(y+1)+")";
+if(hq){hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96)}
+body.innerHTML="<small>What can you build here? Each new copy costs 1.5x the last. Buildings next to each other produce +15%.</small>";
+acts.innerHTML="";
+const list=document.createElement("div");
+list.innerHTML=Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");
+body.appendChild(list);
+}}
 function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of 16 systems. Each owned system pays +0.3 credits/s.";
 $("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
 $("#e-rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")}
-function plotUI(){if(PAGE.kind!=="plot")return;const x=PAGE.px,y=PAGE.py;$("#plot-name").textContent="Open land ("+(x+1)+", "+(y+1)+")";
-$("#plot-list").innerHTML=Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="emp-row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("")+"<small>Each new copy costs 1.5x the last. Buildings next to each other produce +15%.</small>"}
 function progressBars(){const now=Date.now();const set=(id,p)=>{const el=$(id);if(el)el.style.width=Math.round(Math.max(0,Math.min(1,p||0))*100)+"%"};
 const bq=S.bq.slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0);
 if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()):0)}else set("#pb-res",0);
@@ -259,7 +296,7 @@ const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()):0)}
 function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o==="c"?"#e0584a":o==="v"?"#b07cf0":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=384/sc/WORLD.w*96,vh=480/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
-$("#rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
+const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
 TECH.forEach(t=>{const dn=S.tech.includes(t.id),av=!dn&&(!t.req||S.tech.includes(t.req));$("#tr-"+t.id).style.display=av?"":"none";if(av){$("#tc-"+t.id).textContent="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul());$("#tb-"+t.id).disabled=!!S.rq||!can(t.c)}});
 $("#rq").textContent=(S.rq?"Researching: "+TECH.find(z=>z.id===S.rq.id).n+" ("+left(S.rq.end-now)+"). ":"Lab idle. ")+"Completed "+S.tech.length+" of "+TECH.length+".";
 for(const id in CM){const c=CM[id],h=S.cmds.includes(id),sl=c.t==="fleet"?"fleet":"station",on=S.slot[sl]===id;
