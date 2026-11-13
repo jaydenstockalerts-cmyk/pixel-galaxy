@@ -42,7 +42,6 @@ const Q=[
 {id:"q5d",t:"Build a second Solar Array",ok:()=>cnt("solar")>=2,r:{metal:80}},
 {id:"q5b",t:"Research your first technology",ok:()=>S.tech.length>=1,r:{credits:80,crystal:40}},
 {id:"q5c",t:"Hire a commander",ok:()=>S.cmds.length>=1,r:{credits:100}},
-{id:"q6",t:"Cluster buildings for a +30% bonus",ok:()=>S.bl.some(b=>b.l>0&&mult(b)>=1.3),r:{credits:60}},
 {id:"q7",t:"Build a Cruiser",ok:()=>S.ships.cruiser>=1,r:{credits:100,crystal:60}},
 {id:"q8",t:"Own 4 systems",ok:()=>S.won.length>=5,r:{credits:300,metal:200}},
 {id:"q9",t:"Build a Capital Ship",ok:()=>S.ships.capital>=1,r:{credits:300,crystal:150}},
