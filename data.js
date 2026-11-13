@@ -106,10 +106,11 @@ const TECH=[
 {id:"l3",n:"Megastructure Docks",d:"+4 more ship slots per Hangar level",c:{credits:4500,crystal:3500},t:1500,req:"l2",k:"slot",v:4},
 {id:"c3",n:"Galactic Doctrine",d:"Command Station max level 13",c:{credits:4000,crystal:2500},t:1800,req:"c2",k:"cmax",v:3},
 // v2.5: Jump Drive — no prerequisite, mid-game reachable. Unlocks
-// Sector 2: without it the player cannot attack or claim any Sector 2
-// system (see avail() in game.js). Factions get their jump drives at
-// S.min>=60 (see rivalCycle()).
-{id:"j1",n:"Jump Drive",d:"Unlocks Sector 2 — attack and claim systems beyond the jump gates",c:{credits:1000,crystal:500},t:300,k:"jump",v:1}
+// ATTACKS and CLAIMS in Sector 2: without it the player cannot attack
+// or claim any Sector 2 system (see avail() in game.js) — but viewing
+// and scouting Sector 2 is free, no research needed. Factions get
+// their jump drives at S.min>=60 (see rivalCycle()).
+{id:"j1",n:"Jump Drive",d:"Unlocks attacks and claims in Sector 2 — you can already scout its map for free",c:{credits:1000,crystal:500},t:300,k:"jump",v:1}
 ];
 const RV={c:{n:"Crimson Pact",b:150,agg:0.9,exp:0.9,eco:1.0},v:{n:"Vael Collective",b:250,agg:0.5,exp:0.5,eco:1.3},k:{n:"Keth Dominion",b:200,agg:0.8,exp:1.0,eco:1.0},a:{n:"Aurelian Combine",b:180,agg:0.3,exp:0.4,eco:1.4},m:{n:"Vortex Marauders",b:120,agg:1.0,exp:0.4,eco:0.9}};
 // v2.4 faction personalities: agg = raid likelihood (raid chance per
