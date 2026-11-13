@@ -1056,8 +1056,13 @@ function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
-TECH.forEach(t=>{const dn=S.tech.includes(t.id),av=!dn&&(!t.req||S.tech.includes(t.req));$("#tr-"+t.id).style.display=av?"":"none";if(av){$("#tc-"+t.id).textContent="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul()*crewResMul());$("#tb-"+t.id).disabled=!!S.rq||!can(t.c)}});
+// v2.9: ALL 17 tech rows always render — a locked row is visible but
+// greyed, names its requirement, and its button is disabled; a done row
+// reads "Researched". (Hiding locked rows left a fresh save showing 6
+// rows under a "Completed 0 of 17" header.)
+TECH.forEach(t=>{const dn=S.tech.includes(t.id),req=t.req?TECH.find(z=>z.id===t.req):null,av=!dn&&(!req||S.tech.includes(req.id)),row=$("#tr-"+t.id),tc=$("#tc-"+t.id),tb=$("#tb-"+t.id);row.style.display="";row.classList.toggle("locked",!dn&&!!req);row.classList.toggle("done",dn);const ct="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul()*crewResMul());if(dn){tc.textContent="Researched.";tb.textContent="Researched";tb.disabled=true}else if(req&&!S.tech.includes(req.id)){tc.textContent="Requires "+req.n+". "+ct;tb.textContent="Research";tb.disabled=true}else{tc.textContent=ct;tb.textContent="Research";tb.disabled=!!S.rq||!can(t.c)}});
 $("#rq").textContent=(S.rq?"Researching: "+TECH.find(z=>z.id===S.rq.id).n+" ("+left(S.rq.end-now)+"). ":"Lab idle. ")+"Completed "+S.tech.length+" of "+TECH.length+".";
+const sn=$("#sec-note");if(sn)sn.hidden=!(SEC===1&&!hasJump()); // v2.9: scouting Sector 2 is free — say so while the player is looking at it without Jump Drive
 crewUI();
 for(const id in CM){const c=CM[id],h=S.cmds.includes(id),sl=c.t==="fleet"?"fleet":"station",on=S.slot[sl]===id;
 $("#cl-"+id).textContent=h?"Lv "+lv(id)+(on?" (assigned)":""):"";
@@ -1072,7 +1077,7 @@ function crewUI(){const el=$("#crew-panel");if(!el)return;const c=crewAt(),cap=c
 const key=[cap,tot,c.mine,c.ship,c.res,S.b.command,Object.values(S.col||{}).map(x=>x.l).join(",")].join("|");
 if(key===crewKeyCache)return;crewKeyCache=key;
 const desc={mine:"Boosts building and colony production.",ship:"Ships finish faster.",res:"Research finishes faster."};
-const row=(k,label,bonus)=>{const n=c[k]||0;return '<div class="row"><div><b>'+label+': '+n+' crew → +'+(n*2)+'% '+bonus+'</b><br><small>'+desc[k]+'</small></div><div class="bg"><button data-crew="'+k+':-1" '+(n<=0?"disabled":"")+'>−</button><button data-crew="'+k+':+1" '+(tot>=cap?"disabled":"")+'>+</button></div></div>'};
+const row=(k,label,bonus)=>{const n=c[k]||0;return '<div class="row"><div><b>'+label+': '+n+' crew → +'+(n*2)+'% '+bonus+' (+'+Math.round(CREW_PCT*100)+'% per crew)</b><br><small>'+desc[k]+'</small></div><div class="bg"><button data-crew="'+k+':-1" '+(n<=0?"disabled":"")+'>−</button><button data-crew="'+k+':+1" '+(tot>=cap?"disabled":"")+'>+</button></div></div>'};
 el.innerHTML='<small>Assign your crew to mining, shipbuilding or research. Crew grows with your Command Station and colonies.</small><br><small><b>Crew: '+tot+' assigned / '+cap+' total ('+(cap-tot)+' idle)</b></small>'+row("mine","Mining","production")+row("ship","Shipbuilding","shipyard speed")+row("res","Research","research speed");}
 const away=Math.min((Date.now()-S.t)/1000,28800);
 if(away>60){step(away);done();offlineSim(away);msg("Welcome back! Your empire worked for "+Math.floor(away/60)+" minutes while you were away.")}
