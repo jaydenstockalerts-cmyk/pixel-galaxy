@@ -21,7 +21,7 @@ if(t>0)for(let i=0;i<3;i++)pn(5+i*12,5);
 // plinth diamond at every height — the old 40-wide slab overhung the
 // plinth's top point (live v1.6: the grey slab covered the top of the
 // blue plinth diamond). Row widths follow the plinth slope (plinth
-// 44x22: half-width grows ~2u per 1u down), so the slab reads as
+// 40x20 (v1.9: was 44x22): half-width grows ~2u per 1u down), so the slab reads as
 // sitting ON the plinth instead of spilling past it.
 R(17,33,10,2,"g");R(13,35,18,2,"g");R(9,37,26,2,"g");R(5,39,34,2,"g");R(2,41,40,2,"g");
 R(17,33,10,1,"G");R(2,42,40,1,"d");
@@ -63,11 +63,36 @@ if(t>0)bev(R,37,30,7,12,"g","G","d");
 if(t>1){R(5,3,2,8,"G");ball(R,6,3,3,"w","g","G")}
 if(t>2)R(2,26,40,1,"z")},
 command:(R,t)=>{const top=[14,12,10,9][t];
+// v1.9 KEEP REDRAW (live v1.8): the old keep read as TWO buildings —
+// a wide tan base with no windows and a plain dark door, then a much
+// narrower grey tower with yellow windows, then a blue dome with a
+// hard dark patch on its right side, topped by a grey stalk with a
+// red cap (a chimney, not a flag). Now ONE coherent building: base
+// and tower share the same stone ("w" with grey trim), the base has
+// lit windows and a gold-framed door, a gold cornice band hides the
+// tower/base seam, the dome is a HALF dome (flat bottom) with a
+// smooth vertical gradient (light top to dark bottom — no diagonal
+// dark patch) and a white highlight, a gold trim band sits under it,
+// and the stalk is replaced by a real flag: a thin pole with a
+// waving red pennant. Side towers (tier 1+) unchanged.
+const dome=(cx,cy,r)=>{for(let dy=-r;dy<=0;dy++){const w=Math.floor(Math.sqrt(r*r-dy*dy)),tt=(dy+r)/r,c=tt<0.35?"c":tt<0.7?"b":"B";R(cx-w,cy+dy,2*w+1,1,c)}R(cx-5,cy-r+2,3,1,"w");R(cx-6,cy-r+3,2,1,"w");R(cx-4,cy-r+3,1,1,"w")};
 if(t>0){bev(R,3,18,10,14,"w","g","G");bev(R,31,18,10,14,"w","g","G");[[5,21],[33,21],[5,27],[33,27]].forEach(p=>win(R,p[0],p[1],1))}
-bev(R,4,28,36,14,"e","E","F");bev(R,14,top,16,30-top,"w","g","G");
+// tower first: the base is drawn over its bottom rows, so the tower
+// emerges from the base's roofline (not in front of its face).
+bev(R,14,top,16,30-top,"w","g","G");
 for(let j=top+4;j<27;j+=5){R(17,j,3,3,"y");R(24,j,3,3,"y")}
-ball(R,22,top,7,t>2?"z":"c",t>2?"Z":"b",t>2?"d":"B");R(21,0,2,top-7,"G");R(20,0,4,2,"r");
-R(19,33,6,9,"N");R(20,34,4,8,"n")}
+// base: same stone as the tower, lit windows flanking the door,
+// gold-framed door.
+bev(R,4,28,36,14,"w","g","G");
+win(R,8,32,1);win(R,30,32,1);
+R(18,32,8,10,"Z");R(19,33,6,9,"N");R(20,34,4,8,"n");R(21,33,2,1,"z");
+// cornice band across the full base width hides the tower/base seam.
+R(4,27,36,1,"z");R(4,28,36,1,"G");
+// gold trim band under the dome, wider than the tower.
+R(12,top+2,20,1,"z");R(12,top+3,20,1,"Z");
+dome(22,top+1,9);
+// flag: thin pole above the dome with a waving red pennant.
+R(22,0,1,Math.max(1,top-8),"G");R(23,0,5,1,"r");R(23,1,4,1,"r");R(22,0,1,1,"z")}
 };
 const SC=R=>{bev(R,4,36,36,6,"s","S","d");R(6,14,2,28,"n");R(36,14,2,28,"n");R(6,14,32,2,"N");R(6,26,32,2,"N");for(let i=0;i<10;i++)R(8+i*3,16+i,2,2,"n");R(30,2,2,14,"y");R(20,2,14,2,"y");R(21,4,1,8,"G");R(10,31,8,5,"x");R(12,32,4,1,"X")};
 const DC={
@@ -127,7 +152,7 @@ function isoPt(gx,gy){return{x:(gx-gy)*ISO_TW/2,y:(gx+gy)*ISO_TH/2}}
 // drawn LARGE and upright on it (40x40 world units, keep 48x48).
 // Level is shown by the sprite tier + the level shield, not by height.
 const ISO_PLINTH_H=2, ISO_PLINTH_KEEP_H=3; // v1.6: plinth is FLAT (was 6/8 tall) — a low coloured platform, not a cube
-const ISO_SPRITE_W=40, ISO_SPRITE_H=40, ISO_SPRITE_KEEP_W=48, ISO_SPRITE_KEEP_H=48;
+const ISO_SPRITE_W=36, ISO_SPRITE_H=36, ISO_SPRITE_KEEP_W=42, ISO_SPRITE_KEEP_H=42; // v1.9: smaller (was 40/48) — adjacent buildings keep clear ground between them (live v1.8: the Foundry abutted the keep)
 function isoPlinthH(b){return b&&b.t==="command"?ISO_PLINTH_KEEP_H:ISO_PLINTH_H}
 function isoSpriteSize(b){return b&&b.t==="command"?{w:ISO_SPRITE_KEEP_W,h:ISO_SPRITE_KEEP_H}:{w:ISO_SPRITE_W,h:ISO_SPRITE_H}}
 function isoHeight(b){const s=isoSpriteSize(b);return isoPlinthH(b)+s.h} // top of the sprite above the ground
@@ -149,7 +174,7 @@ function isoBuildingHit(wx,wy,b){
     const hw=wy<yTop+12?10:21;
     if(Math.abs(wx-c.x)<=hw&&wy>=yTop&&wy<=yBot)return true;
   } else if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=yTop&&wy<=yBot)return true;
-  const rx=b.t==="command"?26:22, ry=b.t==="command"?13:11;
+  const rx=b.t==="command"?24:20, ry=b.t==="command"?12:10; // v1.9: plinths are 40x20 (keep 48x24), was 44x22 (52x26)
   return Math.abs(wx-c.x)/rx+Math.abs(wy-c.y)/ry<=1.0;
 }
 const DISTTINT={solar:"#ffe066",foundry:"#ff9a3c",mine:"#b07cf0",hub:"#9be8ff",hangar:"#4aa3df",command:"#f4f6ff"};
@@ -188,16 +213,17 @@ const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Indus
 //     is removed — it read as a purple plumb-line through the sprite.)
 //  8. Trees pasted on buildings — decor now only on empty plots
 //     OUTSIDE the wall, never adjacent to a building, ground-anchored.
-const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#5a6b8a",command:"#ffd84a"}; // v1.5: hangar slate-blue (was grey #7c849c, read as another grey cube)
+const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#5a6b8a",command:"#c9a86a"}; // v1.5: hangar slate-blue (was grey #7c849c, read as another grey cube). v1.9: command is a MUTED gold (was saturated lemon #ffd84a — the keep's plinth read as a bright yellow tile, live v1.8).
 // ---- v1.5 sprite-is-the-building + clean ground + visible roads ----
 // Live v1.4 defects (seen at 1919x998, NOT headless): the four huge
 // yellow-topped cubes were the corner TOWERS (36 tall, gold roof) and
 // the wall segments (22 tall, beige top) — they dominated the base
 // while the real sprites were tiny and buried. The fix:
-//   plinth ................ 6u tall (keep 8u), 44x22 (keep 52x26),
+//   plinth ................ FLAT 2u (keep 3u), 40x20 (keep 48x24),
 //     roof-coloured so the type colour reads as a rim around the sprite
-//   sprite ................ 40x40 world units, upright, LARGE (keep
-//     48x48) — the sprite IS the building, the plinth just grounds it
+//     (v1.6: was a 6u/8u extruded block; v1.9: was 44x22 / 52x26)
+//   sprite ................ 36x36 world units, upright, LARGE (keep
+//     42x42) — the sprite IS the building, the plinth just grounds it (v1.9: was 40/48)
 //   wall .................. 12 tall (was 22), rx 32 ry 13 — its bottom
 //     point now exactly meets its ground diamond (was ry 16, so the
 //     front point overhung the tile and looked floating)
@@ -214,6 +240,11 @@ const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hanga
 //   hitbox ................ isoBuildingHit is now the whole building
 //     (ground diamond + sprite rectangle + shield), not just the sprite.
 // Tile pitch stays 64x32, so the projection and tap math are untouched.
+// v1.9 (live v1.8): the keep/plaza/roads were still wrong — see the
+// v1.9 notes at BS.command, drawBase's road/plaza/lock sections and
+// the wall. Plinth 40x20 (keep 48x24), sprite 36x36 (keep 42x42),
+// plaza is the keep's own plot only, roads are short unlock-aware
+// bands, locks are drawn last on clean grass.
 const ISO_DIA_RX=26, ISO_DIA_RY=13;
 function drawBase(q,cam,opts){
   const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv;
@@ -227,17 +258,66 @@ function drawBase(q,cam,opts){
   const diaStroke=(cx,cy,rx,ry,color,lw)=>{q.beginPath();q.moveTo(X(cx),Y(cy-ry));q.lineTo(X(cx+rx),Y(cy));q.lineTo(X(cx),Y(cy+ry));q.lineTo(X(cx-rx),Y(cy));q.closePath();q.strokeStyle=color;q.lineWidth=lw;q.stroke()};
   q.fillStyle="#5fae4f";q.fillRect(0,0,vw,vh); // v1.5: gaps between diamonds are grass, not a dark void
   const keep=S.bl.find(b=>b.t==="command")||null;
+  const keepX=keep?keep.x:-1,keepY=keep?keep.y:-1;
   let mnx=12,mxx=-1,mny=12,mxy=-1;
   S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
   if(mxx<0){mnx=3;mxx=5;mny=3;mxy=5}
   const wx0=Math.max(0,mnx-1),wx1=Math.min(11,mxx+1),wy0=Math.max(0,mny-1),wy1=Math.min(11,mxy+1);
-  const roads=new Set();
-  const roadTo=(i0,j0,i1,j1)=>{let i=i0,j=j0;roads.add(i+","+j);while(i!==i1){i+=Math.sign(i1-i);roads.add(i+","+j)}while(j!==j1){j+=Math.sign(j1-j);roads.add(i+","+j)}};
-  if(keep){for(let i=wx0;i<=wx1;i++)roads.add(i+","+keep.y);for(let j=wy0;j<=wy1;j++)roads.add(keep.x+","+j);
-    // v1.4: ONE short spur per DISTRICT (to its centroid), not per
-    // building — a clean cross + spurs, no tangled paths.
-    const dist={};S.bl.forEach(b=>{if(b.u===keep.u)return;const d=DISTNAME[b.t]||b.t;(dist[d]=dist[d]||[]).push(b)});
-    Object.values(dist).forEach(bs=>{const cx=Math.round(bs.reduce((s,b)=>s+b.x,0)/bs.length),cy=Math.round(bs.reduce((s,b)=>s+b.y,0)/bs.length);roadTo(keep.x,keep.y,cx,cy)})}
+  // ---- v1.9 WALL PLOTS + ROADS (computed before the ground loop) ----
+  // wallPlots marks every plot a wall segment or corner tower stands
+  // on — those plots never show a lock (the wall itself is their
+  // marker). Gates (the keep's row/column on the ring) have no wall
+  // segment, so a locked gate plot still shows its lock.
+  const wallPlots=new Set();
+  for(let i=wx0;i<=wx1;i++){if(i!==keepX)wallPlots.add(i+","+wy0);if(i!==keepX)wallPlots.add(i+","+wy1)}
+  for(let j=wy0;j<=wy1;j++){if(j!==keepY)wallPlots.add(wx0+","+j);if(j!==keepY)wallPlots.add(wx1+","+j)}
+  // ROADS are SHORT and purposeful (Jayden, live v1.8: the old cross
+  // ran across the whole map and the district spurs cut diagonally
+  // across plots — "weird paths"). A road is a polyline of world
+  // points from the keep outward; it only traverses UNLOCKED plots,
+  // it ends at a building's plinth edge (22u short of the centre)
+  // instead of crossing the plot, and it ends at the plot edge (0.41
+  // of a step past the last centre) when the next plot is locked,
+  // off-map, or the wall. It NEVER crosses a locked plot, so it NEVER
+  // runs under a lock (locks are drawn after the roads anyway).
+  // Cross roads run the four directions from the keep; spurs run only
+  // to NEIGHBOURING buildings (chebyshev distance <= 2), L-shaped.
+  const roadPolys=[]; // each: [[x,y],...] in world coords
+  const roadCells=new Set(); // plots a road passes through (decor keeps off)
+  const roadPt=(i,j)=>{const c=isoC(i,j);return[c.x,c.y]};
+  const stepWorld=(di,dj)=>[(di-dj)*32,(di+dj)*16];
+  const edgePt=(px,py,di,dj)=>{const s=stepWorld(di,dj);return[px+s[0]*0.41,py+s[1]*0.41]};
+  const shortPt=(px,py,di,dj)=>{const s=stepWorld(di,dj),L=Math.hypot(s[0],s[1]);return[px-s[0]/L*22,py-s[1]/L*22]};
+  if(keep){
+    const kc=isoC(keep.x,keep.y);
+    const roadLine=(di,dj)=>{
+      const pts=[[kc.x,kc.y]];let i=keep.x,j=keep.y;
+      while(true){
+        const ni=i+di,nj=j+dj;
+        const bNext=(ni>=0&&ni<12&&nj>=0&&nj<12)?bAt(ni,nj):null;
+        if(bNext){pts.push(shortPt(...roadPt(ni,nj),di,dj));roadCells.add(ni+","+nj);break}
+        if(ni<0||ni>11||nj<0||nj>11||plotLocked(ni,nj)){pts.push(edgePt(...pts[pts.length-1],di,dj));break}
+        pts.push(roadPt(ni,nj));roadCells.add(ni+","+nj);i=ni;j=nj;
+        if(i===wx0||i===wx1||j===wy0||j===wy1){pts.push(edgePt(...pts[pts.length-1],di,dj));break}
+      }
+      return pts;
+    };
+    [[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{const pts=roadLine(d[0],d[1]);if(pts.length>1)roadPolys.push(pts)});
+    S.bl.forEach(b=>{
+      if(b.u===keep.u)return;
+      if(Math.max(Math.abs(b.x-keep.x),Math.abs(b.y-keep.y))>2)return;
+      const pts=[[kc.x,kc.y]];let i=keep.x,j=keep.y,ok=true;
+      const stepTo=(ni,nj)=>{
+        const bNext=(ni>=0&&ni<12&&nj>=0&&nj<12)?bAt(ni,nj):null;
+        if(bNext){if(bNext.u===b.u){pts.push(shortPt(...roadPt(ni,nj),Math.sign(ni-i),Math.sign(nj-j)));roadCells.add(ni+","+nj);return"done"}return"blocked"}
+        if(ni<0||ni>11||nj<0||nj>11||plotLocked(ni,nj))return"blocked";
+        pts.push(roadPt(ni,nj));roadCells.add(ni+","+nj);i=ni;j=nj;return"ok";
+      };
+      while(i!==b.x){const r=stepTo(i+Math.sign(b.x-i),j);if(r==="done"){ok="done";break}if(r==="blocked"){ok=false;break}}
+      if(ok===true)while(j!==b.y){const r=stepTo(i,j+Math.sign(b.y-j));if(r==="done"){ok="done";break}if(r==="blocked"){ok=false;break}}
+      if(ok==="done"&&pts.length>1)roadPolys.push(pts);
+    });
+  }
   const Hh=(a,b)=>((a*73856093)^(b*19349663))>>>0;
   let farmN=0, decorN=0; // v1.5 caps: farmland and decor are sparse by count, not just by pattern
   // --- terrace platform skirt: the city sits on a raised platform.
@@ -260,7 +340,10 @@ function drawBase(q,cam,opts){
         // separate blue tiles / small pools, with a road cutting
         // across the row. The river centres are collinear —
         // isoC(-1,j) steps (-32,+16) — so the whole river is ONE
-        // straight stroked band from (-16,-8) to (-400,184): a sand
+        // straight stroked band from (144,-88) to (-560,264) (v1.9:
+        // extended past both map edges — the old ends stopped inside
+        // the terrain, so the NE end read as a blunt rounded cap, a
+        // pill, touching the plaza's NW edge, live v1.8): a sand
         // bank stroke, a water stroke, a lighter centre flow, and
         // four animated flow dashes. Drawn once, at the first river
         // cell (depth -1, behind everything); the other river cells
@@ -271,7 +354,7 @@ function drawBase(q,cam,opts){
         // 17.9 / 14.3 / 9.8 stroke widths.)
         if(!riverDrawn){
           riverDrawn=true;
-          const rx0=-16,ry0=-8,rx1=-400,ry1=184;
+          const rx0=144,ry0=-88,rx1=-560,ry1=264;
           const dx=rx1-rx0,dy=ry1-ry0,dl=Math.hypot(dx,dy),ux=dx/dl,uy=dy/dl;
           q.lineJoin="round";q.lineCap="round";
           const band=(w,col)=>{q.beginPath();q.moveTo(X(rx0),Y(ry0));q.lineTo(X(rx1),Y(ry1));q.strokeStyle=col;q.lineWidth=Math.max(1,w*k);q.stroke()};
@@ -279,8 +362,9 @@ function drawBase(q,cam,opts){
           band(14.3,"#2f78b0"); // water
           band(9.8,"#4aa3df"); // lighter centre flow
           q.strokeStyle="#9be8ff";q.lineWidth=Math.max(1,2*k);
-          for(let m=0;m<4;m++){const tt=(F*0.03+m*0.25)%1,px=rx0+dx*tt,py=ry0+dy*tt;
-            q.beginPath();q.moveTo(X(px-ux*5),Y(py-uy*5));q.lineTo(X(px+ux*5),Y(py+uy*5));q.stroke()}
+          const dashLen=[4,7,5,8]; // v1.9: varied flow dashes, not four identical ones
+          for(let m=0;m<4;m++){const tt=(F*0.02+m*0.25)%1,dl2=dashLen[m],px=rx0+dx*tt,py=ry0+dy*tt;
+            q.beginPath();q.moveTo(X(px-ux*dl2),Y(py-uy*dl2));q.lineTo(X(px+ux*dl2),Y(py+uy*dl2));q.stroke()}
         }
       } else { // terrain outside the city: grass, never void
         dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#5fae4f"); // v1.5: one grass tone, no checker
@@ -288,24 +372,22 @@ function drawBase(q,cam,opts){
       return;
     }
     const h=Hh(i,j),bd0=bAt(i,j);
-    let base="#5fae4f"; // v1.5: ONE grass tone, no checker — the checker read as wallpaper
-    if(roads.has(i+","+j))base="#cdb98a";
-    else if(keep&&Math.abs(i-keep.x)<=1&&Math.abs(j-keep.y)<=1)base="#c9c3b0"; // keep plaza ring (the big plaza diamond covers it)
+    // v1.9: ALL empty plots are the same clean green grass — no stone
+    // ring, no road tint, no pads in normal view (Jayden: he likes the
+    // clean look of the far locked plots). The only difference between
+    // locked and unlocked empty plots is the lock icon (drawn last).
+    const base="#5fae4f";
     dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,base); // spaced diamond: grass gap between plots
     diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"rgba(0,0,0,0.05)",1); // faint border only
     if(!bd0&&(i<wx0||i>wx1||j<wy0||j>wy1)&&(i*3+j*7)%29===0&&farmN<5){ // v1.5: farmland is ~5 muted plots, not one per tile
       farmN++;
       for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,12,2,(i+j+r)%2?"#d8c98a":"#6fae4f",.55);
     }
-    // v1.5 PLOT LOCKING: a locked plot is greyed (dim overlay, road/plaza
-    // still faintly visible through it) with a small lock marker, so it
-    // reads as locked at default zoom — never a buildable pad.
-    if(!bd0&&plotLocked(i,j)){
-      dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#6b7590",.55);
-      const lx=X(c.x),ly=Y(c.y),lw=Math.max(4,7*k),lh=Math.max(3,5*k);
-      q.fillStyle="#2a2f45";q.fillRect(lx-lw/2,ly-lh/2+1,lw,lh);
-      q.strokeStyle="#2a2f45";q.lineWidth=Math.max(1,1.5*k);q.strokeRect(lx-lw/4,ly-lh/2-3,Math.max(2,lw/2),Math.max(2,3*k));
-    }
+    // v1.9: NO dim overlay on locked plots — a locked plot is clean
+    // green grass exactly like an unlocked one; the lock icon is drawn
+    // in a LAST pass (after plaza/roads/objects), so the plaza and the
+    // roads can no longer paint over it (live v1.8: locks were missing
+    // from plots near the keep and on road lines).
     // Foundation pad ONLY in Place/Move mode — normal ground is terrain, not grid.
     if(!bd0&&go&&!plotLocked(i,j)){
       dia(c.x,c.y,22,11,"#8f8a76");
@@ -316,27 +398,34 @@ function drawBase(q,cam,opts){
       q.globalAlpha=1;
     }
   });
-  // --- v1.5 plaza + roads as wide bands (per-tile tints were invisible
-  // at default zoom; a 13u-wide dirt band with a dark edge is not) ---
+  // --- v1.9 plaza + roads ---
+  // The plaza is ONE flat stone diamond sized to the KEEP'S OWN PLOT
+  // only (28x14, just larger than the keep's 48x24 plinth) with a thin
+  // border — not the old 220x110 slab that covered neighbouring plots
+  // and stacked concentric squares with the stone ring (live v1.8:
+  // "a lot of filled-in squares around the Command Station").
+  // Roads are drawn from roadPolys (computed above): each polyline is
+  // stroked twice (dark border, then dirt inner) with BUTT caps so
+  // the ends are flat — the old round caps read as pills / band-aids —
+  // and round joins so L-corners are smooth. A dirt band crossing the
+  // small stone plaza reads as a path through a courtyard.
   if(keep){
     const kpc=isoC(keep.x,keep.y);
-    dia(kpc.x,kpc.y,110,55,"#b8b09a"); // stone plaza, far larger than the keep's plinth
-    dia(kpc.x,kpc.y,84,42,"#c9c3b0");
-    diaStroke(kpc.x,kpc.y,110,55,"#8f8a76",Math.max(1,2*k));
-    const roadLine=(pts)=>{ // pts: [[i,j],...] grid points -> iso polyline
-      const P=pts.map(p=>{const q2=isoC(p[0],p[1]);return[X(q2.x),Y(q2.y)]});
-      q.lineJoin="round";q.lineCap="round";
-      q.strokeStyle="#7a6a4f";q.lineWidth=Math.max(3,18*k);q.beginPath();q.moveTo(P[0][0],P[0][1]);P.slice(1).forEach(p=>q.lineTo(p[0],p[1]));q.stroke();
-      q.strokeStyle="#e0cf9e";q.lineWidth=Math.max(2,13*k);q.beginPath();q.moveTo(P[0][0],P[0][1]);P.slice(1).forEach(p=>q.lineTo(p[0],p[1]));q.stroke();
+    dia(kpc.x,kpc.y,28,14,"#b8b09a");
+    dia(kpc.x,kpc.y,24,12,"#c9c3b0");
+    diaStroke(kpc.x,kpc.y,28,14,"#8f8a76",Math.max(1,2*k));
+    const strokePoly=(pts,border,inner)=>{
+      if(pts.length<2)return;
+      const P=pts.map(p=>[X(p[0]),Y(p[1])]);
+      q.lineJoin="round";q.lineCap="butt";
+      q.strokeStyle=border;q.lineWidth=Math.max(2,12*k);q.beginPath();q.moveTo(P[0][0],P[0][1]);P.slice(1).forEach(p=>q.lineTo(p[0],p[1]));q.stroke();
+      q.strokeStyle=inner;q.lineWidth=Math.max(1,8*k);q.beginPath();q.moveTo(P[0][0],P[0][1]);P.slice(1).forEach(p=>q.lineTo(p[0],p[1]));q.stroke();
     };
-    roadLine([[wx0,keep.y],[wx1,keep.y]]); // main cross, east-west
-    roadLine([[keep.x,wy0],[keep.x,wy1]]); // main cross, north-south
-    const dist2={};S.bl.forEach(b=>{if(b.u===keep.u)return;const d=DISTNAME[b.t]||b.t;(dist2[d]=dist2[d]||[]).push(b)});
-    Object.values(dist2).forEach(bs=>{const cx2=Math.round(bs.reduce((s,b)=>s+b.x,0)/bs.length),cy2=Math.round(bs.reduce((s,b)=>s+b.y,0)/bs.length);roadLine([[keep.x,keep.y],[cx2,keep.y],[cx2,cy2]])});
+    roadPolys.forEach(poly=>strokePoly(poly,"#7a6a4f","#d9c48f"));
+    if(window.__isoDraw)window.__isoDraw.push({roads:roadPolys.length,roadCells:[...roadCells]});
   }
   // --- objects: wall, towers, buildings, decor — painter's order ---
   const objs=[];
-  const keepX=keep?keep.x:-1,keepY=keep?keep.y:-1;
   for(let i=wx0;i<=wx1;i++){
     if(i!==keepX)objs.push({d:i+wy0,kind:"wall",i,j:wy0}); // gates are plain gaps, no posts
     if(i!==keepX)objs.push({d:i+wy1,kind:"wall",i,j:wy1});
@@ -355,29 +444,34 @@ function drawBase(q,cam,opts){
   // v1.5: decor is a handful of trees/rocks OUTSIDE the wall, capped at 5.
   for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
     if(decorN>=5)break;
-    if(i<0||j<0||i>11||j>11){if(i!==-1&&!roads.has(i+","+j)&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%41===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
+    if(i<0||j<0||i>11||j>11){if(i!==-1&&!roadCells.has(i+","+j)&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%41===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
   }
   objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
   const labels=[]; // second pass: shields + names drawn on top, screen space
   objs.forEach(o=>{
     if(o.kind==="wall"){
-      // v1.6: the wall is FLAT — a stone ring drawn on the ground
-      // plane, no extruded block. Live v1.5: the 12-tall grey wall
-      // blocks + gold towers ringed the tiny fresh cluster so closely
-      // that the centre read as a stack of yellow-topped grey cubes.
+      // v1.9: the wall is a VISIBLE low stone ring — a continuous band,
+      // not the old per-plot grey diamonds with a pale centre (which
+      // read as "centre squares" on empty plots, live v1.8) and not the
+      // three floating grey tabs (which read as broken wall stubs).
+      // Each segment is a FULL-TILE dark-stone diamond (so the ring is
+      // continuous, no grass gaps), a mid-stone inner diamond, and
+      // merlons — small light squares sitting ON the top edges, like
+      // crenellations — never floating above the diamond.
       const c=isoC(o.i,o.j);
-      dia(c.x,c.y,26,13,"#8f8a76");
-      dia(c.x,c.y,20,10,"#c9c3b0");
-      [-12,0,12].forEach(dx=>{q.fillStyle="#8f8a76";q.fillRect(X(c.x+dx)-Math.max(1,1.5*k),Y(c.y-8)-Math.max(1,1.5*k),Math.max(2,3*k),Math.max(2,3*k))});
+      dia(c.x,c.y,32,16,"#6b6250");
+      dia(c.x,c.y,24,12,"#8f8a76");
+      [-1,1].forEach(s=>{for(let m=1;m<=3;m++){const t=m/4,mx=c.x+s*32*t,my=c.y-16+16*t;
+        q.fillStyle="#c9c3b0";q.fillRect(X(mx)-Math.max(1,1.5*k),Y(my)-Math.max(1,1.5*k),Math.max(2,3*k),Math.max(2,3*k))}});
       return;
     }
     if(o.kind==="tower"){
-      // v1.6: towers are flat stone diamonds with a gold centre dot —
-      // corner markers, not cubes.
+      // v1.9: corner towers are bigger flat stone diamonds with a gold
+      // centre dot — corner markers, not cubes.
       const c=isoC(o.i,o.j);
-      dia(c.x,c.y,16,8,"#8f8a76");
-      dia(c.x,c.y,10,5,"#c9c3b0");
-      q.fillStyle="#ffd84a";q.fillRect(X(c.x)-Math.max(1,2*k),Y(c.y)-Math.max(1,2*k),Math.max(2,4*k),Math.max(2,4*k));
+      dia(c.x,c.y,24,12,"#6b6250");
+      dia(c.x,c.y,18,9,"#8f8a76");
+      q.fillStyle="#ffd84a";q.fillRect(X(c.x)-Math.max(1,2.5*k),Y(c.y)-Math.max(1,2.5*k),Math.max(2,5*k),Math.max(2,5*k));
       return;
     }
     if(o.kind==="decor"){
@@ -395,8 +489,15 @@ function drawBase(q,cam,opts){
     // sprite is drawn LARGE and upright with its bottom overlapping
     // the plinth by 3u — so there is NO white gap under the sprite —
     // and a dark translucent shadow diamond grounds the whole thing.
-    const rx=isKeep?26:22,ry=isKeep?13:11; // plinth 44x22 (keep 52x26) on a 64x32 pitch
-    dia(c.x,c.y+3,rx+4,ry+2,"#000000",.28); // drop shadow on the ground
+    // v1.9: plinths are SMALLER (40x20, keep 48x24) so adjacent
+    // buildings keep clear ground between them (live v1.8: the
+    // Foundry's edge abutted the keep's base and its red plinth
+    // overlapped the walkway). A dark stone foundation diamond sits
+    // under the plinth, plus the drop shadow, so the building reads as
+    // standing on a base — not pasted on a floating tile.
+    const rx=isKeep?24:20,ry=isKeep?12:10; // plinth 40x20 (keep 48x24) on a 64x32 pitch
+    dia(c.x,c.y+1,rx+2,ry+1,"#6b6250"); // stone foundation under the plinth
+    dia(c.x,c.y+3,rx+4,ry+2,"#000000",.32); // drop shadow on the ground
     dia(c.x,c.y,rx,ry,shade(roof,.85)); // flat plinth, roof-coloured
     dia(c.x,c.y,rx*.62,ry*.62,shade(roof,1.3)); // lighter centre, a coloured rim around the sprite
     const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));
@@ -413,21 +514,52 @@ function drawBase(q,cam,opts){
       if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(spx-Math.max(1,2*k),sTop+Math.max(2,6*k),Math.max(2,4*k),Math.max(2,4*k))}
       if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(spx-Math.max(3,10*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(spx+Math.max(3,7*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k))}
       if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(spx-Math.max(3,8*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k));q.fillRect(spx+Math.max(3,4*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k))}
-      if(b.t==="command"){q.fillStyle="#ffd84a";q.fillRect(spx-Math.max(1,2*k),sTop-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,4*k))}
-      if(b.t==="solar"){q.fillStyle="#ffffff";q.fillRect(spx-Math.max(3,6*k),sTop+Math.max(2,8*k),Math.max(4,12*k),Math.max(1,2*k))}
+      // v1.9: NO canvas-space glint squares. The command glint (a gold
+      // square just above the sprite top) read as a stray yellow square
+      // under the level shield AND as a yellow speck at the dome's edge
+      // (live v1.8, #5/#13) — the dome's highlight is now inside the
+      // sprite art. The solar glint (a 12u white bar) read as the lone
+      // white bar on the NW walkway (live v1.8, #4) — the panels
+      // already carry white highlight pixels in the sprite.
     }
     // Build progress: anchored to the building's base on the ground.
     const job=S.bq.filter(j=>j.u===b.u).sort((u,v)=>u.end-v.end)[0];
     if(job&&job.s){const p=Math.min(1,(now-job.s)/(job.end-job.s));q.fillStyle="#161628";q.fillRect(X(c.x)-18,Y(c.y+20),36,5);q.fillStyle="#ffe066";q.fillRect(X(c.x)-17,Y(c.y+21),Math.max(1,Math.round(34*p)),3)}
     else if(job){q.fillStyle="#ffe066";q.fillRect(X(c.x)-18,Y(c.y+20),8,5)}
-    if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,F&1?"#ffe066":"#ffffff",Math.max(1,2*k));
+    if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#ffe066",Math.max(1,2*k)); // v1.9: always gold — the white alternation read as a stray white bar on the walkway (live v1.8, #4)
     labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss:ssh});
     if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H:isoHeight(b)});
   });
+  // --- v1.9 LOCKS, drawn LAST (after plaza, roads, ground AND objects).
+  // The old lock was drawn in the plot loop BEFORE the plaza and the
+  // road cross, so the plaza slab and the roads painted OVER the locks
+  // on plots near the keep and on road lines (live v1.8: locks missing
+  // from some grey plots). Now every locked plot (except wall/tower
+  // plots, where the wall itself is the marker) gets a clear padlock on
+  // clean green grass: a white shackle ARC (not a rectangular tab — the
+  // old rectangular shackle read as a bag/backpack, live v1.8 #10) + a
+  // dark body + a gold keyhole, sized with a pixel floor so it reads at
+  // default zoom on a phone. The lock is the ONLY difference between
+  // locked and unlocked empty plots — no dim overlay, no grey.
+  for(let j=0;j<12;j++)for(let i=0;i<12;i++){
+    if(!plotLocked(i,j)||wallPlots.has(i+","+j))continue;
+    const c=isoC(i,j),lx=X(c.x),ly=Y(c.y);
+    const bw=Math.max(10,9*k),bh=Math.max(8,7*k),r=bw/2;
+    q.strokeStyle="#f4f6ff";q.lineWidth=Math.max(2,2*k);
+    q.beginPath();q.arc(lx,ly-bh/2,r,Math.PI,0);q.stroke();
+    q.fillStyle="#1e2438";q.fillRect(lx-bw/2,ly-bh/2,bw,bh);
+    q.fillStyle="#ffd84a";q.fillRect(lx-1,ly-1,2,2);
+    if(window.__isoDraw)window.__isoDraw.push({lock:i+","+j});
+  }
   // --- second pass: level shields + names, screen space, always on top.
   // Shield: fixed 13px radius, just above the sprite (no stem, v1.6).
+  // v1.9: the shield sits 14 WORLD units above the sprite top (it used
+  // to be a fixed 15 screen px, so at high zoom it drifted away from
+  // the hit-test shield position and looked detached). The name sits
+  // just above the shield. Small fixed gaps, for all building types —
+  // the keep's label no longer floats well above the spire (live v1.8, #12).
   labels.forEach(L=>{
-    const shx=L.roofX,shy=L.roofY-L.ss-16;
+    const shx=L.roofX,shy=L.roofY-L.ss-Math.max(10,14*k);
     // v1.6: NO stem — the old purple plumb-line ran down through
     // the sprite and reinforced the floating look. The shield sits
     // just above the sprite with a small gap; the name sits above it.
@@ -435,7 +567,7 @@ function drawBase(q,cam,opts){
     q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
     try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
     q.textAlign="center";q.textBaseline="middle";q.fillStyle="#ffffff";q.fillText(String(L.l),shx,shy+1);
-    drawLabel(q,L.name,Math.round(shx),Math.round(shy-24),"#ffffff",11);
+    drawLabel(q,L.name,Math.round(shx),Math.round(shy-22),"#ffffff",11);
     if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l});
   });
 }
