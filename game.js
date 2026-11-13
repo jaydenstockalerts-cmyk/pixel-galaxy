@@ -16,7 +16,7 @@ let S=load();recalc();
 // UI OVERHAUL v0.9 — camera and page state are VIEW-ONLY: they are never
 // saved in S and never change the save format (still pixelgalaxy-v3).
 const WORLD={w:640,h:800,px:5}; // galaxy world, SYS x/y * 5 (v0.9.1: bigger, detailed map)
-let CAM={cx:80,cy:200,zoom:1.8}; // centre (world units), zoom 1-2.5; default 1.8 on Home World (v0.9.1)
+let CAM={cx:320,cy:400,zoom:0.8}; // v1.5 default = fit view (whole galaxy in the safe area, bottom row visible). Home button still zooms to Home World at 1.8.
 let PAGE={kind:"tab"}; // tab | empire only — system/building/plot are popups now (v0.9.2)
 // v0.9.2 popups: VIEW-ONLY, never saved. Map/station stay visible behind.
 let POP=null; // null | {kind:"system",i} | {kind:"building",u} | {kind:"plot",x,y}
@@ -34,6 +34,10 @@ function measureUI(){
     if(t&&t.offsetHeight) top=Math.round(t.offsetHeight*1.15);
     const d=$("#tabs");
     if(d&&d.offsetHeight) bottom=Math.round(d.offsetHeight+20);
+    // v1.5 activity tray: when it is showing, map content must also
+    // stay above it — it counts toward the bottom safe-area inset.
+    const a=$("#activity");
+    if(a&&!a.hidden&&a.offsetHeight) bottom+=Math.round(a.offsetHeight+8);
   }catch(e){}
   UIIN={top,bottom};
 }
@@ -54,7 +58,7 @@ function setUIHidden(h){
 const TUT_KEY="pixelgalaxy-tutorial-done";
 const TUT_STEPS=[
 {t:"Welcome, Commander",b:"Pixel Galaxy is yours to build: grow your home station, train a fleet, and conquer systems all the way to The Dark Nexus."},
-{t:"Your station",b:"This is your home station. Tap a building to see it, or tap open land to build. A Solar Array is a good first build — it makes energy."},
+{t:"Your station",b:"This is your home station. Tap a building to see it, or tap open land to build. A Solar Array is a good first build — it makes energy. Plots unlock as you upgrade the Command Station — the city grows outward from the keep."},
 {t:"Resources",b:"Energy, metal, crystal and credits live at the top. Each has a storage cap — upgrade the Command Station to store more. Buildings produce at full rate wherever they stand — spread them out."},
 {t:"The galaxy",b:"Switch to the Galaxy tab and tap a planet. Check the power it needs, then attack the Pirate Outpost when your fleet is ready. Fighters beat swarm fleets."},
 {t:"Fleet, Research, Quests",b:"Train ships in Fleet, research in Research, hire commanders in Crew, and claim rewards in Quests. Good luck, Commander."}
@@ -87,6 +91,7 @@ function syncMenuSound(){const el=$("#m-sound"); if(el) el.textContent=S.mute?"o
 // stScale matches art.js: sc = (canvasHeight / 480) * zoom.
 const STWORLD={w:768,h:384,cell:48,plots:12};
 let STCAM={cx:32,cy:64,zoom:2.2}; // centred on the keep: grid (2,1) -> iso (32,64)
+let stFitted=false; // v1.5: fit the station cluster once, on first visit to the Station tab
 const stScale=()=>((st.height||384)/480)*STCAM.zoom;
 // v1.0: station camera centres on the SAFE area (between HUD and dock),
 // not the raw canvas centre, so buildings are never hidden under a bar.
@@ -104,12 +109,15 @@ function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx
 // v1.3: station cameras fit the OCCUPIED building cluster, not the
 // whole 12x12 diamond (live bug: the map was ~80% empty in both Home
 // and Fit, and the default view centred the clump in the upper third).
-// occupiedIsoBBox returns the iso bbox of all buildings, expanded to
-// include the level shield + name label above the top building and the
-// spaced-out footprint, in iso world units.
+// v1.5: the bbox is the DRAWN extent of the buildings, not the plots
+// plus a huge pad — the old pad (±48 x, -72/+24 y, +128 margin on Fit)
+// made Fit show the base as a small patch in the centre quarter.
+// Sprite top (plinth + sprite + shield + name) is ~88u above the plot
+// centre; the ground diamond is ~18u below it; x is the plinth
+// half-width (30u) either side.
 function occupiedIsoBBox(margin){
   let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
-  S.bl.forEach(b=>{const c=isoC(b.x,b.y);x0=Math.min(x0,c.x-48);x1=Math.max(x1,c.x+48);y0=Math.min(y0,c.y-72);y1=Math.max(y1,c.y+24)});
+  S.bl.forEach(b=>{const c=isoC(b.x,b.y);x0=Math.min(x0,c.x-30);x1=Math.max(x1,c.x+30);y0=Math.min(y0,c.y-88);y1=Math.max(y1,c.y+18)});
   if(x1<x0){x0=-384;x1=384;y0=0;y1=384}
   const m=margin||0;
   return{cx:(x0+x1)/2,cy:(y0+y1)/2,w:(x1-x0)+m,h:(y1-y0)+m};
@@ -124,8 +132,8 @@ function stZoomForBox(bb,minZ,maxZ){
 // cropped the cluster once it spread out (a building at (7,7) landed
 // below the dock). The computed fit zoom is the zoom; it is ~1.0 for
 // the fresh 3-building cluster and rises as the city fills in.
-function homeStCam(){const bb=occupiedIsoBBox(48);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,1.0,2.5);clampStCam()}
-function fitStCam(){const bb=occupiedIsoBBox(128);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,.4,2.5);clampStCam()}
+function homeStCam(){const bb=occupiedIsoBBox(24);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,1.0,2.5);clampStCam();stFitted=true}
+function fitStCam(){const bb=occupiedIsoBBox(48);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,.4,2.5);clampStCam();stFitted=true}
 function openPlot(x,y){POP={kind:"plot",x,y};showPopup();update()}
 const camScale=()=>((cv.height||480)/WORLD.h)*CAM.zoom;
 // v1.0: galaxy camera centres on the SAFE area (between HUD and dock).
@@ -181,6 +189,21 @@ const cnt=t=>S.bl.filter(x=>x.t===t).length;
 const MAXC=t=>t==="command"?1:t==="hangar"?Math.min(4,1+Math.floor(S.b.command/3)):Math.min(6,1+Math.floor(S.b.command/2));
 const bqcap=()=>2+Math.floor(S.b.command/2);
 const bAt=(x,y)=>S.bl.find(b=>b.x===x&&b.y===y);
+// v1.5 PLOT LOCKING (Jayden, approved mechanics change, Hobbit-style):
+// plots unlock by distance from the Command Station (the keep), nearest
+// first, so the city grows outward as the Command Station levels up.
+// Required level = max(1, chebyshev distance from the keep), capped at
+// 13 (max Command level). From the fresh-save keep at (2,1): Lv1 9 plots
+// (the 3x3 around the keep), Lv2 20, Lv3 30, Lv4 42, Lv5 56, Lv6 72,
+// Lv7 90, Lv8 110, Lv9 132, Lv10 144 (all). Existing buildings are
+// grandfathered: a plot with a building on it is never locked, so no
+// save loses a building. Unlock is DERIVED from Command level + the
+// building list — no new save field.
+const keepCell=()=>S.bl.find(b=>b.t==="command");
+const plotDist=(x,y)=>{const k=keepCell();if(!k)return 0;return Math.max(Math.abs(x-k.x),Math.abs(y-k.y))};
+const plotReqLv=(x,y)=>Math.min(13,Math.max(1,plotDist(x,y)));
+const plotLocked=(x,y)=>!bAt(x,y)&&S.b.command<plotReqLv(x,y);
+const unlockedCount=()=>{let n=0;for(let i=0;i<12;i++)for(let j=0;j<12;j++)if(!plotLocked(i,j))n++;return n};
 const newCost=t=>{const c=cost(t,0),f=Math.pow(1.5,cnt(t)),o={};for(const r in c)o[r]=Math.ceil(c[r]*f);return o};
 const cost=(id,l)=>{const o={};for(const r in B[id].c)o[r]=Math.ceil(B[id].c[r]*Math.pow(1.4,l));return o};
 const dur=l=>4*Math.pow(1.35,l)*tmul();
@@ -245,8 +268,8 @@ if(a){a.disabled=own||!av||total()<1;a.textContent=own?"Owned":"Attack"}}}
 baseUI(now);
 upd2();
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok()).slice(0,3)),key=open.map(q=>q.id+(q.ok()?1:0)).join();
-if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small></div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
-popupUI();empireUI();progressBars();
+if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — repel one with a stronger fleet. How raids work: see the Empire page.</small>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
+popupUI();empireUI();activityUI();progressBars();
 draw();
 }
 
@@ -275,7 +298,7 @@ const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if
  let hit=null;
  [...S.bl].sort((a,b)=>(b.x+b.y)-(a.x+a.y)).some(b=>{if(isoBuildingHit(w.x,w.y,b)){hit=b;return true}return false});
  if(hit){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(hit.u)}
- else{const cell=isoCellFromPoint(w.x,w.y),bx=cell.i,by=cell.j;if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){b.x=bx;b.y=by}S.mv=null;msg("Building moved.")}else openPlot(bx,by)}}
+ else{const cell=isoCellFromPoint(w.x,w.y),bx=cell.i,by=cell.j;if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){if(plotLocked(bx,by)){msg("Locked — upgrade the Command Station to Lv "+plotReqLv(bx,by)+" to unlock this plot.")}else{b.x=bx;b.y=by;S.mv=null;msg("Building moved.")}}else S.mv=null}else openPlot(bx,by)}}
  update();save()}stStart=null;stDrag=false};
 st.addEventListener("pointerup",stEnd);st.addEventListener("pointercancel",stEnd);
 st.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=st.getBoundingClientRect();setStZoom(STCAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*st.width,(e.clientY-q.top)/q.height*st.height);update()},{passive:false});
@@ -320,6 +343,10 @@ else if(d.tutnext){if(TUT.i>=TUT_STEPS.length-1)closeTut(true);else{TUT.i++;tutR
 else if(d.tutback){if(TUT.i>0){TUT.i--;tutRender()}}
 else if(d.tutskip){closeTut(true)}
 else if(d.tutdone){closeTut(true)}
+else if(d.act){const a=d.act;
+if(a.startsWith("bld:")){const u=+a.slice(4);S.tab="station";PAGE={kind:"tab"};openBuilding(u)}
+else if(a==="res"){S.tab="research";PAGE={kind:"tab"};update()}
+else if(a==="ship"){S.tab="fleet";PAGE={kind:"tab"};update()}}
 else if(d.hide){setUIHidden(true)}
 else if(d.showui){setUIHidden(false)}
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
@@ -361,7 +388,7 @@ handleBodyClick(e)});
 let downBtn=null,downX=0,downY=0;
 document.body.addEventListener("pointerdown",e=>{
 const b=e.target&&e.target.closest?e.target.closest("button"):null;
-downBtn=(b&&b.closest&&b.closest("#pop"))?b:null;downX=e.clientX;downY=e.clientY});
+downBtn=(b&&b.closest&&(b.closest("#pop")||b.closest("#activity")))?b:null;downX=e.clientX;downY=e.clientY});
 document.body.addEventListener("pointerup",e=>{
 if(!downBtn)return;
 const b=e.target&&e.target.closest?e.target.closest("button"):null;
@@ -410,7 +437,7 @@ b.fx=b.fx.filter(e=>f-e.f<8);b.fx.forEach(e=>{const g=f-e.f,s=3+g*2,cl=["#ffffff
 if(f>=60)bend()}
 function bend(){const b=BT;if(b.done)return;b.done=1;clearInterval(b.iv);msg(b.msg);sfx(b.win?"win":"lose");$("#bcap").textContent=b.msg+" Ships lost: "+b.lost+".";$("#bskip").textContent="Close"}
 function recalc(){const b={},m={};for(const t in B){b[t]=0;m[t]=0}S.bl.forEach(x=>{b[x.t]+=x.l;m[x.t]=Math.max(m[x.t],x.l)});S.b=b;S.bx=m}
-function placeB(t,x,y){const c=newCost(t);if(cnt(t)<MAXC(t)&&S.bq.length<bqcap()&&can(c)){pay(c);const b={u:S.nu++,t,x,y,l:0};S.bl.push(b);S.bq.push({u:b.u,s:Date.now(),end:Date.now()+dur(0)*1000});S.bsel=b.u;msg(B[t].n+" construction started.")}S.place=null}
+function placeB(t,x,y){if(plotLocked(x,y)){msg("Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.");S.place=null;return}const c=newCost(t);if(cnt(t)<MAXC(t)&&S.bq.length<bqcap()&&can(c)){pay(c);const b={u:S.nu++,t,x,y,l:0};S.bl.push(b);S.bq.push({u:b.u,s:Date.now(),end:Date.now()+dur(0)*1000});S.bsel=b.u;msg(B[t].n+" construction started.")}S.place=null}
 function baseUI(now){
 if(!$("#binfo"))return; // v0.9.2: station info/build boxes removed — popups cover this now.
 const sel=S.bl.find(b=>b.u===S.bsel);
@@ -430,7 +457,7 @@ else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
 $("#bi-up").hidden=false;$("#bi-mv").hidden=false;$("#bi-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bi-mv").textContent=S.mv===sel.u?"Cancel move":"Move"}}
-function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
+function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();if(pg==="tab"&&t==="station"&&!stFitted)homeStCam(); /* v1.5: first visit to the Station tab fits the cluster; user pan/zoom after that is preserved */ document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
 // Render key: popup identity + every value shown in it. If the key is
 // unchanged, the popup's DOM nodes are left exactly as they are —
 // the 250ms tick must never rebuild a button under a finger.
@@ -438,7 +465,7 @@ function popKey(){
 if(!POP)return "";
 if(POP.kind==="system"){const i=S.sel,own=S.won.includes(i);return "sys|"+i+"|"+(own?1:0)+"|"+(avail(i)?1:0)+"|"+total()+"|"+spw(i)+"|"+fpower(i).toFixed(1)+"|"+S.won.length}
 if(POP.kind==="building"){const b=S.bl.find(z=>z.u===POP.u);if(!b)return "gone";const e=effL(b),c=cost(b.t,e);return "bld|"+b.u+"|"+b.l+"|"+e+"|"+(e>=lvlCap(b.t)?1:0)+"|"+cstr(c)+"|"+S.bq.length+"|"+(can(c)?1:0)+"|"+(S.mv===b.u?1:0)}
-if(POP.kind==="plot"){return "plot|"+POP.x+"|"+POP.y+"|"+S.bq.length+"|"+Object.keys(B).map(t=>cnt(t)+"/"+MAXC(t)+"/"+(can(newCost(t))?1:0)).join(",")}
+if(POP.kind==="plot"){return "plot|"+POP.x+"|"+POP.y+"|"+(plotLocked(POP.x,POP.y)?1:0)+"|"+plotReqLv(POP.x,POP.y)+"|"+S.b.command+"|"+unlockedCount()+"|"+S.bq.length+"|"+Object.keys(B).map(t=>cnt(t)+"/"+MAXC(t)+"/"+(can(newCost(t))?1:0)).join(",")}
 return "?"}
 function popupUI(){
 const p=$("#pop");
@@ -480,15 +507,68 @@ else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};body.innerHTML="<small><b>"+(DISTNAME[t]||"")+"</b> — "+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
 acts.innerHTML='<button data-bup="1" '+((max||S.bq.length>=bqcap()||!can(c))?"disabled":"")+'>Upgrade</button><button data-bmv="1">'+(S.mv===b.u?"Cancel move":"Move")+'</button><button data-pclose="1">Close</button>';
 }else if(POP.kind==="plot"){
-const x=POP.x,y=POP.y;
-title.textContent="Open land ("+(x+1)+", "+(y+1)+")";const _kp=S.bl.find(b=>b.t==="command");const _dn=_kp?(x<_kp.x-1?"West — near the Military quarter":x>_kp.x+1?"East — near the Industrial quarter":y<_kp.y-1?"North — near the Power fields":"South — near the Trade quarter"):"Open land";
-if(hq){hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96)}
-body.innerHTML="<small>"+_dn+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");
-acts.innerHTML="";
+const x=POP.x,y=POP.y,lk=plotLocked(x,y),un=unlockedCount();
+title.textContent=lk?"Locked land ("+(x+1)+", "+(y+1)+")":"Open land ("+(x+1)+", "+(y+1)+")";const _kp=S.bl.find(b=>b.t==="command");const _dn=_kp?(x<_kp.x-1?"West — near the Military quarter":x>_kp.x+1?"East — near the Industrial quarter":y<_kp.y-1?"North — near the Power fields":"South — near the Trade quarter"):"Open land";
+if(hq){hq.fillStyle=lk?"#6b7590":"#5fae4f";hq.fillRect(0,0,96,96)}
+if(lk){body.innerHTML="<small>🔒 Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.</small><br><small>"+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". The city grows outward from the keep.</small>";acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
+else{body.innerHTML="<small>"+_dn+". "+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");acts.innerHTML="";}
 }}
 function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of 16 systems. Each owned system pays +0.3 credits/s.";
 $("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
-$("#e-rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")}
+$("#e-rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br><br>Rival raids start after about 10 minutes of play. A rival raids one of your systems next to their territory — if your defence power is higher than the raid's power, you repel it (counts toward the 'Repel a rival raid' quest); if not, they take the system and your fleet loses ships.<br>Raid power grows the longer you play and the more systems the rival owns. Raise your defence power with more and bigger ships, a higher Command Station, power research, and an assigned fleet commander.<br>Your defence power now: "+Math.round(dpower())+"."}
+// v1.5 GLOBAL ACTIVITY TRAY — anything that takes time to create must
+// be visible on every screen, not just on its own menu page. The tray
+// sits above the bottom dock (it counts toward the safe-area inset in
+// measureUI, so map content never hides under it) and shows every timed
+// job at once: building construction/upgrades (S.bq), research (S.rq),
+// shipyard queue (S.sq, grouped by ship type). Each job has an icon +
+// name, a thin progress bar and time remaining (left(), never raw
+// seconds). Tapping a job jumps to it: building -> Station tab with
+// that building's popup, research -> Research page, ships -> Fleet page.
+// Display only: no timers, durations, caps or costs change, no new
+// save field. Like popupUI, the DOM is NOT rebuilt every tick — rows
+// are rebuilt only when the job set changes (actKey); progress bars
+// and times are updated in place, so a tap can never land on a node
+// that is about to be destroyed.
+function actJobs(){
+  const now=Date.now(),jobs=[];
+  const perU={};
+  S.bq.slice().sort((a,b)=>a.end-b.end).forEach(j=>{
+    const b=S.bl.find(z=>z.u===j.u);if(!b)return;
+    perU[j.u]=(perU[j.u]||0)+1;
+    const target=b.l+perU[j.u]; // Lv the building will reach when this job finishes
+    jobs.push({id:"b"+j.u,icon:"▦",name:B[b.t].n+" Lv "+target,act:"bld:"+j.u,s:j.s||j.end-dur(0)*1000,end:j.end});
+  });
+  if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);if(t)jobs.push({id:"r"+t.id,icon:"⚙",name:"Research: "+t.n,act:"res",s:S.rq.end-t.t*1000*tmul(),end:S.rq.end})}
+  const byShip={};
+  S.sq.forEach(j=>{(byShip[j.k]=byShip[j.k]||[]).push(j)});
+  Object.keys(byShip).forEach(k=>{
+    const list=byShip[k].slice().sort((a,b)=>a.end-b.end);
+    jobs.push({id:"s"+k,icon:"▲",name:U[k].n+(list.length>1?" ×"+list.length:""),act:"ship",s:list[0].end-DUR[k]*1000*tmul(),end:list[list.length-1].end});
+  });
+  return jobs;
+}
+let actKeyCache="";
+function activityUI(){
+  const el=$("#activity");if(!el)return;
+  const jobs=actJobs(),now=Date.now();
+  const key=jobs.map(j=>j.id+"@"+j.end).join("|");
+  const wasHidden=el.hidden;
+  el.hidden=jobs.length===0;
+  if(jobs.length===0){actKeyCache="";if(!wasHidden){measureUI();sizeCanvases()}return}
+  if(key!==actKeyCache){
+    actKeyCache=key;
+    el.innerHTML=jobs.map(j=>'<button class="actjob" data-act="'+j.act+'"><span class="actic">'+j.icon+'</span><span class="actname">'+j.name+'</span><span class="actbar"><i data-actfill="'+j.id+'"></i></span><span class="acttime" data-acttime="'+j.id+'"></span></button>').join("");
+    if(wasHidden){measureUI();sizeCanvases()}
+  }
+  jobs.forEach(j=>{
+    const p=Math.max(0,Math.min(1,j.end>j.s?(now-j.s)/(j.end-j.s):1));
+    const fill=el.querySelector('[data-actfill="'+j.id+'"]');
+    if(fill)fill.style.width=Math.round(p*100)+"%";
+    const tm=el.querySelector('[data-acttime="'+j.id+'"]');
+    if(tm)tm.textContent=left(Math.max(0,j.end-now));
+  });
+}
 function progressBars(){const now=Date.now();const set=(id,p)=>{const el=$(id);if(el)el.style.width=Math.round(Math.max(0,Math.min(1,p||0))*100)+"%"};
 const bq=S.bq.slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0);
 if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()):0)}else set("#pb-res",0);
@@ -512,5 +592,6 @@ if(S.res.energy<=0&&rates().energy<0&&total()>0){starve+=dt;if(starve>10){starve
 rivalTick();update();
 },250);
 setInterval(save,5000);
+fitCam(); // v1.5: default galaxy view fits the whole galaxy in the safe area (bottom row visible)
 update();
 maybeTut();
