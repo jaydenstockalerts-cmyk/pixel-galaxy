@@ -108,22 +108,34 @@ const ISO_TW=64, ISO_TH=32, ISO_H=480; // tile size + iso world height (game.js 
 const ISO_BASE={solar:"#4aa3df",foundry:"#d46a4f",mine:"#b07cf0",hub:"#ecdcb4",hangar:"#aab4c9",command:"#f4f6ff"};
 function isoC(i,j){return{x:(i-j)*ISO_TW/2,y:(i+j+1)*ISO_TH/2}} // centre of plot (i,j), ground level
 function isoPt(gx,gy){return{x:(gx-gy)*ISO_TW/2,y:(gx+gy)*ISO_TH/2}}
-function isoHeight(b){if(!b||b.l<=0)return 6;return 12+Math.min(13,b.l)*3+(b.t==="command"?16:b.t==="hangar"?6:0)}
+// v1.5: the SPRITE is the building. The extruded iso cube is gone as a
+// building — it was drawn far too big relative to the sprite, so the
+// sprite looked tiny and buried inside a huge yellow/grey cube, and the
+// four corner towers (36 tall, gold roof) read as the four huge yellow
+// cubes that dominated the base. Now a building is a LOW plinth (6u
+// tall, roof-coloured so the type colour reads) with the pixel sprite
+// drawn LARGE and upright on it (40x40 world units, keep 48x48).
+// Level is shown by the sprite tier + the level shield, not by height.
+const ISO_PLINTH_H=6, ISO_PLINTH_KEEP_H=8;
+const ISO_SPRITE_W=40, ISO_SPRITE_H=40, ISO_SPRITE_KEEP_W=48, ISO_SPRITE_KEEP_H=48;
+function isoPlinthH(b){return b&&b.t==="command"?ISO_PLINTH_KEEP_H:ISO_PLINTH_H}
+function isoSpriteSize(b){return b&&b.t==="command"?{w:ISO_SPRITE_KEEP_W,h:ISO_SPRITE_KEEP_H}:{w:ISO_SPRITE_W,h:ISO_SPRITE_H}}
+function isoHeight(b){const s=isoSpriteSize(b);return isoPlinthH(b)+s.h} // top of the sprite above the ground
 function isoCellFromPoint(wx,wy){const gx=wx/(ISO_TW/2),gy=wy/(ISO_TH/2);return{i:Math.floor((gx+gy)/2),j:Math.floor((gy-gx)/2)}}
 function shade(hex,f){const n=parseInt(hex.slice(1),16);return"rgb("+Math.round(((n>>16)&255)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")"}
 function isoBuildingHit(wx,wy,b){
-  const c=isoC(b.x,b.y),H=isoHeight(b)+(b.t==="command"?8:0);
-  // level shield above the roof
-  if(Math.abs(wx-c.x)<=10&&wy>=c.y-H-38&&wy<=c.y-H-18)return true;
-  // building silhouette: roof diamond + two front faces (a hexagon)
-  const fw=b.t==="command"?30:20, fh=b.t==="command"?15:10; // v1.4 footprint
-  const poly=[[c.x-fw*.6,c.y-H-40],[c.x+fw*.6,c.y-H-40],[c.x+fw,c.y-H],[c.x+fw,c.y],[c.x,c.y+fh],[c.x-fw,c.y],[c.x-fw,c.y-H]];
-  let inside=false;
-  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
-    const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
-    if(((yi>wy)!==(yj>wy))&&(wx<(xj-xi)*(wy-yi)/(yj-yi)+xi))inside=!inside;
-  }
-  return inside;
+  // v1.5: the hitbox is the WHOLE visible building — ground diamond +
+  // low plinth + the full upright sprite + the level shield above it.
+  // v1.4 only tested the tiny sprite, so taps on the big cube/roof and
+  // side wall did nothing. Now a tap on the roof centre, a side wall,
+  // the sprite, or the shield all select the same building.
+  const c=isoC(b.x,b.y), s=isoSpriteSize(b), ph=isoPlinthH(b);
+  // (1) level shield above the sprite
+  if(Math.hypot(wx-c.x,wy-(c.y-ph-s.h-14))<=12)return true;
+  // (2) the sprite itself: an upright rectangle above the plinth
+  if(Math.abs(wx-c.x)<=s.w/2+3&&wy>=c.y-ph-s.h-2&&wy<=c.y-ph+4)return true;
+  // (3) the low plinth / ground diamond the building sits on
+  return Math.abs(wx-c.x)/26+Math.abs(wy-c.y)/13<=1.05;
 }
 const DISTTINT={solar:"#ffe066",foundry:"#ff9a3c",mine:"#b07cf0",hub:"#9be8ff",hangar:"#4aa3df",command:"#f4f6ff"};
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};
@@ -157,32 +169,32 @@ const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Indus
 //     everything, with a stem connecting the shield to its building.
 //  8. Trees pasted on buildings — decor now only on empty plots
 //     OUTSIDE the wall, never adjacent to a building, ground-anchored.
-const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#7c849c",command:"#ffd84a"};
-// ---- v1.4 spacing + clean organised city (Hobbit, not a mess) ----
-// SPACING NUMBERS (iso world units; tile pitch stays 64x32, so the
-// projection and tap math are untouched):
-//   tile pitch ............ 64 wide x 32 tall (isoC unchanged)
-//   ground diamond drawn .. 52 x 26 (rx 26, ry 13) -> 5.4u grass gap
-//     between neighbouring diamonds (was 64x32: gap 0, tiles touched)
-//   building footprint .... 40 x 20 (rx 20, ry 10; keep 60x30)
-//     -> gap between neighbouring footprints ~10.7u (was ~3.6u)
-//     At Home zoom ~2 (sc ~1.6) that is ~17 screen px of clear ground
-//     between buildings, and ~9px of grass between plot diamonds.
-// ORGANISATION (same logical grid, same S.bl positions):
-//   - Roads: ONE main cross through the keep + ONE short spur per
-//     DISTRICT (to the district centroid), not a spur per building.
-//     No tangled paths, no road crossing a building's footprint.
-//   - Plaza: clear stone ring (3x3) around the keep, no decor in it.
-//   - Districts: each occupied plot keeps its subtle district tint
-//     (inset diamond, alpha .22), so a district reads as one tidy
-//     block with green/grass strips between districts.
-//   - Decor: sparse and deliberate — a handful of trees/rocks outside
-//     the city, never adjacent to a building, never on a road/river.
-//   - Ground: ONE clean grass tone per checker square, no random dirt
-//     patches, no speckles, no flower noise on plots. Farmland only
-//     on every 4th outside plot, the rest plain grass.
-//   - The wall stays continuous (rx 32) — a wall should join up;
-//     only plots and buildings get the gaps.
+const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#5a6b8a",command:"#ffd84a"}; // v1.5: hangar slate-blue (was grey #7c849c, read as another grey cube)
+// ---- v1.5 sprite-is-the-building + clean ground + visible roads ----
+// Live v1.4 defects (seen at 1919x998, NOT headless): the four huge
+// yellow-topped cubes were the corner TOWERS (36 tall, gold roof) and
+// the wall segments (22 tall, beige top) — they dominated the base
+// while the real sprites were tiny and buried. The fix:
+//   plinth ................ 6u tall (keep 8u), 44x22 (keep 52x26),
+//     roof-coloured so the type colour reads as a rim around the sprite
+//   sprite ................ 40x40 world units, upright, LARGE (keep
+//     48x48) — the sprite IS the building, the plinth just grounds it
+//   wall .................. 12 tall (was 22), rx 32 ry 13 — its bottom
+//     point now exactly meets its ground diamond (was ry 16, so the
+//     front point overhung the tile and looked floating)
+//   towers ................ 14 tall (was 36), 32x16 footprint — small
+//     corner markers, not the biggest things on the map
+//   ground ................ ONE grass tone everywhere (#5fae4f), no
+//     checker alternation, border alpha .05 — the v1.4 checker + dark
+//     grid read as wallpaper. Farmland is now ~5 muted plots, decor
+//     ~5 items, both outside the wall.
+//   roads/plaza ........... drawn as WIDE bands (18u border / 13u
+//     inner, dirt + dark edge) along the main cross + one spur per
+//     district, and a stone plaza diamond (220x110) around the keep —
+//     per-tile tints were invisible at default zoom, bands are not.
+//   hitbox ................ isoBuildingHit is now the whole building
+//     (ground diamond + sprite rectangle + shield), not just the sprite.
+// Tile pitch stays 64x32, so the projection and tap math are untouched.
 const ISO_DIA_RX=26, ISO_DIA_RY=13;
 function drawBase(q,cam,opts){
   const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv;
@@ -194,7 +206,7 @@ function drawBase(q,cam,opts){
   const poly=(pts,fill,al)=>{if(al!==undefined)q.globalAlpha=al;q.beginPath();q.moveTo(X(pts[0][0]),Y(pts[0][1]));for(let n=1;n<pts.length;n++)q.lineTo(X(pts[n][0]),Y(pts[n][1]));q.closePath();q.fillStyle=fill;q.fill();if(al!==undefined)q.globalAlpha=1};
   const dia=(cx,cy,rx,ry,fill,al)=>poly([[cx,cy-ry],[cx+rx,cy],[cx,cy+ry],[cx-rx,cy]],fill,al);
   const diaStroke=(cx,cy,rx,ry,color,lw)=>{q.beginPath();q.moveTo(X(cx),Y(cy-ry));q.lineTo(X(cx+rx),Y(cy));q.lineTo(X(cx),Y(cy+ry));q.lineTo(X(cx-rx),Y(cy));q.closePath();q.strokeStyle=color;q.lineWidth=lw;q.stroke()};
-  q.fillStyle="#4a7a38";q.fillRect(0,0,vw,vh);
+  q.fillStyle="#5fae4f";q.fillRect(0,0,vw,vh); // v1.5: gaps between diamonds are grass, not a dark void
   const keep=S.bl.find(b=>b.t==="command")||null;
   let mnx=12,mxx=-1,mny=12,mxy=-1;
   S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
@@ -208,6 +220,7 @@ function drawBase(q,cam,opts){
     const dist={};S.bl.forEach(b=>{if(b.u===keep.u)return;const d=DISTNAME[b.t]||b.t;(dist[d]=dist[d]||[]).push(b)});
     Object.values(dist).forEach(bs=>{const cx=Math.round(bs.reduce((s,b)=>s+b.x,0)/bs.length),cy=Math.round(bs.reduce((s,b)=>s+b.y,0)/bs.length);roadTo(keep.x,keep.y,cx,cy)})}
   const Hh=(a,b)=>((a*73856093)^(b*19349663))>>>0;
+  let farmN=0, decorN=0; // v1.5 caps: farmland and decor are sparse by count, not just by pattern
   // --- terrace platform skirt: the city sits on a raised platform.
   // South faces are vertical, so the terrace reads as 3D at any zoom.
   const pTop=isoPt(wx0-1,wy0-1),pRight=isoPt(wx1+2,wy0-1),pBot=isoPt(wx1+2,wy1+2),pLeft=isoPt(wx0-1,wy1+2),SK=18;
@@ -226,22 +239,32 @@ function drawBase(q,cam,opts){
         q.globalAlpha=.85;q.fillStyle="#9be8ff";q.fillRect(X(c.x-14),Y(c.y-1),Math.max(4,28*k),Math.max(1,2*k));q.globalAlpha=1;
         diaStroke(c.x,c.y,32,16,"#cdb98a",Math.max(1,2*k)); // sand banks
       } else { // terrain outside the city: grass, never void
-        dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,(i+j)%2?"#4f8a44":"#47803c"); // v1.4: clean grass, spaced diamonds
+        dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#5fae4f"); // v1.5: one grass tone, no checker
       }
       return;
     }
     const h=Hh(i,j),bd0=bAt(i,j);
-    let base=(i+j)%2?"#5fae4f":"#57a647"; // v1.4: one clean grass tone, no random patches
+    let base="#5fae4f"; // v1.5: ONE grass tone, no checker — the checker read as wallpaper
     if(roads.has(i+","+j))base="#cdb98a";
-    else if(keep&&Math.abs(i-keep.x)<=1&&Math.abs(j-keep.y)<=1)base=(i+j)%2?"#c9c3b0":"#b8b09a"; // keep plaza ring
+    else if(keep&&Math.abs(i-keep.x)<=1&&Math.abs(j-keep.y)<=1)base="#c9c3b0"; // keep plaza ring (the big plaza diamond covers it)
     dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,base); // spaced diamond: grass gap between plots
-    diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"rgba(0,0,0,0.10)",1); // faint border only
-    if(bd0)dia(c.x,c.y,24,12,DISTTINT[bd0.t]||"#ffffff",.22); // district tint, inset diamond
-    else if((i<wx0||i>wx1||j<wy0||j>wy1)&&(i+j)%4===0){ // farmland: only every 4th outside plot
-      for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,16,3,(i+j+r)%2?"#ffd84a":"#5fae4f",.85);
+    diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"rgba(0,0,0,0.05)",1); // faint border only
+    if(bd0)dia(c.x,c.y,24,12,DISTTINT[bd0.t]||"#ffffff",.12); // district tint, inset diamond, subtle
+    else if((i<wx0||i>wx1||j<wy0||j>wy1)&&(i*3+j*7)%29===0&&farmN<5){ // v1.5: farmland is ~5 muted plots, not one per tile
+      farmN++;
+      for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,12,2,(i+j+r)%2?"#d8c98a":"#6fae4f",.55);
+    }
+    // v1.5 PLOT LOCKING: a locked plot is greyed (dim overlay, road/plaza
+    // still faintly visible through it) with a small lock marker, so it
+    // reads as locked at default zoom — never a buildable pad.
+    if(!bd0&&plotLocked(i,j)){
+      dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#6b7590",.55);
+      const lx=X(c.x),ly=Y(c.y),lw=Math.max(4,7*k),lh=Math.max(3,5*k);
+      q.fillStyle="#2a2f45";q.fillRect(lx-lw/2,ly-lh/2+1,lw,lh);
+      q.strokeStyle="#2a2f45";q.lineWidth=Math.max(1,1.5*k);q.strokeRect(lx-lw/4,ly-lh/2-3,Math.max(2,lw/2),Math.max(2,3*k));
     }
     // Foundation pad ONLY in Place/Move mode — normal ground is terrain, not grid.
-    if(!bd0&&go){
+    if(!bd0&&go&&!plotLocked(i,j)){
       dia(c.x,c.y,22,11,"#8f8a76");
       dia(c.x,c.y,17,8,"#cdb98a");
       q.fillStyle="#8fe070";q.globalAlpha=.9;
@@ -250,6 +273,24 @@ function drawBase(q,cam,opts){
       q.globalAlpha=1;
     }
   });
+  // --- v1.5 plaza + roads as wide bands (per-tile tints were invisible
+  // at default zoom; a 13u-wide dirt band with a dark edge is not) ---
+  if(keep){
+    const kpc=isoC(keep.x,keep.y);
+    dia(kpc.x,kpc.y,110,55,"#b8b09a"); // stone plaza, far larger than the keep's plinth
+    dia(kpc.x,kpc.y,84,42,"#c9c3b0");
+    diaStroke(kpc.x,kpc.y,110,55,"#8f8a76",Math.max(1,2*k));
+    const roadLine=(pts)=>{ // pts: [[i,j],...] grid points -> iso polyline
+      const P=pts.map(p=>{const q2=isoC(p[0],p[1]);return[X(q2.x),Y(q2.y)]});
+      q.lineJoin="round";q.lineCap="round";
+      q.strokeStyle="#7a6a4f";q.lineWidth=Math.max(3,18*k);q.beginPath();q.moveTo(P[0][0],P[0][1]);P.slice(1).forEach(p=>q.lineTo(p[0],p[1]));q.stroke();
+      q.strokeStyle="#e0cf9e";q.lineWidth=Math.max(2,13*k);q.beginPath();q.moveTo(P[0][0],P[0][1]);P.slice(1).forEach(p=>q.lineTo(p[0],p[1]));q.stroke();
+    };
+    roadLine([[wx0,keep.y],[wx1,keep.y]]); // main cross, east-west
+    roadLine([[keep.x,wy0],[keep.x,wy1]]); // main cross, north-south
+    const dist2={};S.bl.forEach(b=>{if(b.u===keep.u)return;const d=DISTNAME[b.t]||b.t;(dist2[d]=dist2[d]||[]).push(b)});
+    Object.values(dist2).forEach(bs=>{const cx2=Math.round(bs.reduce((s,b)=>s+b.x,0)/bs.length),cy2=Math.round(bs.reduce((s,b)=>s+b.y,0)/bs.length);roadLine([[keep.x,keep.y],[cx2,keep.y],[cx2,cy2]])});
+  }
   // --- objects: wall, towers, buildings, decor — painter's order ---
   // block(): extruded iso block with a CLEAN roof diamond (no sheared
   // sprite — the sprite is drawn upright on top afterwards).
@@ -277,22 +318,29 @@ function drawBase(q,cam,opts){
   // v1.4: sparse, deliberate decor — a handful of trees/rocks at the
   // city edge, never adjacent to a building, never on a road or river.
   const nearB=(i,j)=>S.bl.some(b=>Math.abs(b.x-i)+Math.abs(b.y-j)<=1);
+  // v1.5: decor is a handful of trees/rocks OUTSIDE the wall, capped at 5.
   for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
-    if(i<0||j<0||i>11||j>11){if(i!==-1&&!roads.has(i+","+j)&&!nearB(i,j)&&(i*7+j*11)%23===0)objs.push({d:i+j,kind:"decor",i,j,out:true})}
+    if(decorN>=5)break;
+    if(i<0||j<0||i>11||j>11){if(i!==-1&&!roads.has(i+","+j)&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%41===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
   }
   objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
   const labels=[]; // second pass: shields + names drawn on top, screen space
   objs.forEach(o=>{
     if(o.kind==="wall"){
       const c=isoC(o.i,o.j);
-      block(c.x,c.y,22,"#8f8a76","#c9c3b0",null);
-      // Crenellations sit ON the roof diamond, touching it.
-      [-16,0,16].forEach(dx=>{const px=X(c.x+dx),py=Y(c.y-22-(dx===0?14:7));q.fillStyle="#c9c3b0";q.fillRect(px-2,py-2,Math.max(3,4*k),Math.max(3,4*k))});
+      // v1.5: a LOW wall (12 tall, ry 13 = its ground diamond, so its
+      // front point exactly meets the ground instead of overhanging it
+      // and looking floating). Was 22 tall / ry 16 — another grey cube.
+      block(c.x,c.y,12,"#8f8a76","#c9c3b0",32,13);
+      // Crenellations sit ON the wall top, touching it.
+      [-14,0,14].forEach(dx=>{const px=X(c.x+dx),py=Y(c.y-12-(dx===0?8:4));q.fillStyle="#c9c3b0";q.fillRect(px-2,py-2,Math.max(2,3*k),Math.max(2,3*k))});
       return;
     }
     if(o.kind==="tower"){
       const c=isoC(o.i,o.j);
-      block(c.x,c.y,36,"#8f8a76","#ffd84a",null,28,14); // gold roof, no flag
+      // v1.5: towers are small corner markers (14 tall, 32x16), NOT the
+      // four huge 36-tall gold cubes that dominated the v1.4 base.
+      block(c.x,c.y,14,"#8f8a76","#ffd84a",16,8);
       return;
     }
     if(o.kind==="decor"){
@@ -301,31 +349,34 @@ function drawBase(q,cam,opts){
       return;
     }
     const b=o.b,c=isoC(b.x,b.y),isKeep=keep&&b.u===keep.u;
-    const H=isoHeight(b)+(isKeep?8:0);
     const roof=ROOF[b.t]||"#aab4c9";
-    const rx=isKeep?30:20,ry=isKeep?15:10; // v1.4 SPACING: footprint 40x20 (keep 60x30) on a 64x32 pitch
-    block(c.x,c.y,H,roof,shade(roof,1.25),rx,ry);
-    dia(c.x,c.y-H,rx*.55,ry*.55,shade(roof,1.45)); // lighter roof centre
-    // Upright sprite sitting on the roof — NOT sheared, NOT skewed.
+    const ph=isoPlinthH(b), ssz=isoSpriteSize(b);
+    // v1.5: the sprite IS the building. A LOW plinth (6u, roof-coloured)
+    // grounds it; the sprite is drawn LARGE and upright on the plinth.
+    // The tall extruded cube is gone — it swallowed the sprite.
+    const rx=isKeep?26:22,ry=isKeep?13:11; // plinth 44x22 (keep 52x26) on a 64x32 pitch
+    block(c.x,c.y,ph,roof,shade(roof,1.18),rx,ry);
+    dia(c.x,c.y-ph,rx*.62,ry*.62,shade(roof,1.35)); // lighter plinth top, visible as a coloured rim around the sprite
     const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));
-    const ss=Math.round(26*k),spx=X(c.x),spy=Y(c.y-H);
-    q.drawImage(sp,spx-ss/2,spy-ss*.92,ss,ss);
-    // Roof-face details (drawn ON the roof, never floating above it).
+    const ssw=Math.round(ssz.w*k),ssh=Math.round(ssz.h*k),spx=X(c.x),spy=Y(c.y-ph);
+    q.drawImage(sp,spx-ssw/2,spy-ssh,ssw,ssh);
+    // Production effects, anchored to the sprite (never floating above it).
     if(b.l>0){
-      if(b.t==="foundry")for(let kk=0;kk<3;kk++){const g=(F+kk*3)%9,s=3+(g>>2);q.globalAlpha=.75*(1-g/9);q.fillStyle="#e8ecf5";q.fillRect(X(c.x+12+Math.round(Math.sin((F+kk)/2)*2)),Y(c.y-H-8-g*2),Math.max(1,s*k),Math.max(1,s*k));q.globalAlpha=1}
-      if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(X(c.x-3),Y(c.y-H-2),Math.max(2,4*k),Math.max(2,4*k))}
-      if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(X(c.x-14),Y(c.y-6),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(X(c.x+11),Y(c.y-6),Math.max(1,3*k),Math.max(1,3*k))}
-      if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(X(c.x-10),Y(c.y-H+2),Math.max(2,4*k),Math.max(2,3*k));q.fillRect(X(c.x+10),Y(c.y-H+2),Math.max(2,4*k),Math.max(2,3*k))}
-      if(b.t==="command"){q.fillStyle="#ffd84a";q.fillRect(X(c.x-2),Y(c.y-H-2),Math.max(2,4*k),Math.max(2,4*k))}
-      if(b.t==="solar"){q.fillStyle="#ffffff";q.fillRect(X(c.x-8),Y(c.y-H),Math.max(4,12*k),Math.max(1,2*k))}
+      const sTop=spy-ssh;
+      if(b.t==="foundry")for(let kk=0;kk<3;kk++){const g=(F+kk*3)%9,s=3+(g>>2);q.globalAlpha=.75*(1-g/9);q.fillStyle="#e8ecf5";q.fillRect(spx+Math.round(10*k)+Math.round(Math.sin((F+kk)/2)*2*k),sTop-Math.max(2,2*k)-g*Math.max(2,2*k),Math.max(1,s*k),Math.max(1,s*k));q.globalAlpha=1}
+      if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(spx-Math.max(1,2*k),sTop+Math.max(2,6*k),Math.max(2,4*k),Math.max(2,4*k))}
+      if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(spx-Math.max(3,10*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(spx+Math.max(3,7*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k))}
+      if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(spx-Math.max(3,8*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k));q.fillRect(spx+Math.max(3,4*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k))}
+      if(b.t==="command"){q.fillStyle="#ffd84a";q.fillRect(spx-Math.max(1,2*k),sTop-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,4*k))}
+      if(b.t==="solar"){q.fillStyle="#ffffff";q.fillRect(spx-Math.max(3,6*k),sTop+Math.max(2,8*k),Math.max(4,12*k),Math.max(1,2*k))}
     }
     // Build progress: anchored to the building's base on the ground.
     const job=S.bq.filter(j=>j.u===b.u).sort((u,v)=>u.end-v.end)[0];
     if(job&&job.s){const p=Math.min(1,(now-job.s)/(job.end-job.s));q.fillStyle="#161628";q.fillRect(X(c.x)-18,Y(c.y+20),36,5);q.fillStyle="#ffe066";q.fillRect(X(c.x)-17,Y(c.y+21),Math.max(1,Math.round(34*p)),3)}
     else if(job){q.fillStyle="#ffe066";q.fillRect(X(c.x)-18,Y(c.y+20),8,5)}
     if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,F&1?"#ffe066":"#ffffff",Math.max(1,2*k));
-    labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss});
-    if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H});
+    labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss:ssh});
+    if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H:isoHeight(b)});
   });
   // --- second pass: level shields + names, screen space, always on top.
   // Shield: fixed 13px radius, stem connects it to its own building.
