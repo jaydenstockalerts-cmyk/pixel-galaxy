@@ -254,7 +254,7 @@ const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(t);if(S.feed.length>30)S.feed.s
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
 
 const RICON={energy:"⚡",metal:"▣",crystal:"◆",credits:"●"};
-$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b><span class="rate" id="r-${r}"></span></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("");
+$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="rlabel">${r[0].toUpperCase()+r.slice(1)}</span><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b><span class="rate" id="r-${r}"></span></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("");
 const resEl=$("#res");
 if(resEl)resEl.addEventListener("click",()=>{resEl.classList.toggle("expanded")});
 const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
