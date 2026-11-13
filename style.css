@@ -192,6 +192,8 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .mapchip{position:absolute;z-index:2;background:var(--glass);color:var(--fg);border:2px solid var(--fg);border-radius:var(--radius-sm);padding:4px 8px;font-size:12px}
 .mapchip.hint{top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));left:8px;max-width:60vw}
 .mapchip.capchip{top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px}
+#sec-note{left:6px;bottom:calc(var(--dock-h) + 70px + env(safe-area-inset-bottom,0px));max-width:72vw} /* v2.9: sits just above the map controls, only while viewing Sector 2 without Jump Drive */
+#tech .row.locked,#tech .row.done{opacity:.55} /* v2.9: locked/done tech rows stay visible but greyed */
 #pagefoot{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px) 12px calc(var(--dock-h) + 24px)}
 body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-pg="station"]:not([hidden])) #pagefoot{display:none}
 #log{min-height:2.8em;margin:0 0 12px}
