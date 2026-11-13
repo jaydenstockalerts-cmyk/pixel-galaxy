@@ -4,10 +4,66 @@ function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)
 function tone(f,d,ty,v,t0,f2){const a=ac();if(!a||S.mute)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+(t0||0);o.type=ty||"square";o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v||.04,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+.02)}
 function boom(){const a=ac();if(!a||S.mute)return;const n=Math.floor(a.sampleRate*.3),b=a.createBuffer(1,n,a.sampleRate),c=b.getChannelData(0);for(let i=0;i<n;i++)c[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),g=a.createGain();s.buffer=b;g.gain.value=.08;s.connect(g);g.connect(a.destination);s.start()}
 function sfx(k){const m={click:()=>tone(520,.04),ok:()=>{tone(660,.08);tone(880,.12,"square",.04,.08)},laser:()=>tone(900,.12,"sawtooth",.025,0,200),boom:boom,win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.15,"square",.045,i*.12)),lose:()=>[392,330,262,196].forEach((f,i)=>tone(f,.2,"triangle",.06,i*.15)),alert:()=>{tone(880,.1);tone(660,.1,"square",.05,.15);tone(880,.1,"square",.05,.3)},claim:()=>[784,988,1319].forEach((f,i)=>tone(f,.12,"square",.045,i*.09))};if(m[k])m[k]()}
-const fresh=()=>({res:{energy:40,metal:40,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:{fleet:null,station:null},own:{},rv:{c:{cl:Date.now(),rd:Date.now()},v:{cl:Date.now(),rd:Date.now()}},min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now()});
+const fresh=()=>({res:{energy:40,metal:40,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:{fleet:null,station:null},crew:{mine:0,ship:0,res:0},own:{},rv:{c:{cy:Date.now()},v:{cy:Date.now()},k:{cy:Date.now()},a:{cy:Date.now()},m:{cy:Date.now()}},gar:{},col:{},war:{},dip:{},pair:{},end:{},stab:{},pairCy:Date.now(),stabCy:Date.now(),min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now()});
+// v2.4: S.gar maps system id -> {fighter,cruiser,capital} stationed
+// there; S.war maps faction id -> 1 once it has taken one of your
+// systems (drives the standings board's "At war" status). S.rv clocks
+// are now one shared 5-minute cycle clock per faction (cy).
+// v2.6: S.col maps system id -> {l: level 1-5, spec: null | "mine" |
+// "forge" | "trade"} — one colony per system you own (never Home
+// World, never rival-held). Created on conquest, deleted when the
+// system is lost, re-created fresh on re-conquest.
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));if(j&&j.res&&j.b&&j.ships){const s=Object.assign(fresh(),j);
+// v2.4 migration: old saves have no gar/war and an rv with only c/v
+// keys using the old cl/rd clock fields. Normalise so every faction
+// has a cycle clock (cy) — the old clock is carried forward, never
+// reset, so no backlog is silently dropped.
+if(!s.gar||typeof s.gar!=="object")s.gar={};
+if(!s.war||typeof s.war!=="object")s.war={};
+// v2.7 migration: diplomacy (S.dip per faction: {truceUntil, pact,
+// ally}), rival-pair relations (S.pair "a-b" -> "pact"|"war"), end
+// flags (S.end {v13, v2x, lost}) and colony stability (S.stab system
+// id -> 0-100). Old saves get empty diplomacy, no end flags, and
+// every existing colony starts at stability 100; stale stability
+// records for systems without a colony are dropped.
+if(!s.dip||typeof s.dip!=="object")s.dip={};
+if(!s.pair||typeof s.pair!=="object")s.pair={};
+if(!s.end||typeof s.end!=="object")s.end={};
+if(!s.stab||typeof s.stab!=="object")s.stab={};
+// v2.8 migration: crew (S.crew {mine,ship,res}) — old saves start
+// with every crew member unassigned (no free bonuses). Counts are
+// integers >= 0; a shrunken cap (lost colonies) trims the excess,
+// research first, then shipbuilding, then mining.
+if(!s.crew||typeof s.crew!=="object")s.crew={mine:0,ship:0,res:0};
+for(const k of["mine","ship","res"])if(typeof s.crew[k]!=="number"||s.crew[k]<0)s.crew[k]=0;else s.crew[k]=Math.floor(s.crew[k]);
+if(typeof s.pairCy!=="number")s.pairCy=Date.now();
+if(typeof s.stabCy!=="number")s.stabCy=Date.now();
+if(!s.rv||typeof s.rv!=="object")s.rv={};
+for(const id in RV){const r=s.rv[id];if(!r||typeof r!=="object"){s.rv[id]={cy:Date.now()};continue}if(r.cy===undefined){r.cy=Math.min(r.cl||Date.now(),r.rd||Date.now());delete r.cl;delete r.rd}}
+// v2.5 migration: k/a/m relocate from Sector 1 to Sector 2. An old
+// (v2.4-era) save has no sec2 marker and may still have them holding
+// Sector 1 systems. Those systems go back to neutral; each faction
+// gets its first free Sector 2 home from its new list. Player systems
+// (S.won), c/v territory, garrisons and cycle clocks are NEVER touched.
+// NOTE: load() runs before RV_START / secOf are initialised (they are
+// consts further down this file), so the home lists are literals here
+// — they MUST match RV_START (k [16,20,17], a [31,27,30], m [19,18,23]).
+// A fresh v2.5 save has no sec2 either; the migration then finds k/a/m
+// already in Sector 2 and is a no-op that just sets the marker.
+if(!j.sec2){s.sec2=1;if(!Array.isArray(s.feed))s.feed=[];const HOMES={k:[16,20,17],a:[31,27,30],m:[19,18,23]};for(const id of["k","a","m"]){const inS1=Object.keys(s.own||{}).filter(x=>s.own[x]===id&&(SYS[+x].sec||0)===0);if(inS1.length){inS1.forEach(x=>delete s.own[x]);const home=HOMES[id].find(i=>!s.won.includes(i)&&!s.own[i]);if(home!==undefined){s.own[home]=id;s.feed.push("The "+RV[id].n+" has relocated to Sector 2.");if(s.feed.length>30)s.feed.shift()}}}}
 if(!j.bl){s.bl=[];s.nu=1;let n=0;for(const t in B)if(j.b[t]>0)s.bl.push({u:s.nu++,t,x:n%3+1,y:Math.floor(n++/3)+2,l:j.b[t]});
 s.bq=(j.bq||[]).map(q=>{let b=s.bl.find(z=>z.t===q.id);if(!b){b={u:s.nu++,t:q.id,x:n%3+1,y:Math.floor(n++/3)+2,l:0};s.bl.push(b)}return{u:b.u,end:q.end}})}
+// v2.6 migration: colonies. A v2.5-era save has no col field — every
+// system the player owns (except Home World) gets a level-1 colony
+// with no focus chosen yet. Garrisons are untouched. Stale colony
+// records for systems no longer owned are dropped, and a save that
+// already has some colonies keeps them (only missing ones are added).
+if(!s.col||typeof s.col!=="object")s.col={};
+for(const k in s.col)if(!(s.won||[]).includes(+k))delete s.col[k];
+for(const i of s.won||[])if(i>0&&!s.col[i])s.col[i]={l:1,spec:null};
+for(const i in s.col)if(s.stab[i]===undefined)s.stab[i]=100;
+for(const i in s.stab)if(!s.col[i])delete s.stab[i];
+{const _cap=5+2*(s.b?s.b.command:1)+Object.values(s.col||{}).reduce((a,c)=>a+(c.l||0),0);let _over=(s.crew.mine+s.crew.ship+s.crew.res)-_cap;for(const _k of["res","ship","mine"]){if(_over<=0)break;const _cut=Math.min(_over,s.crew[_k]);s.crew[_k]-=_cut;_over-=_cut}}
 delete s.pos;delete s.selB;return s}}catch(e){}return fresh()}
 function save(){try{S.t=Date.now();localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let S=load();recalc();
@@ -17,6 +73,18 @@ let S=load();recalc();
 // saved in S and never change the save format (still pixelgalaxy-v3).
 const WORLD={w:640,h:800,px:5}; // galaxy world, SYS x/y * 5 (v0.9.1: bigger, detailed map)
 let CAM={cx:320,cy:400,zoom:0.8}; // v1.5 default = fit view (whole galaxy in the safe area, bottom row visible). Home button still zooms to Home World at 1.8.
+// v2.5 SECTORS: two sectors share ONE 640x800 world — each sector has
+// its own x/y layout in SYS (sec:1 marks Sector 2, no sec field = 0),
+// so fitCam/clampCam/minimap math is identical per sector. SEC is
+// VIEW-ONLY like CAM (the sector you are looking at, never saved).
+// drawGalaxy and the minimap draw ONLY the active sector; flyTo()
+// sets SEC to the target system's sector first.
+let SEC=0;
+const secOf=i=>SYS[i].sec||0;
+const hasJump=()=>S.tech.includes("j1");
+// Jump gates (both directions): 9 Void Gate <-> 21 Wayfarer Gate,
+// 13 Rift Armada <-> 27 Hollow Gate.
+const GATE={9:21,13:27,21:9,27:13};
 let camFitted=false; // v1.6: true while the camera is still in its default fit state — a resize refits it; any deliberate zoom/pan clears it.
 let PAGE={kind:"tab"}; // tab | empire only — system/building/plot are popups now (v0.9.2)
 // v0.9.2 popups: VIEW-ONLY, never saved. Map/station stay visible behind.
@@ -161,7 +229,7 @@ const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:(cv.width||384)/2+(wx
 const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-(cv.width||384)/2)/sc,y:CAM.cy+(sy-safeCyCv())/sc}};
 function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=galSafeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
 function setZoom(z,px,py){camFitted=false;const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-safeCyCv())/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-safeCyCv())/s1}clampCam()}
-function flyTo(i){camFitted=false;const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
+function flyTo(i){camFitted=false;SEC=secOf(i);const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
 function fitCam(){const vh=galSafeH(),vw=cv.width||384,ch=cv.height||480;
   const sc=Math.min(vw/WORLD.w,vh/WORLD.h); // world must fit the SAFE area
   CAM={cx:320,cy:400,zoom:Math.max(.3,Math.min(2.5,sc*WORLD.h/ch))};clampCam();camFitted=true}
@@ -231,9 +299,70 @@ const cstr=c=>Object.keys(c).map(r=>fmt(c[r])+" "+r).join(", ");
 const used=()=>Object.keys(U).reduce((a,k)=>a+S.ships[k]*U[k].sz,0);
 const usedQ=()=>used()+S.sq.reduce((a,j)=>a+U[j.k].sz,0);
 const total=()=>S.ships.fighter+S.ships.cruiser+S.ships.capital;
+// v2.4 GARRISONS: ships stationed at a system defend it. They are NOT
+// in the home fleet — battles, dpower() and total() use S.ships only —
+// and they don't use hangar slots (they're deployed, not stored).
+// Quests count every ship you own, home or garrisoned, so moving ships
+// to a garrison can never un-complete q3/q7/q9. Recalling a ship never
+// strands it: recall ignores the slot cap (new builds stay blocked
+// while the home fleet is over its cap, as before).
+const garAt=i=>{const g=(S.gar||{})[i]||{};return{fighter:g.fighter||0,cruiser:g.cruiser||0,capital:g.capital||0}};
+const garTotal=()=>Object.keys(S.gar||{}).reduce((a,i)=>{const g=garAt(+i);return a+g.fighter+g.cruiser+g.capital},0);
+const allShips=()=>total()+garTotal();
+const shipCount=k=>S.ships[k]+Object.keys(S.gar||{}).reduce((a,i)=>a+garAt(+i)[k],0);
+// Raw garrison power (no weakness bonus — a garrison defends at full
+// strength) and the shared fleet multiplier, so sysDef() matches the
+// number shown in the popup and on the Empire page exactly.
+const garPow=i=>{const g=garAt(i);let p=0;for(const k in U)p+=g[k]*U[k].pw;return p};
+const garMult=()=>(1+.2*(S.b.command-1))*(1+tsum("pw"))*(1+cb("fleet"))*1.2;
+// v2.7: Home World defends with the FULL home fleet (dpower()), not
+// half of it — the whole fleet is AT home. Every other system keeps
+// the v2.4 rule (garrison + colony + half the home fleet).
+const sysDef=i=>i===0?dpower():garPow(i)*garMult()+colDef(i)+.5*dpower();
+// v2.6 COLONIES — one per owned system (never Home World, never
+// rival-held; player-only in v2.6). A colony earns +0.2/s per level
+// of its focused resource (Lv 1 = +0.2/s, Lv 5 = +1.0/s) once a focus
+// is chosen — unchosen colonies earn nothing (only the flat +0.3
+// credits/s per owned system still applies). A colony adds +15 raid
+// defence power per level. Upgrades are timed jobs in the building
+// queue (see done()/actJobs()): cost metal 50xlevel + crystal 30xlevel
+// + credits 100xlevel to go from level to level+1, time 60s x level.
+// Max colony level is 5.
+const COLSPEC={mine:"metal",forge:"crystal",trade:"credits"};
+const COLSPECNAME={mine:"Mining",forge:"Forge",trade:"Trade"};
+const COL_MAX=5,COL_INC=.2,COL_DEF=15;
+const colAt=i=>(S.col||{})[i]||null;
+const colDef=i=>{const c=colAt(i);return c?COL_DEF*c.l:0};
+const colUpCost=l=>({metal:50*l,crystal:30*l,credits:100*l});
+const colDur=l=>60*l;
+// v2.8 CREW — workers, NOT commanders (S.cmds/S.cx/S.slot are the
+// officer system and are untouched). Cap = 5 + 2xCommand level +
+// total colony levels, so a fresh empire has 7 crew and a big one
+// ~30. Mining +2% production per crew (buildings AND colony income),
+// shipbuilding +2% shipyard speed per crew, research +2% research
+// speed per crew. Speed bonuses cap at -50%, same style as tmul().
+const CREW_PCT=.02;
+const crewAt=()=>{if(!S.crew||typeof S.crew!=="object")S.crew={mine:0,ship:0,res:0};return S.crew};
+const crewCap=()=>5+2*S.b.command+Object.values(S.col||{}).reduce((a,c)=>a+(c.l||0),0);
+const crewTotal=()=>{const c=crewAt();return (c.mine||0)+(c.ship||0)+(c.res||0)};
+const crewMineMult=()=>1+CREW_PCT*(crewAt().mine||0);
+const crewShipMul=()=>1-Math.min(.5,CREW_PCT*(crewAt().ship||0));
+const crewResMul=()=>1-Math.min(.5,CREW_PCT*(crewAt().res||0));
+// v2.8 TRADE ROUTES — a colony CONNECTED to Home World through
+// systems you own (BFS from system 0 over S.won, hopsFromHome())
+// earns +0.2 credits/s. An isolated colony earns nothing: connected
+// territory pays, far-flung islands don't (and they are also the ones
+// that lose stability). Derived from S.won + S.col — no new field.
+const TRADE_INC=.2;
+const tradeAt=i=>{const c=colAt(i);if(!c||i===0)return 0;return hopsFromHome()[i]!==undefined?TRADE_INC:0};
+const tradeTotal=()=>S.won.reduce((a,i)=>a+tradeAt(i),0);
 const adj=(i,j)=>SYS[i].l.includes(j)||SYS[j].l.includes(i);
 const spw=i=>Math.round(SYS[i].pw*(S.own[i]?1.4:1));
-const avail=i=>!S.won.includes(i)&&S.won.some(j=>adj(i,j));
+// v2.5: Sector 2 needs Jump Drive research (TECH j1) — without it
+// every Sector 2 system is out of reach, however adjacent it is.
+// The systems stay VISIBLE (greyed/locked) so the player can see
+// what is coming; the popup says so in one plain line.
+const avail=i=>!S.won.includes(i)&&S.won.some(j=>adj(i,j))&&(secOf(i)===0||hasJump());
 // v1.4: adjacency bonus REMOVED at Jayden's request (approved mechanics
 // change). Production is base rate only (plus tech/commander effects),
 // so spaced-out buildings produce at full rate — that is what makes
@@ -242,10 +371,21 @@ const avail=i=>!S.won.includes(i)&&S.won.some(j=>adj(i,j));
 const mult=b=>1;
 function fpower(i){return fpt(SYS[i].t)}
 function fpt(t){const w=WEAK[t];let p=0;for(const k in U)p+=S.ships[k]*U[k].pw*(k===w?1.5:1);return p*(1+.2*(S.b.command-1))*(1+tsum("pw"))*(1+cb("fleet"))}
-function rates(){const o={energy:0,metal:0,crystal:0,credits:0};S.bl.forEach(b=>{if(b.l>0)for(const r in B[b.t].p)o[r]+=B[b.t].p[r]*b.l*mult(b)*(1+tsum("eco"))*(1+cb("econ"))});o.credits+=.3*(S.won.length-1);o.energy-=.05*used();return o}
+function rates(){const o={energy:0,metal:0,crystal:0,credits:0};S.bl.forEach(b=>{if(b.l>0)for(const r in B[b.t].p)o[r]+=B[b.t].p[r]*b.l*mult(b)*(1+tsum("eco"))*(1+cb("econ"))*crewMineMult()});o.credits+=.3*(S.won.length-1);
+// v2.6: colonies earn through rates() so the HUD +/s, offline
+// earnings and storage caps all include them automatically. An
+// unchosen colony earns nothing (only the flat +0.3 credits/s above).
+for(const i of S.won){const c=colAt(i);if(c&&c.spec)o[COLSPEC[c.spec]]+=COL_INC*c.l*crewMineMult()}
+o.credits+=tradeTotal();
+o.energy-=.05*used();return o}
 function step(dt){S.min+=dt/60;const r=rates();R.forEach(k=>{S.res[k]=Math.min(cap(),Math.max(0,S.res[k]+r[k]*dt))})}
 function done(){const n=Date.now();
-S.bq=S.bq.filter(j=>{if(j.end>n)return true;const b=S.bl.find(z=>z.u===j.u);if(b){b.l++;gain("station",1);msg(B[b.t].n+" reaches level "+b.l+".");sfx("ok")}return false});recalc();
+S.bq=S.bq.filter(j=>{if(j.end>n)return true;
+// v2.6: a colony upgrade job ({col: system id}) raises that colony
+// one level (capped at COL_MAX) instead of a building. Same queue,
+// same tray, same station-commander XP as a finished build.
+if(j.col!==undefined){const c=colAt(j.col);if(c){c.l=Math.min(COL_MAX,c.l+1);gain("station",1);msg("Colony on "+SYS[j.col].n+" reaches level "+c.l+".");sfx("ok")}return false}
+const b=S.bl.find(z=>z.u===j.u);if(b){b.l++;gain("station",1);msg(B[b.t].n+" reaches level "+b.l+".");sfx("ok")}return false});recalc();
 while(S.sq.length&&S.sq[0].end<=n){const k=S.sq.shift().k;S.ships[k]++;msg(U[k].n+" launched.");sfx("ok")}
 if(S.rq&&S.rq.end<=n){const t=TECH.find(z=>z.id===S.rq.id);S.tech.push(t.id);S.rq=null;gain("station",1);msg("Research complete: "+t.n);sfx("claim")}}
 let HOLD=false,HELD="";
@@ -265,6 +405,7 @@ $("#cmds").innerHTML=Object.keys(CM).map(id=>`<div class="row"><div><b>${CM[id].
 let qKey="";
 function update(){
 done();
+checkEnd(); // v2.7: victory is a state, not just an event — re-check every tick so no ownership change can slip past
 const r=rates(),now=Date.now();
 R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap());const sb=$("#sb-"+k);if(sb)sb.style.width=Math.round(Math.max(0,Math.min(1,S.res[k]/cap()))*100)+"%";});
 const fe=$("#fleet-empty"); if(fe) fe.hidden=!(total()===0&&S.sq.length===0);
@@ -280,7 +421,7 @@ if(a||inf){
 if(S.sel===0){if(inf)inf.innerHTML="<b>Home World</b><br><small>Your base. Build your station and fleet here.</small>";if(a){a.disabled=true;a.textContent="Home"}}
 else{
 const own=S.won.includes(S.sel),av=avail(S.sel);
-if(inf)inf.innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring ${WEAK[s.t]}s (+50%). Needs ${spw(S.sel)} power.${S.own[S.sel]?" Held by "+RV[S.own[S.sel]].n+".":""} Your fleet: ${fpower(S.sel).toFixed(1)}.<br>Loot: ${cstr(s.r)}<br>${own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first."}</small>`;
+if(inf)inf.innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring ${WEAK[s.t]}s (+50%). Needs ${spw(S.sel)} power.${S.own[S.sel]?" Held by "+RV[S.own[S.sel]].n+".":""} Your fleet: ${fpower(S.sel).toFixed(1)}.<br>Loot: ${cstr(s.r)}<br>${own?"You own this system.":av?"Ready to attack.":secOf(S.sel)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":"Out of reach. Claim a neighboring system first."}</small>`;
 if(a){a.disabled=own||!av||total()<1;a.textContent=own?"Owned":"Attack"}}}
 baseUI(now);
 upd2();
@@ -342,7 +483,7 @@ const pointers=new Map();let pStart=null,pDrag=false,pPinch=0;
 cv.addEventListener("pointerdown",e=>{if(POP)return; // v1.4: map cannot steal a popup tap
 if(cv.setPointerCapture)try{cv.setPointerCapture(e.pointerId)}catch(_){}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){pStart={x:e.clientX,y:e.clientY};pDrag=false}else if(pointers.size===2){const a=[...pointers.values()];pPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);pDrag=true}});
 cv.addEventListener("pointermove",e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=cv.getBoundingClientRect();if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(pPinch>0)setZoom(CAM.zoom*d/pPinch,(mx-q.left)/q.width*cv.width,(my-q.top)/q.height*cv.height);pPinch=d;update();return}if(pStart){const dx=e.clientX-pStart.x,dy=e.clientY-pStart.y;if(Math.abs(dx)+Math.abs(dy)>8)pDrag=true;if(pDrag){camFitted=false;const sc=camScale();CAM.cx-=dx/q.width*cv.width/sc;CAM.cy-=dy/q.height*cv.height/sc;pStart={x:e.clientX,y:e.clientY};clampCam();update()}}});
-const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(pointers.size===0&&pStart&&!pDrag){const q=cv.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*cv.width,sy=(e.clientY-q.top)/q.height*cv.height,w=screenToWorld(sx,sy),lx=w.x/WORLD.px,ly=w.y/WORLD.px;let best=-1,bd=100;SYS.forEach((s,i)=>{const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});if(best>=0)openSystem(best)}pStart=null;pDrag=false};
+const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(pointers.size===0&&pStart&&!pDrag){const q=cv.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*cv.width,sy=(e.clientY-q.top)/q.height*cv.height,w=screenToWorld(sx,sy),lx=w.x/WORLD.px,ly=w.y/WORLD.px;let best=-1,bd=100;SYS.forEach((s,i)=>{if(secOf(i)!==SEC)return;const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});if(best>=0)openSystem(best)}pStart=null;pDrag=false};
 cv.addEventListener("pointerup",cvEnd);cv.addEventListener("pointercancel",cvEnd);
 cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=cv.getBoundingClientRect();setZoom(CAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*cv.width,(e.clientY-q.top)/q.height*cv.height);update()},{passive:false});
 cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*cv.width,(e.clientY-q.top)/q.height*cv.height);update()});
@@ -362,6 +503,7 @@ else if(d.zin){setZoom(CAM.zoom*1.25)}
 else if(d.zout){setZoom(CAM.zoom/1.25)}
 else if(d.zhome){homeCam()}
 else if(d.zfit){fitCam()}
+else if(d.sec){SEC=+d.sec;fitCam()}
 else if(d.szin){setStZoom(STCAM.zoom*1.25)}
 else if(d.szout){setStZoom(STCAM.zoom/1.25)}
 else if(d.shome){homeStCam()}
@@ -377,6 +519,7 @@ else if(d.tutskip){closeTut(true)}
 else if(d.tutdone){closeTut(true)}
 else if(d.act){const a=d.act;
 if(a.startsWith("bld:")){const u=+a.slice(4);S.tab="station";PAGE={kind:"tab"};openBuilding(u)}
+else if(a.startsWith("col:")){const i=+a.slice(4);S.tab="map";PAGE={kind:"tab"};openSystem(i)} // v2.6: tap a colony upgrade job to jump to that system's popup
 else if(a==="res"){S.tab="research";PAGE={kind:"tab"};update()}
 else if(a==="ship"){S.tab="fleet";PAGE={kind:"tab"};update()}}
 else if(d.hide){setUIHidden(true)}
@@ -386,15 +529,42 @@ else if(d.log){PAGE={kind:"log"};update()}
 else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b.t,l);if(l<lvlCap(b.t)&&S.bq.length<bqcap()&&can(c)){pay(c);{const s0=Math.max(Date.now(),...S.bq.filter(j=>j.u===b.u).map(j=>j.end));S.bq.push({u:b.u,s:s0,end:s0+dur(l)*1000})}msg(B[b.t].n+" upgrade started.")}}}
 else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
-else if(d.build){const k=d.build,u=U[k],n=+d.n||1;let ok=0;for(let j=0;j<n;j++){if(S.bx.hangar>=u.h&&usedQ()+u.sz<=scap()&&S.sq.length<qcap()&&can(u.c)){pay(u.c);const s0=Math.max(Date.now(),S.sq.length?S.sq[S.sq.length-1].end:0);S.sq.push({k,end:s0+DUR[k]*1000*tmul()});ok++}else break}if(ok)msg(ok+"x "+u.n+" construction started.")}
+else if(d.build){const k=d.build,u=U[k],n=+d.n||1;let ok=0;for(let j=0;j<n;j++){if(S.bx.hangar>=u.h&&usedQ()+u.sz<=scap()&&S.sq.length<qcap()&&can(u.c)){pay(u.c);const s0=Math.max(Date.now(),S.sq.length?S.sq[S.sq.length-1].end:0);S.sq.push({k,end:s0+DUR[k]*1000*tmul()*crewShipMul()});ok++}else break}if(ok)msg(ok+"x "+u.n+" construction started.")}
 else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);for(const k in q.r)S.res[k]=Math.min(cap(),S.res[k]+q.r[k]);msg("Quest complete: "+q.t);sfx("claim")}}
-else if(d.tech){const t=TECH.find(z=>z.id===d.tech);if(t&&!S.rq&&!S.tech.includes(t.id)&&(!t.req||S.tech.includes(t.req))&&can(t.c)){pay(t.c);S.rq={id:t.id,end:Date.now()+t.t*1000*tmul()};msg("Research started: "+t.n)}}
+else if(d.tech){const t=TECH.find(z=>z.id===d.tech);if(t&&!S.rq&&!S.tech.includes(t.id)&&(!t.req||S.tech.includes(t.req))&&can(t.c)){pay(t.c);S.rq={id:t.id,end:Date.now()+t.t*1000*tmul()*crewResMul()};msg("Research started: "+t.n)}}
 else if(d.cmd){const id=d.cmd,c=CM[id],sl=c.t==="fleet"?"fleet":"station";if(!S.cmds.includes(id)){if(S.res.credits>=c.c){S.res.credits-=c.c;S.cmds.push(id);S.slot[sl]=id;msg(c.n+" joins your command.")}}else S.slot[sl]=S.slot[sl]===id?null:id}
+else if(d.crew){const parts=d.crew.split(":"),k=parts[0],delta=+parts[1];const c=crewAt();if(["mine","ship","res"].includes(k)){if(delta>0&&crewTotal()<crewCap())c[k]=(c[k]||0)+1;else if(delta<0&&(c[k]||0)>0)c[k]--;}}
 else if(d.scrap){const k=d.scrap;if(S.ships[k]>0){S.ships[k]--;for(const r in U[k].c)S.res[r]=Math.min(cap(),S.res[r]+Math.floor(U[k].c[r]/2));msg(U[k].n+" scrapped. Half its cost was refunded.")}}
+else if(d.cspec){const i=S.sel,c=colAt(i);if(i>0&&S.won.includes(i)&&c&&!c.spec&&COLSPEC[d.cspec]){c.spec=d.cspec;msg("Colony on "+SYS[i].n+" focuses on "+COLSPECNAME[d.cspec]+" — it now earns +"+(COL_INC*c.l).toFixed(1)+" "+COLSPEC[d.cspec]+"/s.")}}
+else if(d.cup){const i=S.sel,c=colAt(i);if(i>0&&S.won.includes(i)&&c&&c.l<COL_MAX&&!S.bq.some(j=>j.col===i)&&S.bq.length<bqcap()){const cc=colUpCost(c.l);if(can(cc)){pay(cc);const s0=Math.max(Date.now(),...S.bq.filter(j=>j.col===i).map(j=>j.end));S.bq.push({col:i,s:s0,end:s0+colDur(c.l)*1000});msg("Colony upgrade started on "+SYS[i].n+".")}}}
+else if(d.dip){const parts=d.dip.split(":"),kind=parts[0],id=parts[1];
+if(!RV[id]||!heldCount(id))return; // a defeated faction has nothing to offer
+if(S.res.credits<DIP[kind])return; // cannot afford it
+const rel=dipRel(id);
+if(kind==="tribute"&&(rel==="truce"||rel==="pact"||rel==="ally"))return;
+if(kind==="pact"&&(rel==="pact"||rel==="ally"))return;
+if(kind==="ally"&&rel==="ally")return;
+if(!S.dip[id])S.dip[id]={};
+S.res.credits-=DIP[kind];
+if(kind==="tribute"){S.dip[id].truceUntil=Date.now()+DIP.TRUCE_MS;msg("You paid tribute to the "+RV[id].n+" — a 30-minute truce. They will not raid you while it lasts.");}
+if(kind==="pact"){S.dip[id].pact=1;delete S.dip[id].truceUntil;msg("You signed a pact with the "+RV[id].n+" — neither side will raid the other.");}
+if(kind==="ally"){S.dip[id].ally=1;delete S.dip[id].pact;delete S.dip[id].truceUntil;msg("The "+RV[id].n+" is now your ally — they will never raid you, and will raid your enemies instead.");}
+sfx("ok")}
+else if(d.gsend||d.grecall){const i=S.sel,k=d.gsend||d.grecall;if(i>0&&S.won.includes(i)){if(!S.gar)S.gar={};const g=S.gar[i]||(S.gar[i]={fighter:0,cruiser:0,capital:0});if(d.gsend){if(S.ships[k]>0){S.ships[k]--;g[k]=(g[k]||0)+1;msg("1 "+U[k].n+" sent to "+SYS[i].n+".")}}else if(g[k]>0){g[k]--;S.ships[k]++;msg("1 "+U[k].n+" recalled from "+SYS[i].n+" to your home fleet.")}}}
 else if(d.atk){
 const i=S.sel,s=SYS[i];if(!avail(i)||total()<1)return;
+// v2.7: attacking a faction's system breaks any truce, pact or
+// alliance with that faction instantly — the popup warns first.
+const holder=S.own[i];
+if(holder){const rel=dipRel(holder);if(rel==="truce"||rel==="pact"||rel==="ally"){const dd=dipAt(holder);delete dd.pact;delete dd.ally;delete dd.truceUntil;msg("You broke the "+(rel==="ally"?"alliance":rel)+" with the "+RV[holder].n+" by attacking "+s.n+"!")}}
 const p=fpower(i)*(.85+Math.random()*.3),pre={...S.ships},need=spw(i),win=p>=need;HOLD=true;
-if(win){for(const k in U)S.ships[k]=Math.ceil(S.ships[k]*Math.min(.95,.7+tsum("keep")));if(S.own[i]){S.cap++;delete S.own[i]}S.won.push(i);for(const k in s.r)S.res[k]=Math.min(cap(),S.res[k]+s.r[k]);
+if(win){for(const k in U)S.ships[k]=Math.ceil(S.ships[k]*Math.min(.95,.7+tsum("keep")));if(S.own[i]){S.cap++;delete S.own[i]}delete S.gar[i];S.won.push(i);
+// v2.6: conquering founds a colony — level 1, no focus chosen yet.
+// (A re-conquered system gets a FRESH one: the raid-loss path
+// deletes the old colony, so this never resurrects a lost level.)
+if(i>0){if(!S.col)S.col={};S.col[i]={l:1,spec:null};if(!S.stab)S.stab={};S.stab[i]=100}
+checkEnd();
+for(const k in s.r)S.res[k]=Math.min(cap(),S.res[k]+s.r[k]);
 gain("fleet",2);msg(i===15?"You conquered the Dark Nexus. The galaxy is yours!":i===7?"The Hive Core falls, but the galaxy is bigger than you thought.":"Victory! "+s.n+" is yours and now pays you credits.")}
 else{for(const k in U)S.ships[k]=Math.floor(S.ships[k]*(.4+tsum("keep")));msg("Defeat. Your fleet retreats with heavy losses. Build the ship type this enemy is weak to, or upgrade the Command Station.")}
 closePopup();
@@ -403,7 +573,9 @@ battle(win,pre,s,p,need);
 else if(b.id==="snd"){S.mute=S.mute?0:1;sfx("ok")}
 else if(b.id==="reset"){$("#rbox").hidden=false}
 else if(d.rcancel){$("#rbox").hidden=true}
-else if(d.rgo){S=fresh();recalc();qKey="";$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.rgo){S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.endkeep){hideEnd()}
+else if(d.endnew){S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
 update();save();
 }
 // v1.4 popup touch: click path — ignore a click that is really the
@@ -430,17 +602,244 @@ if(Math.abs(e.clientX-downX)>=12||Math.abs(e.clientY-downY)>=12)return;
 popClickGuard=Date.now()+600; // swallow the click that follows
 handleBodyClick(e)});
 
-function rstr(id){let k=0;for(const i in S.own)if(S.own[i]===id)k++;return RV[id].b*(1+Math.min(5,S.min*.02))*(1+.1*k)}
+function rstr(id){const f=RV[id]||{b:150,eco:1};let k=0;for(const i in S.own)if(S.own[i]===id)k++;return f.b*(1+Math.min(5,S.min*.02))*(1+.1*k)*(.8+.2*(f.eco||1))}
 function nb(id,i){return Object.keys(S.own).some(j=>S.own[j]===id&&adj(i,+j))}
 function dpower(){let p=0;for(const k in U)p+=S.ships[k]*U[k].pw;return p*(1+.2*(S.b.command-1))*(1+tsum("pw"))*(1+cb("fleet"))*1.2}
+// v2.4 LIVING WORLD — one shared cycle clock for every faction.
+// A cycle is 5 real minutes (300000ms). Per cycle per faction: ONE
+// claim attempt (if it holds < 6 systems, with probability exp) and
+// ONE raid attempt (with probability agg x 0.7, only after 10 minutes
+// of play). The old code DISCARDED the backlog when a clock fell more
+// than 12 min (claims) / 10 min (raids) behind — rivals froze while
+// the player was away. Backlog is now NEVER discarded: during play
+// each faction runs one cycle per 250ms tick when its clock is due,
+// and on load offlineSim() simulates up to 24 cycles (2h) for the
+// away period. Claims keep the old eligibility verbatim (neutral,
+// adjacent to faction territory, systems 1-3 need S.min>=45 — the
+// (i>=4||S.min>=45) filter — and never the Dark Nexus or Home World).
+// Starting systems, in order c, v, k, a, m, first-free from each list,
+// never 0/1/2/3/15. v2.5: the three new factions relocated to Sector 2
+// (see RV_START below).
+const CYCLE_MS=300000,CYCLE_CAP=24;
+// v2.5: k/a/m start in Sector 2 — Keth at Ember Drift (16), Aurelian
+// at Gilded Throne (31), Vortex at Stormbreak Point (19). c/v keep
+// their Sector 1 homes (14/11). First-free from each list, as before.
+const RV_START={c:[14,13,12],v:[11,10,9],k:[16,20,17],a:[31,27,30],m:[19,18,23]};
+// Defensive clock state: an old save's rv may lack a faction or still
+// carry the v2.3 cl/rd fields (load() normalises the usual case; this
+// covers a save that bypassed it). The old clock is carried forward,
+// never reset.
+function rvState(id){if(!S.rv||typeof S.rv!=="object")S.rv={};let r=S.rv[id];if(!r||typeof r!=="object"){r={cy:Date.now()};S.rv[id]=r}if(r.cy===undefined){r.cy=Math.min(r.cl||Date.now(),r.rd||Date.now());delete r.cl;delete r.rd}return r}
+const heldCount=id=>Object.keys(S.own).filter(j=>S.own[j]===id).length;
+// v2.7 DIPLOMACY — S.dip maps faction id -> {truceUntil, pact, ally}.
+// S.war (v2.4) is kept as the "has taken one of your systems" history
+// flag; relation precedence is ally > pact > truce > war > peace, so a
+// pacted ex-enemy still reads as pacted. A truce is a real-time
+// 30-minute expiry; pacts and alliances have no expiry but can be
+// betrayed (see rivalCycle) or broken by the player attacking that
+// faction's system (see the d.atk handler).
+const DIP={tribute:300,pact:500,ally:1000,TRUCE_MS:1800000};
+const dipAt=id=>{if(!S.dip||typeof S.dip!=="object")S.dip={};return S.dip[id]||{}};
+const dipTruce=id=>{const d=dipAt(id);return !!(d.truceUntil&&d.truceUntil>Date.now())};
+const dipRel=id=>{const d=dipAt(id);if(d.ally)return "ally";if(d.pact)return "pact";if(dipTruce(id))return "truce";if(S.war&&S.war[id])return "war";return "peace"};
+const dipRelWord=id=>({truce:"truce",pact:"pact",ally:"alliance"}[dipRel(id)]||"");
+function relText(id){
+  if(!heldCount(id))return "defeated";
+  const r=dipRel(id);
+  if(r==="ally")return "Allied";
+  if(r==="pact")return "Pact";
+  if(r==="truce")return "Truce — "+Math.max(1,Math.ceil((dipAt(id).truceUntil-Date.now())/60000))+" min left";
+  if(r==="war")return "At war";
+  return "Peace";
+}
+// v2.7 RIVAL-PAIR DIPLOMACY — S.pair maps "a-b" (ids sorted) ->
+// "pact" | "war". Bordering rival pairs only. Pacts stop their mutual
+// raids; wars raise the raid probability x1.5 (see rivalCycle).
+const pairKey=(a,b)=>a<b?a+"-"+b:b+"-"+a;
+const pairRel=(a,b)=>(S.pair||{})[pairKey(a,b)]||null;
+const bordering=(a,b)=>Object.keys(S.own).some(j=>S.own[j]===a&&Object.keys(S.own).some(k=>S.own[k]===b&&adj(+j,+k)));
+function rivalDiplomacy(){
+  if(!S.pair||typeof S.pair!=="object")S.pair={};
+  const ids=Object.keys(RV);
+  for(let x=0;x<ids.length;x++)for(let y=x+1;y<ids.length;y++){
+    const a=ids[x],b=ids[y];
+    if(!heldCount(a)||!heldCount(b)||!bordering(a,b))continue;
+    const k=pairKey(a,b),rel=S.pair[k],avg=(((RV[a].agg||0)+(RV[b].agg||0))/2);
+    if(rel==="pact"){if(Math.random()<avg*.1){delete S.pair[k];msg("The "+RV[a].n+" and the "+RV[b].n+" broke their pact!")}continue}
+    if(rel==="war")continue; // wars persist until one side is gone
+    const r=Math.random(),pactP=(1-avg)*.1,warP=avg*.1;
+    if(r<pactP){S.pair[k]="pact";msg("The "+RV[a].n+" and the "+RV[b].n+" signed a pact.")}
+    else if(r<pactP+warP){S.pair[k]="war";msg("The "+RV[a].n+" declared war on the "+RV[b].n+"!")}
+  }
+}
+// v2.7 VICTORY / DEFEAT — one checkEnd() after every ownership
+// change (attack win, raid resolution, cycle claims, offline sim, and
+// update() as a backstop). Victory: hold 13 systems (40% of 32) OR
+// twice the next faction's count. Each achievement shows its overlay
+// once (S.end.v13 / S.end.v2x); "Keep playing" continues. Defeat:
+// Home World falls (S.end.lost) — overlay with restart only.
+const VICTORY_SYSTEMS=13;
+function nextFaction(){let best=null,bn=0;for(const id in RV){const n=heldCount(id);if(n>bn){bn=n;best=id}}return{id:best,n:bn}}
+function checkEnd(){
+  if(!S.end||typeof S.end!=="object")S.end={};
+  if(S.end.lost)return;
+  if(!S.end.v13&&S.won.length>=VICTORY_SYSTEMS){S.end.v13=1;showEnd("win","13");return}
+  const nx=nextFaction();
+  if(!S.end.v2x&&nx.id&&nx.n>=1&&S.won.length>=2*nx.n){S.end.v2x=1;showEnd("win","2x")}
+}
+function endStats(){const nx=nextFaction();return "You hold "+S.won.length+" of "+SYS.length+" systems."+(nx.id?" The next strongest faction is the "+RV[nx.id].n+" with "+nx.n+".":" No rival holds any systems.")}
+function showEnd(kind,how){
+  const t=$("#end-title"),s=$("#end-stats"),k=$("#end-keep"),box=$("#end");
+  if(!t||!s||!box)return;
+  if(kind==="win"){t.textContent="Victory! The galaxy is yours.";s.textContent=(how==="13"?"You hold 13 systems — 40% of the galaxy. ":"You hold twice as many systems as the next faction. ")+endStats();if(k)k.hidden=false;msg("Victory! "+(how==="13"?"You hold 13 systems.":"You hold twice as many systems as the next faction."));sfx("win")}
+  else{t.textContent="Defeat — your Home World has fallen.";s.textContent="A rival fleet overran your Home World. Your empire is scattered. "+endStats();if(k)k.hidden=true;msg("Defeat — your Home World has fallen.");sfx("lose")}
+  box.hidden=false;
+}
+function hideEnd(){const b=$("#end");if(b)b.hidden=true}
+// v2.7 STABILITY — colonies far from Home rebel unless garrisoned.
+// Stability 100; -1/cycle if the garrison is empty AND the system is
+// >=3 link-hops from Home (BFS over systems you own); +5/cycle if
+// garrisoned (max 100). At 0 the system defects to the neighbouring
+// faction with the most adjacent systems (or goes neutral if none);
+// its colony + garrison are deleted, feed line logged. Runs once per
+// 5-minute cycle from rivalTick (S.stabCy gate).
+function hopsFromHome(){const hops={0:0},q=[0];while(q.length){const i=q.shift();for(const j of SYS[i].l){if(S.won.includes(j)&&hops[j]===undefined){hops[j]=hops[i]+1;q.push(j)}}}return hops}
+function stabTick(){
+  if(!S.stab||typeof S.stab!=="object")S.stab={};
+  const hops=hopsFromHome();
+  for(const i of S.won.slice()){
+    if(i===0)continue;const c=colAt(i);if(!c)continue;
+    if(S.stab[i]===undefined)S.stab[i]=100;
+    const g=garAt(i),hasGar=g.fighter+g.cruiser+g.capital>0;
+    if(hasGar)S.stab[i]=Math.min(100,S.stab[i]+5);
+    else if((hops[i]===undefined?99:hops[i])>=3)S.stab[i]-=1;
+    if(S.stab[i]<=0){
+      const counts={};for(const j of SYS[i].l){const o=S.own[j];if(o)counts[o]=(counts[o]||0)+1}
+      let best=null,bn=0;for(const o in counts)if(counts[o]>bn){bn=counts[o];best=o}
+      S.won.splice(S.won.indexOf(i),1);delete S.gar[i];delete S.col[i];delete S.stab[i];
+      if(best){S.own[i]=best;msg("The colony on "+SYS[i].n+" rebelled and joined the "+RV[best].n+"!")}
+      else msg("The colony on "+SYS[i].n+" rebelled and declared independence!");
+    }
+  }
+}
+function rivalCycle(id,offline,lost){
+  // One 5-minute cycle for one faction. offline=true when called from
+  // offlineSim(); lost is the per-return loss counter (at most ONE of
+  // your systems per faction per return).
+  if(!heldCount(id))return;
+  const f=RV[id]||{b:150,agg:.7,exp:.5,eco:1};
+  // (a) CLAIM — one random eligible neutral adjacent system.
+// v2.5: the claim filter now spans BOTH sectors (was i<15): the Dark
+// Nexus (15) is still never claimed, and a Sector 2 system is only
+// eligible once the faction's jump drives are online (S.min>=60).
+// The S.min>=45 rule for index>=4 covers all of Sector 2 anyway.
+  if(heldCount(id)<6&&Math.random()<(f.exp||0)){
+    const c=SYS.map((s,i)=>i).filter(i=>i>0&&i!==15&&!S.won.includes(i)&&!S.own[i]&&nb(id,i)&&(i>=4||S.min>=45)&&(secOf(i)===0||S.min>=60));
+    if(c.length){const i=c[Math.floor(Math.random()*c.length)];S.own[i]=id;msg(f.n+" claimed "+SYS[i].n+".")}
+  }
+  // (b) RAID — target pool is your adjacent systems PLUS other
+  // factions' adjacent systems (rival-vs-rival: raids are the only way
+  // factions take from each other; claims never target held systems).
+  // v2.7 DIPLOMACY: a pacted faction may BETRAY each cycle
+  // (probability agg x 0.05 — the pact ends and the raid resolves
+  // normally that cycle); an ally betrays far more rarely (agg x
+  // 0.01). The betrayal roll runs before the raid roll, every cycle.
+  const d=dipAt(id);
+  let betrayed=null;
+  if(d.pact&&Math.random()<(f.agg||0)*.05){delete d.pact;betrayed="pact"}
+  else if(d.ally&&Math.random()<(f.agg||0)*.01){delete d.ally;betrayed="alliance"}
+  if(betrayed)msg(f.n+" broke the "+betrayed+" with you!");
+  const rel=dipRel(id);
+  // v2.7: a faction at war with a bordering rival raids at x1.5
+  // probability (capped at 1) — wars are hotter than cold peace.
+  const atWarBorder=Object.keys(RV).some(o=>o!==id&&pairRel(id,o)==="war"&&bordering(id,o));
+  const raidP=Math.min(1,(f.agg||0)*.7*(atWarBorder?1.5:1));
+  if(S.min<10||Math.random()>=raidP){checkEnd();return}
+  // v2.7: a truce, pact or alliance means this faction cannot raid
+  // YOU at all (rival-vs-rival raids still happen). An ally raids
+  // only YOUR enemies (factions flagged in S.war) instead. A pacted
+  // rival is never a raid target either (pair pact). Home World (0)
+  // joins the pool ONLY live (never offline) and ONLY if the faction
+  // owns a system adjacent to Home (1 or 2) — Home defence is the
+  // FULL home fleet (sysDef(0) = dpower()).
+  let mine=[];
+  if(rel!=="truce"&&rel!=="pact"&&rel!=="ally"){
+    mine=S.won.filter(i=>i>0&&nb(id,i));
+    if(!offline&&S.won.includes(0)&&nb(id,0))mine.push(0);
+  }
+  let theirs=[];for(const j in S.own)if(S.own[j]!==id&&nb(id,+j)&&pairRel(id,S.own[j])!=="pact")theirs.push(+j);
+  if(rel==="ally")theirs=theirs.filter(j=>S.war&&S.war[S.own[j]]);
+  if(!mine.length&&!theirs.length){checkEnd();return}
+  const pool=mine.map(i=>({i,who:"you"})).concat(theirs.map(i=>({i,who:S.own[i]}))).filter(t=>secOf(t.i)===0||S.min>=60); // v2.5: no raids INTO Sector 2 before the faction's jump drives come online (S.min>=60) — same rule as claims
+  if(!pool.length){checkEnd();return}
+  const t=pool[Math.floor(Math.random()*pool.length)];
+  // Offline cap: at most ONE of your systems per faction per return.
+  // The attempt is spent when the target is yours (no re-pick onto a
+  // rival) — but rival-vs-rival raids are NOT capped.
+  if(t.who==="you"&&offline&&lost&&lost[id]){checkEnd();return}
+  const rp=rstr(id)*(.85+Math.random()*.3);
+  if(t.who==="you"){
+    const def=sysDef(t.i),gar=Math.round(garPow(t.i)*garMult()),col=Math.round(colDef(t.i)),home=Math.round(.5*dpower());
+    // v2.6: the split names the colony term when a colony stands
+    // ("garrison 528 + colony 75 + home fleet 3"); with no colony it
+    // reads exactly as v2.4 did ("garrison 0 + home fleet 3").
+    // v2.7: at Home the split is just the full home fleet.
+    const split=t.i===0?"home fleet "+Math.round(dpower())+" (your full fleet)":"garrison "+gar+(col>0?" + colony "+col:"")+" + home fleet "+home;
+    if(rp>def){
+      S.won.splice(S.won.indexOf(t.i),1);S.own[t.i]=id;delete S.gar[t.i];
+      // v2.6: a lost system loses its colony too — re-conquering
+      // later founds a fresh level-1 colony with no focus chosen.
+      if(S.col)delete S.col[t.i];
+      if(S.stab)delete S.stab[t.i];
+      S.war[id]=1;if(offline&&lost)lost[id]=1;
+      // v2.7: losing Home World is DEFEAT — overlay with restart.
+      if(t.i===0){if(!S.end||typeof S.end!=="object")S.end={};S.end.lost=1;msg(f.n+" overran your Home World (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+")!");showEnd("lose");sfx("lose")}
+      else{msg(f.n+" raided "+SYS[t.i].n+" (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+") and took it!");sfx("alert")}
+    }else{S.rep++;gain("fleet",1);msg("Your fleet repelled "+f.n+" at "+SYS[t.i].n+" (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+").");sfx("ok")}
+  }else{
+    // Rival-vs-rival: rival systems have no garrisons in v2.4 (that is
+    // a v2.6 colony concern) — the defender fights at rstr x 0.6.
+    // A failed raid changes nothing and logs nothing (no feed spam).
+    if(rp>rstr(t.who)*.6){S.own[t.i]=id;msg(f.n+" seized "+SYS[t.i].n+" from the "+RV[t.who].n+".")}
+  }
+  checkEnd();
+}
 function rivalTick(){const now=Date.now();
-if(!S.rvi){S.rvi=1;const pick=l=>l.find(i=>!S.won.includes(i)&&!S.own[i]);const a=pick([14,13,12]);if(a)S.own[a]="c";const b=pick([11,10,9]);if(b)S.own[b]="v"}
+if(!S.rvi){S.rvi=1;const pick=l=>l.find(i=>!S.won.includes(i)&&!S.own[i]);for(const id of["c","v","k","a","m"]){const a=pick(RV_START[id]);if(a!==undefined)S.own[a]=id}}
 for(const k in S.own)if(S.won.includes(+k))delete S.own[k];
-for(const id in RV){const r=S.rv[id];if(!Object.keys(S.own).some(j=>S.own[j]===id))continue;
-let g=0;while(now-r.cl>=360000&&g++<2){r.cl+=360000;if(Object.keys(S.own).filter(j=>S.own[j]===id).length<6){const c=SYS.map((s,i)=>i).filter(i=>i>0&&i<15&&!S.won.includes(i)&&!S.own[i]&&nb(id,i)&&(i>=4||S.min>=45));if(c.length){const i=c[Math.floor(Math.random()*c.length)];S.own[i]=id;msg(RV[id].n+" claimed "+SYS[i].n+".")}}}
-if(now-r.cl>=720000)r.cl=now;
-g=0;while(now-r.rd>=300000&&g++<1){r.rd+=300000;if(S.min<10)continue;const t=S.won.filter(i=>i>0&&nb(id,i));if(t.length&&Math.random()<.7){const i=t[Math.floor(Math.random()*t.length)],rp=rstr(id)*(.85+Math.random()*.3);if(rp>dpower()){S.won.splice(S.won.indexOf(i),1);S.own[i]=id;for(const k in U)S.ships[k]=Math.ceil(S.ships[k]*.75);msg(RV[id].n+" raided "+SYS[i].n+" and took it!");sfx("alert")}else{S.rep++;gain("fleet",1);msg("Your fleet repelled "+RV[id].n+" at "+SYS[i].n+".");sfx("ok")}}}
-if(now-r.rd>=600000)r.rd=now}}
+// v2.7: truces expire in real time — prune + log once when noticed.
+for(const id in RV){const d=dipAt(id);if(d.truceUntil&&d.truceUntil<=now){delete d.truceUntil;msg("Your truce with the "+RV[id].n+" has expired.")}}
+// v2.7: rival-pair diplomacy + colony stability run once per cycle
+// (5 min), gated on their own clocks so the 250ms tick never
+// re-rolls them.
+if(now-(S.pairCy||0)>=CYCLE_MS){S.pairCy=now;rivalDiplomacy()}
+if(now-(S.stabCy||0)>=CYCLE_MS){S.stabCy=now;stabTick()}
+for(const id in RV){const r=rvState(id);
+if(!heldCount(id)){r.cy=now;continue} // no territory: no actions, clock stays current
+if(now-r.cy>=CYCLE_MS){r.cy+=CYCLE_MS;rivalCycle(id,false,null)}}}
+// v2.4 OFFLINE SIMULATION — rivals advance on the same clock while
+// you are away, capped at 24 cycles (2h) per return. Home World
+// (system 0) can never be a raid target (it already isn't — the raid
+// pool is i>0 only), and each faction takes at most ONE of your
+// systems per return; claims simulate normally (rivals MUST gain
+// ground while you are away — that is the point of the shared clock).
+// Called once, at load, from the top-level away block (which runs
+// exactly once per page load, right after step(away) advances S.min).
+// Offline production itself is UNCHANGED: full rate, 8h cap, storage
+// cap — the balance now comes from rivals advancing + garrisons.
+function offlineSim(away){
+  const cycles=Math.min(CYCLE_CAP,Math.floor(away/300));
+  if(cycles<1)return;
+  const lost={};
+  const before={};for(const id in RV)before[id]=heldCount(id);
+  const wonBefore=S.won.length;
+  for(let c=0;c<cycles;c++)for(const id in RV)rivalCycle(id,true,lost);
+  for(const id in RV)rvState(id).cy=Date.now(); // backlog processed (capped) — don't replay it live
+  const parts=[];
+  for(const id in RV){const n=heldCount(id);if(n>before[id])parts.push(RV[id].n+" claimed "+(n-before[id])+" system"+(n-before[id]>1?"s":""));if(lost[id])parts.push(RV[id].n+" raided one of your systems")}
+  const lostN=wonBefore-S.won.length;
+  msg("While you were away: "+(parts.length?parts.join("; "):"the rivals made no moves")+(lostN?". You lost "+lostN+" system"+(lostN>1?"s":"")+".":". You lost nothing."));
+}
 let BT=null;
 const nU=o=>o.fighter+o.cruiser+o.capital;
 function battle(win,pre,s,p,need){const text=HELD;HOLD=false;
@@ -473,7 +872,7 @@ function placeB(t,x,y){if(plotLocked(x,y)){msg("Locked — upgrade the Command S
 function baseUI(now){
 if(!$("#binfo"))return; // v0.9.2: station info/build boxes removed — popups cover this now.
 const sel=S.bl.find(b=>b.u===S.bsel);
-$("#bq").textContent=S.bq.length?"Building: "+S.bq.map(j=>{const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builders busy: "+S.bq.length+"/"+bqcap()+".":"Builders idle (up to "+bqcap()+" jobs at once).";
+$("#bq").textContent=S.bq.length?"Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builders busy: "+S.bq.length+"/"+bqcap()+".":"Builders idle (up to "+bqcap()+" jobs at once).";
 for(const t in B){const n=cnt(t),mx=MAXC(t),c=newCost(t),b=$("#bmb-"+t);$("#bmn-"+t).textContent=n+"/"+mx;
 $("#bmc-"+t).textContent=n>=mx?(t==="command"?"Only one allowed.":"Upgrade the Command Station for more copies."):"Cost: "+cstr(c)+". Time: "+left(dur(0)*1000);
 b.textContent=S.place===t?"Cancel":"Place";b.disabled=S.place===t?false:(n>=mx||S.bq.length>=bqcap()||!can(c))}
@@ -489,13 +888,13 @@ else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
 $("#bi-up").hidden=false;$("#bi-mv").hidden=false;$("#bi-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bi-mv").textContent=S.mv===sel.u?"Cancel move":"Move"}}
-function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();if(pg==="tab"&&t==="station"&&!stFitted)homeStCam(); /* v1.5: first visit to the Station tab fits the cluster; user pan/zoom after that is preserved */ document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
+function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();if(pg==="tab"&&t==="station"&&!stFitted)homeStCam(); /* v1.5: first visit to the Station tab fits the cluster; user pan/zoom after that is preserved */ document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));document.querySelectorAll("[data-sec]").forEach(b=>b.classList.toggle("on",+b.dataset.sec===SEC)); /* v2.5: sector toggle shows the active sector */if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
 // Render key: popup identity + every value shown in it. If the key is
 // unchanged, the popup's DOM nodes are left exactly as they are —
 // the 250ms tick must never rebuild a button under a finger.
 function popKey(){
 if(!POP)return "";
-if(POP.kind==="system"){const i=S.sel,own=S.won.includes(i);return "sys|"+i+"|"+(own?1:0)+"|"+(avail(i)?1:0)+"|"+total()+"|"+spw(i)+"|"+fpower(i).toFixed(1)+"|"+S.won.length}
+if(POP.kind==="system"){const i=S.sel,own=S.won.includes(i),g=garAt(i),col=colAt(i);return "sys|"+i+"|"+(own?1:0)+"|"+(avail(i)?1:0)+"|"+S.ships.fighter+"|"+S.ships.cruiser+"|"+S.ships.capital+"|"+g.fighter+"|"+g.cruiser+"|"+g.capital+"|"+Math.round(sysDef(i))+"|"+spw(i)+"|"+fpower(i).toFixed(1)+"|"+S.won.length+"|col:"+(col?col.l+":"+(col.spec||"-"):"-")+"|"+(col&&col.l<COL_MAX&&S.bq.some(j=>j.col===i)?1:0)+"|"+(col&&col.l<COL_MAX?can(colUpCost(col.l))?1:0:0)+"|"+S.bq.length+"|rel:"+(S.own[i]?dipRel(S.own[i]):"-")+"|tru:"+(S.own[i]?(dipAt(S.own[i]).truceUntil||0):0)+"|stab:"+(S.stab?S.stab[i]||"":"")}
 if(POP.kind==="building"){const b=S.bl.find(z=>z.u===POP.u);if(!b)return "gone";const e=effL(b),c=cost(b.t,e);return "bld|"+b.u+"|"+b.l+"|"+e+"|"+(e>=lvlCap(b.t)?1:0)+"|"+cstr(c)+"|"+S.bq.length+"|"+(can(c)?1:0)+"|"+(S.mv===b.u?1:0)}
 if(POP.kind==="plot"){return "plot|"+POP.x+"|"+POP.y+"|"+(plotLocked(POP.x,POP.y)?1:0)+"|"+plotReqLv(POP.x,POP.y)+"|"+S.b.command+"|"+unlockedCount()+"|"+S.bq.length+"|"+Object.keys(B).map(t=>cnt(t)+"/"+MAXC(t)+"/"+(can(newCost(t))?1:0)).join(",")}
 return "?"}
@@ -514,16 +913,44 @@ title.textContent=s.n;
 if(hq){const sp=planetSprite(i);hq.drawImage(sp,16,16,64,64)}
 if(i===0){const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
 body.innerHTML="<small>Your base. Build your station and fleet here.</small>"
-+stat("Systems owned",S.won.length+" of 16")
-+stat("Fleet power",Number.isFinite(fpt())?String(Math.round(fpt())):"0");
++stat("Systems owned",S.won.length+" of "+SYS.length)
++stat("Fleet power",Number.isFinite(fpt())?String(Math.round(fpt())):"0")
++stat("Home defence",Math.round(sysDef(0))+" (your full fleet)");
 acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
 else{const need=spw(i),fp=fpower(i),loot=s.r?cstr(s.r):"";
 const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
-body.innerHTML="<small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+"</small>"
+// v2.5: a Sector 2 system without Jump Drive says so in one plain
+// line; a jump gate names the system it links to.
+body.innerHTML="<small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.":av?"Ready to attack.":secOf(i)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+(GATE[i]!==undefined?" Jump gate — links to "+SYS[GATE[i]].n+" (Sector "+(secOf(GATE[i])+1)+").":"")+"</small>"
 +stat("Needs",Number.isFinite(need)?need+" power":"—")
 +stat("Your fleet vs "+s.t,Number.isFinite(fp)?fp.toFixed(1):"0.0")
 +(loot?stat("Loot",loot):"")
 +stat("Counter","Bring "+WEAK[s.t]+"s (+50%)");
+// v2.7: attacking a faction you have a deal with breaks the deal —
+// warn in the popup before the player taps Attack.
+const relW=S.own[i]?dipRel(S.own[i]):"peace";
+if(!own&&S.own[i]&&(relW==="truce"||relW==="pact"||relW==="ally"))body.innerHTML+="<small>⚠ Attacking breaks your "+dipRelWord(S.own[i])+" with the "+RV[S.own[i]].n+"!</small>";
+if(own){const g=garAt(i),def=sysDef(i),gar=Math.round(garPow(i)*garMult()),col=Math.round(colDef(i)),home=Math.round(.5*dpower());
+body.innerHTML+="<small><b>Garrison</b> — ships stationed here defend this system. A garrison defends at full strength, plus half your home fleet rushes to help.</small>"
++stat("Defence here",Math.round(def)+" (garrison "+gar+(col>0?" + colony "+col:"")+" + home fleet "+home+")")
++Object.keys(U).map(k=>'<div class="row"><div><b>'+U[k].n+'</b> ×'+g[k]+' stationed<br><small>Home fleet: '+S.ships[k]+'</small></div><div class="bg"><button data-gsend="'+k+'" '+(S.ships[k]<1?"disabled":"")+'>Send 1</button><button data-grecall="'+k+'" '+(g[k]<1?"disabled":"")+'>Recall 1</button></div></div>').join("");
+// v2.6 COLONY — one per owned system (never Home World, never
+// rival-held). Stacked vertically like the garrison rows, so the
+// popup stays readable on a phone. Every line says what it does.
+const c=colAt(i);
+if(c){body.innerHTML+="<small><b>Colony Lv "+c.l+"</b> — settlers here work the system for you. A colony adds +"+COL_DEF+" defence power per level and earns resources once you choose its focus.</small>";
+body.innerHTML+=stat("Stability",(S.stab&&S.stab[i]!==undefined?S.stab[i]:100)+" / 100 — a garrison keeps a far colony loyal; an empty garrison far from Home slowly rebels");
+if(!c.spec){body.innerHTML+="<small>Choose a focus to start earning. Until then the colony earns nothing from its focus"+(tradeAt(i)>0?" — it still earns +"+TRADE_INC.toFixed(1)+" trade credits/s from its route to Home World":"")+" — it only adds defence.</small>"
++Object.keys(COLSPEC).map(k=>'<div class="row"><div><b>'+COLSPECNAME[k]+'</b><br><small>Earns +'+COL_INC.toFixed(1)+' '+COLSPEC[k]+'/s per colony level.</small></div><button data-cspec="'+k+'">Choose</button></div>').join("");
+if(tradeAt(i)>0)body.innerHTML+=stat("Trade","+"+TRADE_INC.toFixed(1)+" credits/s — connected to Home World");
+else body.innerHTML+="<small>No trade route — this colony has no owned-system path to Home World, so it earns no trade income.</small>";
+;}
+else{body.innerHTML+=stat("Income","+"+(COL_INC*c.l*crewMineMult()).toFixed(1)+" "+COLSPEC[c.spec]+"/s at Lv "+c.l+(tradeAt(i)>0?", +"+TRADE_INC.toFixed(1)+" trade credits/s":""));
+if(tradeAt(i)===0)body.innerHTML+="<small>No trade route — this colony has no owned-system path to Home World, so it earns no trade income.</small>";
+if(c.l>=COL_MAX){body.innerHTML+="<small>Max level.</small>";}
+else{const cc=colUpCost(c.l),upg=S.bq.some(j=>j.col===i);
+body.innerHTML+=upg?"<small>Upgrading to Lv "+(c.l+1)+" — watch the activity tray above the dock.</small>":"<small>Upgrade to Lv "+(c.l+1)+": "+cstr(cc)+". Time: "+left(colDur(c.l)*1000)+". A higher level earns more and adds +"+COL_DEF+" defence power per level.</small>";
+body.innerHTML+='<div class="row"><div><b>Upgrade colony</b><br><small>Cost: '+cstr(cc)+' · '+left(colDur(c.l)*1000)+'</small></div><button data-cup="1" '+((upg||S.bq.length>=bqcap()||!can(cc))?"disabled":"")+'>Upgrade</button></div>';}}}}
 acts.innerHTML='<button data-atk="1" class="grow" '+(own||!av||total()<1?"disabled":"")+'>'+(own?"Owned":"Attack")+'</button><button data-pclose="1" class="grow">Close</button>';}
 }else if(POP.kind==="building"){
 const b=S.bl.find(z=>z.u===POP.u);
@@ -533,7 +960,7 @@ title.textContent=B[t].n+" Lv "+b.l;
 if(hq){hq.fillStyle="#c98a5a";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
 let st=B[t].d+". ";
 if(b.l===0)st="Under construction. ";
-else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s. ";
+else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))*crewMineMult()).toFixed(1)+" "+pr+"/s. ";
 else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};body.innerHTML="<small><b>"+(DISTNAME[t]||"")+"</b> — "+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
@@ -545,9 +972,25 @@ if(hq){hq.fillStyle=lk?"#6b7590":"#c98a5a";hq.fillRect(0,0,96,96)}
 if(lk){body.innerHTML="<small>🔒 Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.</small><br><small>"+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". The city grows outward from the keep.</small>";acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
 else{body.innerHTML="<small>"+_dn+". "+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");acts.innerHTML="";}
 }}
-function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of 16 systems. Each owned system pays +0.3 credits/s.";
-$("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
-$("#e-rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br><br>Rival raids start after about 10 minutes of play. A rival raids one of your systems next to their territory — if your defence power is higher than the raid's power, you repel it (counts toward the 'Repel a rival raid' quest); if not, they take the system and your fleet loses ships.<br>Raid power grows the longer you play and the more systems the rival owns. Raise your defence power with more and bigger ships, a higher Command Station, power research, and an assigned fleet commander.<br>Your defence power now: "+Math.round(dpower())+"."}
+function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of "+SYS.length+" systems. Each owned system pays +0.3 credits/s."+(tradeTotal()>0?" Trade routes pay +"+tradeTotal().toFixed(1)+" credits/s.":"");
+$("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World · defence "+Math.round(sysDef(0))+" (your full fleet)":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r)+" · Defence "+Math.round(sysDef(i)))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
+// v2.7 STANDINGS BOARD — every faction plus you: systems, estimated
+// fleet power, and your REAL relation (diplomacy state, not the v2.4
+// placeholder): Allied / Pact / Truce with minutes left / At war
+// (they took one of your systems) / Peace / defeated. Below it, one
+// diplomacy row per faction (Tribute / Pact / Ally + costs) and live
+// victory-progress lines with current numbers.
+const rows=[{n:"You",sys:S.won.length,pw:dpower(),st:"—"}].concat(Object.keys(RV).map(id=>({n:RV[id].n,sys:heldCount(id),pw:rstr(id),st:relText(id)})));
+const best=rows.slice().sort((a,b)=>b.sys-a.sys||b.pw-a.pw)[0];
+const nx=nextFaction();
+const vicLine="Victory: hold 13 systems (you hold "+S.won.length+") or double the next faction ("+(nx.id?RV[nx.id].n+" holds "+nx.n+" — you need "+(2*nx.n):"no rival holds any systems — you need 13")+").";
+const DIPLINE={truce:"They will not raid you until the truce ends.",pact:"Neither side raids the other.",ally:"They raid your enemies, never you.",war:"They have taken one of your systems.",peace:"No fighting — for now.",defeated:"No systems left — nothing to deal with."};
+const dipRows=Object.keys(RV).map(id=>{
+  const rel=heldCount(id)?dipRel(id):"defeated";
+  const dis=k=>(S.res.credits<DIP[k]||!heldCount(id)||(k==="tribute"&&(rel==="truce"||rel==="pact"||rel==="ally"))||(k==="pact"&&(rel==="pact"||rel==="ally"))||(k==="ally"&&rel==="ally"))?"disabled":"";
+  return '<div class="emp-row"><div><b>'+RV[id].n+'</b><br><small>'+relText(id)+' — '+DIPLINE[rel]+'</small></div><div class="bg"><button data-dip="tribute:'+id+'" '+dis("tribute")+'>Tribute '+DIP.tribute+'</button><button data-dip="pact:'+id+'" '+dis("pact")+'>Pact '+DIP.pact+'</button><button data-dip="ally:'+id+'" '+dis("ally")+'>Ally '+DIP.ally+'</button></div></div>';
+}).join("");
+$("#e-rvs").innerHTML="<b>Standings</b> — relations are real deals now, not just warnings.<br>"+rows.map(r=>"<b>"+r.n+"</b>: "+r.sys+" system"+(r.sys===1?"":"s")+", power "+Math.round(r.pw)+(r.st==="—"?"":", "+r.st)).join("<br>")+"<br>"+vicLine+"<br>Strongest faction: "+(best.n==="You"?"you":best.n)+" — "+best.sys+" systems, power "+Math.round(best.pw)+". You hold "+S.won.length+" system"+(S.won.length===1?"":"s")+".<br><br><b>Diplomacy</b> — Tribute ("+DIP.tribute+" credits) buys a 30-minute truce: they will not raid you. A pact ("+DIP.pact+") stops raids both ways until someone breaks it. An alliance ("+DIP.ally+") means they never raid you and raid your enemies instead. Attacking a friend's system breaks the deal instantly.<br>"+dipRows+"<br>Rival raids start after about 10 minutes of play. A rival raids one of your systems next to their territory — if your defence power is higher than the raid's power, you repel it (counts toward the 'Repel a rival raid' quest); if not, they take the system and destroy the garrison stationed there — your home fleet is untouched, but the system is lost.<br>Raid power grows the longer you play and the more systems the rival owns. Raise your defence power with more and bigger ships, a garrison stationed on the system, a higher Command Station, power research, and an assigned fleet commander. A colony on a system adds +15 defence power per level and earns resources once you choose its focus — Mining for metal, Forge for crystal, Trade for credits. A colony connected to Home World through systems you own also earns +0.2 trade credits/s — a far-flung colony with no owned-system path home earns no trade income. If a raid takes a system, its colony is gone too; conquering it back founds a fresh level-1 colony.<br>Your defence power now: "+Math.round(dpower())+"."+"<br><br>Sector 2 lies beyond the jump gates — Void Gate and Rift Armada in Sector 1. Rival factions reach it once their jump drives come online, after about 60 minutes of play, and your fleet needs Jump Drive research (Research tab) to attack or claim Sector 2 systems."+"<br><br>Home World is different: a rival can only raid it if they own a system next to it, and it defends with your FULL home fleet — never half. If Home World falls, your empire is defeated."}
 // v1.5 GLOBAL ACTIVITY TRAY — anything that takes time to create must
 // be visible on every screen, not just on its own menu page. The tray
 // sits above the bottom dock (it counts toward the safe-area inset in
@@ -566,17 +1009,21 @@ function actJobs(){
   const now=Date.now(),jobs=[];
   const perU={};
   S.bq.slice().sort((a,b)=>a.end-b.end).forEach(j=>{
+    // v2.6: a colony upgrade job ({col: system id}) shows in the tray
+    // like any other job — tap it to jump to that system's popup.
+    // One colony job per system at a time, so the target level is l+1.
+    if(j.col!==undefined){const c=colAt(j.col);if(!c)return;jobs.push({id:"c"+j.col,icon:"✦",name:"Colony Lv "+(c.l+1)+" — "+SYS[j.col].n,act:"col:"+j.col,s:j.s||j.end-colDur(c.l)*1000,end:j.end});return}
     const b=S.bl.find(z=>z.u===j.u);if(!b)return;
     perU[j.u]=(perU[j.u]||0)+1;
     const target=b.l+perU[j.u]; // Lv the building will reach when this job finishes
     jobs.push({id:"b"+j.u,icon:"▦",name:B[b.t].n+" Lv "+target,act:"bld:"+j.u,s:j.s||j.end-dur(0)*1000,end:j.end});
   });
-  if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);if(t)jobs.push({id:"r"+t.id,icon:"⚙",name:"Research: "+t.n,act:"res",s:S.rq.end-t.t*1000*tmul(),end:S.rq.end})}
+  if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);if(t)jobs.push({id:"r"+t.id,icon:"⚙",name:"Research: "+t.n,act:"res",s:S.rq.end-t.t*1000*tmul()*crewResMul(),end:S.rq.end})}
   const byShip={};
   S.sq.forEach(j=>{(byShip[j.k]=byShip[j.k]||[]).push(j)});
   Object.keys(byShip).forEach(k=>{
     const list=byShip[k].slice().sort((a,b)=>a.end-b.end);
-    jobs.push({id:"s"+k,icon:"▲",name:U[k].n+(list.length>1?" ×"+list.length:""),act:"ship",s:list[0].end-DUR[k]*1000*tmul(),end:list[list.length-1].end});
+    jobs.push({id:"s"+k,icon:"▲",name:U[k].n+(list.length>1?" ×"+list.length:""),act:"ship",s:list[0].end-DUR[k]*1000*tmul()*crewShipMul(),end:list[list.length-1].end});
   });
   return jobs;
 }
@@ -602,21 +1049,33 @@ function activityUI(){
   });
 }
 function progressBars(){const now=Date.now();const set=(id,p)=>{const el=$(id);if(el)el.style.width=Math.round(Math.max(0,Math.min(1,p||0))*100)+"%"};
-const bq=S.bq.slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0);
-if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()):0)}else set("#pb-res",0);
-const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()):0)}
-function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o==="c"?"#e0584a":o==="v"?"#b07cf0":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=cv.width/sc/WORLD.w*96,vh=safeH()/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
+const bq=S.bq.filter(j=>j.u!==undefined).slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0); // v2.6: colony jobs use the tray, not the station build bar
+if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()*crewResMul()):0)}else set("#pb-res",0);
+const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()*crewShipMul()):0)}
+function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);const MMCOL={c:"#e0584a",v:"#b07cf0",k:"#ffb02e",a:"#4fc3f7",m:"#ff7ad9"};SYS.forEach((s,i)=>{if(secOf(i)!==SEC)return;const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o?MMCOL[o]||"#7c849c":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=cv.width/sc/WORLD.w*96,vh=safeH()/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
-TECH.forEach(t=>{const dn=S.tech.includes(t.id),av=!dn&&(!t.req||S.tech.includes(t.req));$("#tr-"+t.id).style.display=av?"":"none";if(av){$("#tc-"+t.id).textContent="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul());$("#tb-"+t.id).disabled=!!S.rq||!can(t.c)}});
+TECH.forEach(t=>{const dn=S.tech.includes(t.id),av=!dn&&(!t.req||S.tech.includes(t.req));$("#tr-"+t.id).style.display=av?"":"none";if(av){$("#tc-"+t.id).textContent="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul()*crewResMul());$("#tb-"+t.id).disabled=!!S.rq||!can(t.c)}});
 $("#rq").textContent=(S.rq?"Researching: "+TECH.find(z=>z.id===S.rq.id).n+" ("+left(S.rq.end-now)+"). ":"Lab idle. ")+"Completed "+S.tech.length+" of "+TECH.length+".";
+crewUI();
 for(const id in CM){const c=CM[id],h=S.cmds.includes(id),sl=c.t==="fleet"?"fleet":"station",on=S.slot[sl]===id;
 $("#cl-"+id).textContent=h?"Lv "+lv(id)+(on?" (assigned)":""):"";
 $("#cc-"+id).textContent=h?"Bonus now: +"+Math.round(c.b*lv(id)*100)+"% "+TT[c.t]+(on?"":" (not assigned)"):"Hire cost: "+c.c+" credits";
 const b=$("#cb-"+id);b.textContent=!h?"Hire":on?"Unassign":"Assign";b.disabled=!h&&S.res.credits<c.c}}
+// v2.8 CREW PANEL — assignment rows on the Crew tab, above the
+// commanders list. Rebuilt only when the key changes (cap, counts,
+// Command level, colony levels), never every tick, so a tap can
+// never land on a button that is about to be destroyed.
+let crewKeyCache="";
+function crewUI(){const el=$("#crew-panel");if(!el)return;const c=crewAt(),cap=crewCap(),tot=crewTotal();
+const key=[cap,tot,c.mine,c.ship,c.res,S.b.command,Object.values(S.col||{}).map(x=>x.l).join(",")].join("|");
+if(key===crewKeyCache)return;crewKeyCache=key;
+const desc={mine:"Boosts building and colony production.",ship:"Ships finish faster.",res:"Research finishes faster."};
+const row=(k,label,bonus)=>{const n=c[k]||0;return '<div class="row"><div><b>'+label+': '+n+' crew → +'+(n*2)+'% '+bonus+'</b><br><small>'+desc[k]+'</small></div><div class="bg"><button data-crew="'+k+':-1" '+(n<=0?"disabled":"")+'>−</button><button data-crew="'+k+':+1" '+(tot>=cap?"disabled":"")+'>+</button></div></div>'};
+el.innerHTML='<small>Assign your crew to mining, shipbuilding or research. Crew grows with your Command Station and colonies.</small><br><small><b>Crew: '+tot+' assigned / '+cap+' total ('+(cap-tot)+' idle)</b></small>'+row("mine","Mining","production")+row("ship","Shipbuilding","shipyard speed")+row("res","Research","research speed");}
 const away=Math.min((Date.now()-S.t)/1000,28800);
-if(away>60){step(away);done();msg("Welcome back! Your empire worked for "+Math.floor(away/60)+" minutes while you were away.")}
+if(away>60){step(away);done();offlineSim(away);msg("Welcome back! Your empire worked for "+Math.floor(away/60)+" minutes while you were away.")}
 let last=Date.now(),starve=0;
 setInterval(()=>{
 const n=Date.now(),dt=Math.min((n-last)/1000,5);last=n;step(dt);
