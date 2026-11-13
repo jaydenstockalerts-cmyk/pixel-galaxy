@@ -46,6 +46,35 @@ function setUIHidden(h){
   const sh=$("#uishow"); if(sh) sh.hidden=!UIHIDE;
   measureUI(); sizeCanvases(); update();
 }
+
+// v1.3 guided tutorial — quick, skippable, first load only.
+// Stored in its own key (pixelgalaxy-tutorial-done); the game save
+// (pixelgalaxy-v3) is never touched. Overlay card only: the map stays
+// visible behind it and Skip works from step 1.
+const TUT_KEY="pixelgalaxy-tutorial-done";
+const TUT_STEPS=[
+{t:"Welcome, Commander",b:"Pixel Galaxy is yours to build: grow your home station, train a fleet, and conquer systems all the way to The Dark Nexus."},
+{t:"Your station",b:"This is your home station. Tap a building to see it, or tap open land to build. A Solar Array is a good first build — it makes energy."},
+{t:"Resources",b:"Energy, metal, crystal and credits live at the top. Each has a storage cap — upgrade the Command Station to store more. Buildings produce at full rate wherever they stand — spread them out."},
+{t:"The galaxy",b:"Switch to the Galaxy tab and tap a planet. Check the power it needs, then attack the Pirate Outpost when your fleet is ready. Fighters beat swarm fleets."},
+{t:"Fleet, Research, Quests",b:"Train ships in Fleet, research in Research, hire commanders in Crew, and claim rewards in Quests. Good luck, Commander."}
+];
+let TUT={i:0,open:false};
+function tutDone(){try{localStorage.setItem(TUT_KEY,"1")}catch(e){}}
+function tutIsDone(){try{return !!localStorage.getItem(TUT_KEY)}catch(e){return false}}
+function tutRender(){
+  const el=$("#tut"); if(!el)return;
+  const stp=TUT_STEPS[TUT.i];
+  const t=$("#tut-title"),b=$("#tut-body"),d=$("#tut-dots"),nx=$("#tut-next"),bk=$("#tut-back");
+  if(t)t.textContent=stp.t; if(b)b.textContent=stp.b;
+  if(d)d.innerHTML=TUT_STEPS.map((_,k)=>'<span class="dot'+(k===TUT.i?" on":"")+'"></span>').join("");
+  if(nx)nx.textContent=TUT.i===TUT_STEPS.length-1?"Done":"Next ›";
+  if(bk)bk.disabled=TUT.i===0;
+}
+function showTut(i){TUT={i:Math.max(0,Math.min(TUT_STEPS.length-1,i||0)),open:true};const el=$("#tut");if(el)el.hidden=false;tutRender()}
+function closeTut(done){TUT.open=false;const el=$("#tut");if(el)el.hidden=true;if(done)tutDone()}
+function maybeTut(){if(!tutIsDone())showTut(0)}
+
 function openMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.hidden=false; requestAnimationFrame(()=>m.classList.add("open"));} if(b)b.hidden=false;}
 function closeMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.classList.remove("open"); setTimeout(()=>{if(!m.classList.contains("open"))m.hidden=true},230);} if(b)b.hidden=true;}
 function syncMenuSound(){const el=$("#m-sound"); if(el) el.textContent=S.mute?"off":"on";}
@@ -70,10 +99,33 @@ function clampStCam(){// v1.2: the keep sits near the top of the iso diamond (is
 // just more terrain), the clamp lets the centre reach the world edges
 // (with half a view of margin), and centres the world when the whole
 // diamond fits in view.
-const sc=stScale(),hw=(st.width||384)/(2*sc),hh=stSafeH()/(2*sc);if(hw>=384)STCAM.cx=0;else STCAM.cx=Math.max(-384+hw/2,Math.min(384-hw/2,STCAM.cx));if(hh>=192)STCAM.cy=192;else STCAM.cy=Math.max(-48+hh/2,Math.min(432-hh/2,STCAM.cy))}
+const sc=stScale(),hw=(st.width||384)/(2*sc),hh=stSafeH()/(2*sc);if(hw>=384)STCAM.cx=0;else STCAM.cx=Math.max(-384+hw/2,Math.min(384-hw/2,STCAM.cx));if(hh>=192)STCAM.cy=Math.max(192-hh,Math.min(192+hh,STCAM.cy));else STCAM.cy=Math.max(-48+hh/2,Math.min(432-hh/2,STCAM.cy))}
 function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
-function fitStCam(){const vh=st.height||384,vw=st.width||384;const z=Math.min(vw*480/(vh*820),stSafeH()*480/(vh*470));STCAM={cx:0,cy:192,zoom:Math.max(.3,Math.min(1,z))};clampStCam()}
-function homeStCam(){const keep=S.bl.find(b=>b.t==="command");if(keep){STCAM.cx=(keep.x-keep.y)*32;STCAM.cy=(keep.x+keep.y+1)*16}else{let x=0,y=0,n=0;S.bl.forEach(b=>{x+=(b.x-b.y)*32;y+=(b.x+b.y+1)*16;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}}STCAM.zoom=Math.max(STCAM.zoom,2.2);clampStCam()}
+// v1.3: station cameras fit the OCCUPIED building cluster, not the
+// whole 12x12 diamond (live bug: the map was ~80% empty in both Home
+// and Fit, and the default view centred the clump in the upper third).
+// occupiedIsoBBox returns the iso bbox of all buildings, expanded to
+// include the level shield + name label above the top building and the
+// spaced-out footprint, in iso world units.
+function occupiedIsoBBox(margin){
+  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  S.bl.forEach(b=>{const c=isoC(b.x,b.y);x0=Math.min(x0,c.x-48);x1=Math.max(x1,c.x+48);y0=Math.min(y0,c.y-72);y1=Math.max(y1,c.y+24)});
+  if(x1<x0){x0=-384;x1=384;y0=0;y1=384}
+  const m=margin||0;
+  return{cx:(x0+x1)/2,cy:(y0+y1)/2,w:(x1-x0)+m,h:(y1-y0)+m};
+}
+function stZoomForBox(bb,minZ,maxZ){
+  const vw=st.width||384,vh=stSafeH();
+  const sc=Math.min(vw*.92/bb.w,vh*.92/bb.h);
+  return Math.max(minZ,Math.min(maxZ,sc*480/(st.height||384)));
+}
+// v1.4: NO high zoom floor — Home must FIT the whole occupied cluster
+// (buildings + shields + labels) inside the safe area. A 1.8 floor
+// cropped the cluster once it spread out (a building at (7,7) landed
+// below the dock). The computed fit zoom is the zoom; it is ~1.0 for
+// the fresh 3-building cluster and rises as the city fills in.
+function homeStCam(){const bb=occupiedIsoBBox(48);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,1.0,2.5);clampStCam()}
+function fitStCam(){const bb=occupiedIsoBBox(128);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,.4,2.5);clampStCam()}
 function openPlot(x,y){POP={kind:"plot",x,y};showPopup();update()}
 const camScale=()=>((cv.height||480)/WORLD.h)*CAM.zoom;
 // v1.0: galaxy camera centres on the SAFE area (between HUD and dock).
@@ -83,15 +135,37 @@ const safeH=()=>Math.max(1,(cv.height||480)-UIIN.top-UIIN.bottom);
 const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:(cv.width||384)/2+(wx-CAM.cx)*sc,y:safeCyCv()+(wy-CAM.cy)*sc}};
 const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-(cv.width||384)/2)/sc,y:CAM.cy+(sy-safeCyCv())/sc}};
 function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=safeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
-function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-(cv.height||480)/2)/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-(cv.height||480)/2)/s1}clampCam()}
+function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-safeCyCv())/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-safeCyCv())/s1}clampCam()}
 function flyTo(i){const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
-function fitCam(){const vh=safeH(),vw=cv.width||384;CAM={cx:320,cy:400,zoom:Math.max(.5,Math.min(vw*WORLD.h/(WORLD.w*vh),1))};clampCam()}
+function fitCam(){const vh=safeH(),vw=cv.width||384,ch=cv.height||480;
+  const sc=Math.min(vw/WORLD.w,vh/WORLD.h); // world must fit the SAFE area
+  CAM={cx:320,cy:400,zoom:Math.max(.3,Math.min(2.5,sc*WORLD.h/ch))};clampCam()}
 function homeCam(){flyTo(0)}
 function openSystem(i){S.sel=i;POP={kind:"system",i};flyTo(i);showPopup();update();save()}
 function openBuilding(u){S.bsel=u;POP={kind:"building",u};showPopup();update();save()}
 function openEmpire(){PAGE={kind:"empire"};update()}
 function goBack(){PAGE={kind:"tab"};update()}
-function showPopup(){const p=$("#pop");if(p)p.hidden=!POP}
+// v1.4 popup touch fixes (Jayden, phone): popup buttons often did not
+// work on touch. Root causes found in this file:
+//  (a) update() runs every 250ms and popupUI() rebuilt #pop-body /
+//      #pop-actions innerHTML on EVERY tick, destroying the button
+//      under the user's finger mid-tap (a phone tap dwells longer
+//      than a desktop click). Now popupUI() caches a render key and
+//      only rewrites the popup when its identity or displayed data
+//      actually changes — ticks never touch the buttons.
+//  (b) The tap that OPENS a popup (canvas pointerup) is followed by a
+//      click event that lands on the newly opened popup, so it could
+//      hit Close/Place/Attack by accident. Clicks on the popup within
+//      350ms of it opening are now ignored (popOpenAt).
+//  (c) Buttons only had a click handler. Popup buttons now also fire
+//      on pointerup (tap = pointerdown+up with <12px movement), and
+//      the following click is suppressed so nothing fires twice.
+//  (d) While a popup is open, canvas pointerdown is ignored (no
+//      setPointerCapture, no pan/tap) — the map cannot steal or
+//      retarget a popup tap. Backdrop tap-to-close also fires on
+//      pointerup, not just click.
+let popOpenAt=0, popClickGuard=0, popKeyCache="";
+function showPopup(){const p=$("#pop");if(p){const wasHidden=p.hidden;p.hidden=!POP;if(POP&&wasHidden)popOpenAt=Date.now()}}
 function closePopup(){POP=null;const p=$("#pop");if(p)p.hidden=true;update()}
 const tsum=k=>TECH.filter(x=>S.tech.includes(x.id)&&x.k===k).reduce((a,x)=>a+x.v,0);
 const lv=id=>Math.min(10,1+Math.floor(Math.sqrt((S.cx[id]||0)/2)));
@@ -120,7 +194,12 @@ const total=()=>S.ships.fighter+S.ships.cruiser+S.ships.capital;
 const adj=(i,j)=>SYS[i].l.includes(j)||SYS[j].l.includes(i);
 const spw=i=>Math.round(SYS[i].pw*(S.own[i]?1.4:1));
 const avail=i=>!S.won.includes(i)&&S.won.some(j=>adj(i,j));
-const mult=b=>{let n=0;S.bl.forEach(o=>{if(o!==b&&o.l>0&&Math.abs(o.x-b.x)+Math.abs(o.y-b.y)===1)n++});return 1+.15*n};
+// v1.4: adjacency bonus REMOVED at Jayden's request (approved mechanics
+// change). Production is base rate only (plus tech/commander effects),
+// so spaced-out buildings produce at full rate — that is what makes
+// the spaced-out city layout work. mult() stays as a stub returning 1
+// so rates() and the popups need no other change.
+const mult=b=>1;
 function fpower(i){return fpt(SYS[i].t)}
 function fpt(t){const w=WEAK[t];let p=0;for(const k in U)p+=S.ships[k]*U[k].pw*(k===w?1.5:1);return p*(1+.2*(S.b.command-1))*(1+tsum("pw"))*(1+cb("fleet"))}
 function rates(){const o={energy:0,metal:0,crystal:0,credits:0};S.bl.forEach(b=>{if(b.l>0)for(const r in B[b.t].p)o[r]+=B[b.t].p[r]*b.l*mult(b)*(1+tsum("eco"))*(1+cb("econ"))});o.credits+=.3*(S.won.length-1);o.energy-=.05*used();return o}
@@ -185,7 +264,8 @@ function draw(){drawGalaxy(x,CAM,{sx:(cv.width||384)/2,sy:safeCyCv()});drawBase(
 // tap a building to open it, tap an open plot to see what can be built there.
 // Tap vs drag: a pointer that moves more than 8px is a drag, never a tap.
 const stPointers=new Map();let stStart=null,stDrag=false,stPinch=0;
-st.addEventListener("pointerdown",e=>{if(st.setPointerCapture)try{st.setPointerCapture(e.pointerId)}catch(_){}stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(stPointers.size===1){stStart={x:e.clientX,y:e.clientY};stDrag=false}else if(stPointers.size===2){const a=[...stPointers.values()];stPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);stDrag=true}});
+st.addEventListener("pointerdown",e=>{if(POP)return; // v1.4: map cannot steal a popup tap
+if(st.setPointerCapture)try{st.setPointerCapture(e.pointerId)}catch(_){}stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(stPointers.size===1){stStart={x:e.clientX,y:e.clientY};stDrag=false}else if(stPointers.size===2){const a=[...stPointers.values()];stPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);stDrag=true}});
 st.addEventListener("pointermove",e=>{if(!stPointers.has(e.pointerId))return;stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=st.getBoundingClientRect();if(stPointers.size===2){const a=[...stPointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(stPinch>0)setStZoom(STCAM.zoom*d/stPinch,(mx-q.left)/q.width*st.width,(my-q.top)/q.height*st.height);stPinch=d;update();return}if(stStart){const dx=e.clientX-stStart.x,dy=e.clientY-stStart.y;if(Math.abs(dx)+Math.abs(dy)>8)stDrag=true;if(stDrag){const sc=stScale();STCAM.cx-=dx/q.width*st.width/sc;STCAM.cy-=dy/q.height*st.height/sc;stStart={x:e.clientX,y:e.clientY};clampStCam();update()}}});
 const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if(stPointers.size===0&&stStart&&!stDrag){const q=st.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*st.width,sy=(e.clientY-q.top)/q.height*st.height,w=stScreenToWorld(sx,sy);
  // v1.2 iso hit test: a tap on a tall building sprite must select that
@@ -204,17 +284,19 @@ st.addEventListener("dblclick",e=>{const q=st.getBoundingClientRect();setStZoom(
 // double-tap to zoom, tap to open a system. Tap vs drag: a pointer that
 // moves more than 8px is a drag and never selects anything.
 const pointers=new Map();let pStart=null,pDrag=false,pPinch=0;
-cv.addEventListener("pointerdown",e=>{if(cv.setPointerCapture)try{cv.setPointerCapture(e.pointerId)}catch(_){}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){pStart={x:e.clientX,y:e.clientY};pDrag=false}else if(pointers.size===2){const a=[...pointers.values()];pPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);pDrag=true}});
+cv.addEventListener("pointerdown",e=>{if(POP)return; // v1.4: map cannot steal a popup tap
+if(cv.setPointerCapture)try{cv.setPointerCapture(e.pointerId)}catch(_){}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){pStart={x:e.clientX,y:e.clientY};pDrag=false}else if(pointers.size===2){const a=[...pointers.values()];pPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);pDrag=true}});
 cv.addEventListener("pointermove",e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=cv.getBoundingClientRect();if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(pPinch>0)setZoom(CAM.zoom*d/pPinch,(mx-q.left)/q.width*cv.width,(my-q.top)/q.height*cv.height);pPinch=d;update();return}if(pStart){const dx=e.clientX-pStart.x,dy=e.clientY-pStart.y;if(Math.abs(dx)+Math.abs(dy)>8)pDrag=true;if(pDrag){const sc=camScale();CAM.cx-=dx/q.width*cv.width/sc;CAM.cy-=dy/q.height*cv.height/sc;pStart={x:e.clientX,y:e.clientY};clampCam();update()}}});
 const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(pointers.size===0&&pStart&&!pDrag){const q=cv.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*cv.width,sy=(e.clientY-q.top)/q.height*cv.height,w=screenToWorld(sx,sy),lx=w.x/WORLD.px,ly=w.y/WORLD.px;let best=-1,bd=100;SYS.forEach((s,i)=>{const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});if(best>=0)openSystem(best)}pStart=null;pDrag=false};
 cv.addEventListener("pointerup",cvEnd);cv.addEventListener("pointercancel",cvEnd);
 cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=cv.getBoundingClientRect();setZoom(CAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*cv.width,(e.clientY-q.top)/q.height*cv.height);update()},{passive:false});
 cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*cv.width,(e.clientY-q.top)/q.height*cv.height);update()});
 const popEl=$("#pop");
-if(popEl)popEl.addEventListener("click",e=>{if(e.target===popEl)closePopup()});
+if(popEl){popEl.addEventListener("click",e=>{if(e.target===popEl)closePopup()});
+popEl.addEventListener("pointerup",e=>{if(e.target===popEl)closePopup()});} // v1.4: backdrop works on touch too
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){const m=$("#menu");if(m&&!m.hidden&&m.classList.contains("open"))closeMenu();else if(POP)closePopup();else if(PAGE.kind!=="tab")goBack();}});
 const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
-document.body.addEventListener("click",e=>{
+function handleBodyClick(e){
 const b=e.target.closest("button");if(!b)return;
 const d=b.dataset;ac();sfx("click");done();
 if(d.tab){S.tab=d.tab;PAGE={kind:"tab"}}
@@ -233,7 +315,11 @@ else if(d.place){const t=d.place;if(POP&&POP.kind==="plot"){placeB(t,POP.x,POP.y
 else if(d.pclose){closePopup()}
 else if(d.menu){openMenu()}
 else if(d.mclose){closeMenu()}
-else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}}
+else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}}
+else if(d.tutnext){if(TUT.i>=TUT_STEPS.length-1)closeTut(true);else{TUT.i++;tutRender()}}
+else if(d.tutback){if(TUT.i>0){TUT.i--;tutRender()}}
+else if(d.tutskip){closeTut(true)}
+else if(d.tutdone){closeTut(true)}
 else if(d.hide){setUIHidden(true)}
 else if(d.showui){setUIHidden(false)}
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
@@ -260,7 +346,30 @@ else if(b.id==="reset"){$("#rbox").hidden=false}
 else if(d.rcancel){$("#rbox").hidden=true}
 else if(d.rgo){S=fresh();recalc();qKey="";$("#rbox").hidden=true;msg("A new empire begins.")}
 update();save();
-});
+}
+// v1.4 popup touch: click path — ignore a click that is really the
+// tail of the tap that opened the popup, or the click that follows
+// a pointerup activation (which already fired the action).
+document.body.addEventListener("click",e=>{
+if(Date.now()<popClickGuard)return;
+const t=e.target;
+if(t&&t.closest&&t.closest("#pop")&&Date.now()-popOpenAt<350)return;
+handleBodyClick(e)});
+// v1.4 popup touch: pointerup path — a tap on a POPUP button fires
+// immediately on pointerup (no waiting for click), with a <12px
+// movement threshold so drags/scrolls do not activate buttons.
+let downBtn=null,downX=0,downY=0;
+document.body.addEventListener("pointerdown",e=>{
+const b=e.target&&e.target.closest?e.target.closest("button"):null;
+downBtn=(b&&b.closest&&b.closest("#pop"))?b:null;downX=e.clientX;downY=e.clientY});
+document.body.addEventListener("pointerup",e=>{
+if(!downBtn)return;
+const b=e.target&&e.target.closest?e.target.closest("button"):null;
+const btn=downBtn;downBtn=null;
+if(b!==btn||b.disabled)return;
+if(Math.abs(e.clientX-downX)>=12||Math.abs(e.clientY-downY)>=12)return;
+popClickGuard=Date.now()+600; // swallow the click that follows
+handleBodyClick(e)});
 
 function rstr(id){let k=0;for(const i in S.own)if(S.own[i]===id)k++;return RV[id].b*(1+Math.min(5,S.min*.02))*(1+.1*k)}
 function nb(id,i){return Object.keys(S.own).some(j=>S.own[j]===id&&adj(i,+j))}
@@ -309,23 +418,33 @@ $("#bq").textContent=S.bq.length?"Building: "+S.bq.map(j=>{const b=S.bl.find(z=>
 for(const t in B){const n=cnt(t),mx=MAXC(t),c=newCost(t),b=$("#bmb-"+t);$("#bmn-"+t).textContent=n+"/"+mx;
 $("#bmc-"+t).textContent=n>=mx?(t==="command"?"Only one allowed.":"Upgrade the Command Station for more copies."):"Cost: "+cstr(c)+". Time: "+left(dur(0)*1000);
 b.textContent=S.place===t?"Cancel":"Place";b.disabled=S.place===t?false:(n>=mx||S.bq.length>=bqcap()||!can(c))}
-const hint=S.place?"Tap an empty spot on the map to place your "+B[S.place].n+".":S.mv?"Tap an empty spot on the map to move it.":"Tap a building to see its stats. Each neighboring building adds +15% production.";
+const hint=S.place?"Tap an empty spot on the map to place your "+B[S.place].n+".":S.mv?"Tap an empty spot on the map to move it.":"Tap a building to see its stats. Buildings produce at full rate wherever they stand.";
 if(!sel){$("#bi-name").textContent="Your base";$("#bi-stats").textContent=hint;$("#bi-cost").textContent="";$("#bi-up").hidden=true;$("#bi-mv").hidden=true}
 else{const t=sel.t,e=effL(sel),max=e>=lvlCap(t),c=cost(t,e),m=mult(sel),pr=Object.keys(B[t].p)[0];
 $("#bi-name").textContent=B[t].n+" Lv "+sel.l+(e>sel.l?" (+"+(e-sel.l)+" queued)":"");
 let st=B[t].d+". ";
 if(sel.l===0)st="Under construction. ";
-else if(pr)st+="Makes +"+(B[t].p[pr]*sel.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s (neighbors +"+Math.round((m-1)*100)+"%). ";
+else if(pr)st+="Makes +"+(B[t].p[pr]*sel.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s. ";
 else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*sel.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
 $("#bi-up").hidden=false;$("#bi-mv").hidden=false;$("#bi-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bi-mv").textContent=S.mv===sel.u?"Cancel move":"Move"}}
 function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
+// Render key: popup identity + every value shown in it. If the key is
+// unchanged, the popup's DOM nodes are left exactly as they are —
+// the 250ms tick must never rebuild a button under a finger.
+function popKey(){
+if(!POP)return "";
+if(POP.kind==="system"){const i=S.sel,own=S.won.includes(i);return "sys|"+i+"|"+(own?1:0)+"|"+(avail(i)?1:0)+"|"+total()+"|"+spw(i)+"|"+fpower(i).toFixed(1)+"|"+S.won.length}
+if(POP.kind==="building"){const b=S.bl.find(z=>z.u===POP.u);if(!b)return "gone";const e=effL(b),c=cost(b.t,e);return "bld|"+b.u+"|"+b.l+"|"+e+"|"+(e>=lvlCap(b.t)?1:0)+"|"+cstr(c)+"|"+S.bq.length+"|"+(can(c)?1:0)+"|"+(S.mv===b.u?1:0)}
+if(POP.kind==="plot"){return "plot|"+POP.x+"|"+POP.y+"|"+S.bq.length+"|"+Object.keys(B).map(t=>cnt(t)+"/"+MAXC(t)+"/"+(can(newCost(t))?1:0)).join(",")}
+return "?"}
 function popupUI(){
 const p=$("#pop");
-if(!POP){if(p)p.hidden=true;return}
+if(!POP){if(p)p.hidden=true;popKeyCache="";return}
 if(p)p.hidden=false;
+const _pk=popKey();if(_pk===popKeyCache)return;popKeyCache=_pk;
 const title=$("#pop-title"),hero=$("#pop-hero"),body=$("#pop-body"),acts=$("#pop-actions");
 if(!title||!hero||!body||!acts)return;
 const hq=hero.getContext("2d");
@@ -355,7 +474,7 @@ title.textContent=B[t].n+" Lv "+b.l;
 if(hq){hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
 let st=B[t].d+". ";
 if(b.l===0)st="Under construction. ";
-else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s (neighbors +"+Math.round((m-1)*100)+"%). ";
+else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s. ";
 else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};body.innerHTML="<small><b>"+(DISTNAME[t]||"")+"</b> — "+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
@@ -364,7 +483,7 @@ acts.innerHTML='<button data-bup="1" '+((max||S.bq.length>=bqcap()||!can(c))?"di
 const x=POP.x,y=POP.y;
 title.textContent="Open land ("+(x+1)+", "+(y+1)+")";const _kp=S.bl.find(b=>b.t==="command");const _dn=_kp?(x<_kp.x-1?"West — near the Military quarter":x>_kp.x+1?"East — near the Industrial quarter":y<_kp.y-1?"North — near the Power fields":"South — near the Trade quarter"):"Open land";
 if(hq){hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96)}
-body.innerHTML="<small>"+_dn+". What can you build here? Each new copy costs 1.5x the last. Buildings next to each other produce +15%.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");
+body.innerHTML="<small>"+_dn+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");
 acts.innerHTML="";
 }}
 function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of 16 systems. Each owned system pays +0.3 credits/s.";
@@ -394,3 +513,4 @@ rivalTick();update();
 },250);
 setInterval(save,5000);
 update();
+maybeTut();
