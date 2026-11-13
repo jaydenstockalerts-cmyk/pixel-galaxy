@@ -23,28 +23,55 @@ const SYS=[
 {n:"Raider Armada",t:"swarm",pw:160,r:{credits:800,metal:300,crystal:300},x:100,y:24,l:[3,4,7]},
 {n:"Alien Hive Core",t:"fortress",pw:260,r:{credits:2000},x:108,y:56,l:[5,6,8]},
 {n:"Ion Reef",t:"armored",pw:300,r:{credits:1500,metal:600},x:92,y:88,l:[7,9]},
-{n:"Void Gate",t:"fortress",pw:450,r:{credits:2000,crystal:800},x:66,y:100,l:[8,10]},
+{n:"Void Gate",t:"fortress",pw:450,r:{credits:2000,crystal:800},x:66,y:100,l:[8,10,21]},
 {n:"Mercenary Yard",t:"swarm",pw:650,r:{credits:2500,metal:900,crystal:600},x:36,y:96,l:[9,11]},
 {n:"Ghost Fleet",t:"armored",pw:900,r:{credits:3000,energy:1000},x:22,y:122,l:[10,12]},
 {n:"Pulsar Station",t:"fortress",pw:1200,r:{credits:3500,crystal:1500},x:48,y:138,l:[11,13]},
-{n:"Rift Armada",t:"swarm",pw:1600,r:{credits:4000,metal:2000},x:80,y:128,l:[12,14]},
+{n:"Rift Armada",t:"swarm",pw:1600,r:{credits:4000,metal:2000},x:80,y:128,l:[12,14,27]},
 {n:"Titan Dreadnought",t:"armored",pw:2000,r:{credits:4500,metal:2000,crystal:2000},x:108,y:112,l:[13,15]},
-{n:"The Dark Nexus",t:"fortress",pw:2800,r:{credits:6000},x:100,y:148,l:[14]}
+{n:"The Dark Nexus",t:"fortress",pw:2800,r:{credits:6000},x:100,y:148,l:[14]},
+// v2.5 SECTOR 2 (systems 16-31): a parallel mid/late-game region —
+// territory, economy and the new factions' homes — NOT a harder
+// endgame. Power runs ~150 -> 2200, BELOW the Dark Nexus (2800,
+// system 15, still the endgame boss in Sector 1). Every system links
+// to 2-3 neighbours WITHIN Sector 2; the two jump gates tie the
+// sectors together: 9 "Void Gate" <-> 21 "Wayfarer Gate" and
+// 13 "Rift Armada" <-> 27 "Hollow Gate" (cross-sector links live in
+// the l arrays, so adj()/nb() work naturally across sectors).
+// Each sector reuses the same 640x800 world coordinates with its own
+// x/y layout; sec:1 marks Sector 2 (Sector 1 entries have no sec
+// field, which reads as 0).
+{n:"Ember Drift",t:"swarm",pw:150,r:{credits:900,metal:400},x:20,y:20,l:[17,20],sec:1},
+{n:"Cinder Reach",t:"armored",pw:220,r:{credits:1200,crystal:300},x:48,y:16,l:[16,18,21],sec:1},
+{n:"Ashen Veil",t:"swarm",pw:320,r:{metal:600,credits:1200},x:76,y:20,l:[17,19,22],sec:1},
+{n:"Stormbreak Point",t:"fortress",pw:420,r:{credits:1800,crystal:500},x:104,y:28,l:[18,23],sec:1},
+{n:"Lantern Deep",t:"armored",pw:260,r:{credits:1100,metal:500},x:24,y:56,l:[16,21,24],sec:1},
+{n:"Wayfarer Gate",t:"fortress",pw:550,r:{credits:2000,crystal:800},x:52,y:48,l:[17,20,22,9],sec:1},
+{n:"Gilded Expanse",t:"swarm",pw:700,r:{credits:2500,metal:900},x:80,y:56,l:[18,21,26],sec:1},
+{n:"Thorn Nebula",t:"armored",pw:900,r:{credits:3000,energy:1000},x:106,y:64,l:[19,27],sec:1},
+{n:"Quiet Anchorage",t:"swarm",pw:380,r:{credits:1500,metal:600},x:18,y:92,l:[20,25,28],sec:1},
+{n:"Iron Choir",t:"armored",pw:650,r:{credits:2200,crystal:700},x:46,y:88,l:[24,26,29],sec:1},
+{n:"Sable Bastion",t:"fortress",pw:1000,r:{credits:3200,metal:1200},x:74,y:92,l:[22,25,30],sec:1},
+{n:"Hollow Gate",t:"swarm",pw:1300,r:{credits:3500,crystal:1500},x:102,y:100,l:[23,31,13],sec:1},
+{n:"Vigil Reef",t:"armored",pw:800,r:{credits:2800,metal:1000},x:26,y:128,l:[24,29],sec:1},
+{n:"Crown of Embers",t:"fortress",pw:1500,r:{credits:4000,metal:1500,crystal:1000},x:54,y:124,l:[25,28,30],sec:1},
+{n:"Titan's Rest",t:"armored",pw:1800,r:{credits:4500,metal:2000},x:82,y:132,l:[26,29,31],sec:1},
+{n:"Gilded Throne",t:"fortress",pw:2200,r:{credits:5000,crystal:2000},x:108,y:140,l:[27,30],sec:1}
 ];
 const DUR={fighter:3,cruiser:8,capital:20};
 const POS0={solar:[1,1],foundry:[2,1],mine:[3,1],hub:[4,1],hangar:[5,1],command:[3,2]};
 const Q=[
 {id:"q1",t:"Build a Crystal Mine",ok:()=>S.b.mine>=1,r:{metal:40}},
 {id:"q2",t:"Build a Hangar",ok:()=>S.b.hangar>=1,r:{crystal:40,metal:40}},
-{id:"q3",t:"Launch your first ship",ok:()=>total()>=1,r:{energy:60,credits:20}},
+{id:"q3",t:"Launch your first ship",ok:()=>allShips()>=1,r:{energy:60,credits:20}},
 {id:"q4",t:"Conquer the Pirate Outpost",ok:()=>S.won.includes(1),r:{credits:80}},
 {id:"q5",t:"Upgrade the Command Station to Lv 2",ok:()=>S.b.command>=2,r:{metal:100,crystal:60}},
 {id:"q5d",t:"Build a second Solar Array",ok:()=>cnt("solar")>=2,r:{metal:80}},
 {id:"q5b",t:"Research your first technology",ok:()=>S.tech.length>=1,r:{credits:80,crystal:40}},
 {id:"q5c",t:"Hire a commander",ok:()=>S.cmds.length>=1,r:{credits:100}},
-{id:"q7",t:"Build a Cruiser",ok:()=>S.ships.cruiser>=1,r:{credits:100,crystal:60}},
+{id:"q7",t:"Build a Cruiser",ok:()=>shipCount("cruiser")>=1,r:{credits:100,crystal:60}},
 {id:"q8",t:"Own 4 systems",ok:()=>S.won.length>=5,r:{credits:300,metal:200}},
-{id:"q9",t:"Build a Capital Ship",ok:()=>S.ships.capital>=1,r:{credits:300,crystal:150}},
+{id:"q9",t:"Build a Capital Ship",ok:()=>shipCount("capital")>=1,r:{credits:300,crystal:150}},
 {id:"q10",t:"Conquer the Alien Hive Core",ok:()=>S.won.includes(7),r:{credits:1000}},
 {id:"q14",t:"Repel a rival raid",ok:()=>S.rep>=1,r:{credits:600,metal:300}},
 {id:"q15",t:"Capture a rival-held system",ok:()=>S.cap>=1,r:{credits:800,crystal:400}},
@@ -77,6 +104,16 @@ const TECH=[
 {id:"w4",n:"Singularity Cannons",d:"+60% fleet power",c:{credits:5000,crystal:3000},t:1800,req:"w3",k:"pw",v:.6},
 {id:"w5",n:"Reality Splitters",d:"+80% fleet power",c:{credits:5000,crystal:4000},t:2400,req:"w4",k:"pw",v:.8},
 {id:"l3",n:"Megastructure Docks",d:"+4 more ship slots per Hangar level",c:{credits:4500,crystal:3500},t:1500,req:"l2",k:"slot",v:4},
-{id:"c3",n:"Galactic Doctrine",d:"Command Station max level 13",c:{credits:4000,crystal:2500},t:1800,req:"c2",k:"cmax",v:3}
+{id:"c3",n:"Galactic Doctrine",d:"Command Station max level 13",c:{credits:4000,crystal:2500},t:1800,req:"c2",k:"cmax",v:3},
+// v2.5: Jump Drive — no prerequisite, mid-game reachable. Unlocks
+// Sector 2: without it the player cannot attack or claim any Sector 2
+// system (see avail() in game.js). Factions get their jump drives at
+// S.min>=60 (see rivalCycle()).
+{id:"j1",n:"Jump Drive",d:"Unlocks Sector 2 — attack and claim systems beyond the jump gates",c:{credits:1000,crystal:500},t:300,k:"jump",v:1}
 ];
-const RV={c:{n:"Crimson Pact",b:150},v:{n:"Vael Collective",b:250}};
+const RV={c:{n:"Crimson Pact",b:150,agg:0.9,exp:0.9,eco:1.0},v:{n:"Vael Collective",b:250,agg:0.5,exp:0.5,eco:1.3},k:{n:"Keth Dominion",b:200,agg:0.8,exp:1.0,eco:1.0},a:{n:"Aurelian Combine",b:180,agg:0.3,exp:0.4,eco:1.4},m:{n:"Vortex Marauders",b:120,agg:1.0,exp:0.4,eco:0.9}};
+// v2.4 faction personalities: agg = raid likelihood (raid chance per
+// cycle is agg x 0.7), exp = claim likelihood per cycle, eco = economy
+// multiplier (feeds rstr() as x(0.8+0.2xeco)). Crimson = aggressive
+// expander, Vael = builder/turtle, Keth = aggressive expander,
+// Aurelian = turtle/builder, Vortex = raider.
