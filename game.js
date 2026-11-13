@@ -11,6 +11,23 @@ s.bq=(j.bq||[]).map(q=>{let b=s.bl.find(z=>z.t===q.id);if(!b){b={u:s.nu++,t:q.id
 delete s.pos;delete s.selB;return s}}catch(e){}return fresh()}
 function save(){try{S.t=Date.now();localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
 let S=load();recalc();
+// UI OVERHAUL v0.9 — camera and page state are VIEW-ONLY: they are never
+// saved in S and never change the save format (still pixelgalaxy-v3).
+const WORLD={w:320,h:400,px:2.4}; // galaxy world, SYS x/y * 2.4
+let CAM={cx:160,cy:200,zoom:1}; // centre (world units), zoom 1-2.5 (1 = fit)
+let PAGE={kind:"tab"}; // tab | system | building | empire (S.tab is untouched by pages)
+const camScale=()=>Math.min(192/WORLD.w,240/WORLD.h)*CAM.zoom;
+const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:96+(wx-CAM.cx)*sc,y:120+(wy-CAM.cy)*sc}};
+const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-96)/sc,y:CAM.cy+(sy-120)/sc}};
+function clampCam(){const sc=camScale(),hw=96/sc,hh=120/sc;if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
+function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-96)/s0,y:CAM.cy+(py-120)/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-96)/s1;CAM.cy=w.y-(py-120)/s1}clampCam()}
+function flyTo(i){const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
+function fitCam(){CAM={cx:160,cy:200,zoom:1};clampCam()}
+function homeCam(){flyTo(0)}
+function openSystem(i){S.sel=i;PAGE={kind:"system"};flyTo(i);update();save()}
+function openBuilding(u){S.bsel=u;PAGE={kind:"building"};update();save()}
+function openEmpire(){PAGE={kind:"empire"};update()}
+function goBack(){PAGE={kind:"tab"};update()}
 const tsum=k=>TECH.filter(x=>S.tech.includes(x.id)&&x.k===k).reduce((a,x)=>a+x.v,0);
 const lv=id=>Math.min(10,1+Math.floor(Math.sqrt((S.cx[id]||0)/2)));
 const cb=t=>{const id=S.slot[t==="fleet"?"fleet":"station"];return id&&CM[id].t===t?CM[id].b*lv(id):0};
@@ -52,7 +69,7 @@ function toast(t){const c=$("#toasts"),el=document.createElement("div");el.class
 const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(t);if(S.feed.length>30)S.feed.shift();toast(t)};
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
 
-$("#res").innerHTML=R.map(r=>`<div>${r}<b id="v-${r}"></b><small id="r-${r}"></small></div>`).join("");
+$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="dot dot-${r}"></span>${r}<b id="v-${r}"></b><small id="r-${r}"></small><small class="cap" id="c-${r}"></small></div>`).join("");
 $("#bmenu").innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
 $("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}</small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
 
@@ -62,7 +79,7 @@ let qKey="";
 function update(){
 done();
 const r=rates(),now=Date.now();
-R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s"});
+R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap())});
 $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command Station to store more.";
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
@@ -79,32 +96,47 @@ baseUI(now);
 upd2();
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok()).slice(0,3)),key=open.map(q=>q.id+(q.ok()?1:0)).join();
 if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small></div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
+systemUI();buildingUI();empireUI();progressBars();
 draw();
 }
 
 const cv=$("#cv"),x=cv.getContext("2d"),st=$("#st"),y=st.getContext("2d");
 function pal(){const cs=getComputedStyle(document.documentElement),c={};[["b","--bg"],["h","--hi"],["m","--mid"],["f","--fg"]].forEach(a=>c[a[0]]=cs.getPropertyValue(a[1]).trim());return c}
-function draw(){drawGalaxy(x);drawBase(y)}
+function draw(){drawGalaxy(x,CAM);drawBase(y);drawMinimap()}
 st.addEventListener("click",e=>{
 const q=st.getBoundingClientRect(),bx=Math.floor((e.clientX-q.left)/q.width*6),by=Math.floor((e.clientY-q.top)/q.height*6);
 if(bx<0||by<0||bx>5||by>5)return;
 const at=bAt(bx,by);
-if(at){if(S.place||S.mv)msg("That spot is taken.");else S.bsel=S.bsel===at.u?null:at.u}
+if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}
 else if(S.place)placeB(S.place,bx,by);
 else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){b.x=bx;b.y=by}S.mv=null;msg("Building moved.")}
 else S.bsel=null;
 update();save();
 });
-cv.addEventListener("click",e=>{
-const q=cv.getBoundingClientRect(),lx=(e.clientX-q.left)/q.width*128,ly=(e.clientY-q.top)/q.height*160;
-let best=-1,bd=100;
-SYS.forEach((s,i)=>{const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});
-if(best>=0){S.sel=best;update();save()}
-});
+// UI OVERHAUL v0.9 — interactive galaxy map: drag to pan, pinch / wheel /
+// double-tap to zoom, tap to open a system. Tap vs drag: a pointer that
+// moves more than 8px is a drag and never selects anything.
+const pointers=new Map();let pStart=null,pDrag=false,pPinch=0;
+cv.addEventListener("pointerdown",e=>{if(cv.setPointerCapture)try{cv.setPointerCapture(e.pointerId)}catch(_){}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){pStart={x:e.clientX,y:e.clientY};pDrag=false}else if(pointers.size===2){const a=[...pointers.values()];pPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);pDrag=true}});
+cv.addEventListener("pointermove",e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=cv.getBoundingClientRect();if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(pPinch>0)setZoom(CAM.zoom*d/pPinch,(mx-q.left)/q.width*192,(my-q.top)/q.height*240);pPinch=d;update();return}if(pStart){const dx=e.clientX-pStart.x,dy=e.clientY-pStart.y;if(Math.abs(dx)+Math.abs(dy)>8)pDrag=true;if(pDrag){const sc=camScale();CAM.cx-=dx/q.width*192/sc;CAM.cy-=dy/q.height*240/sc;pStart={x:e.clientX,y:e.clientY};clampCam();update()}}});
+const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(pointers.size===0&&pStart&&!pDrag){const q=cv.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*192,sy=(e.clientY-q.top)/q.height*240,w=screenToWorld(sx,sy),lx=w.x/WORLD.px,ly=w.y/WORLD.px;let best=-1,bd=100;SYS.forEach((s,i)=>{const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});if(best>=0)openSystem(best)}pStart=null;pDrag=false};
+cv.addEventListener("pointerup",cvEnd);cv.addEventListener("pointercancel",cvEnd);
+cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=cv.getBoundingClientRect();setZoom(CAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*192,(e.clientY-q.top)/q.height*240);update()},{passive:false});
+cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*192,(e.clientY-q.top)/q.height*240);update()});
+const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
 document.body.addEventListener("click",e=>{
 const b=e.target.closest("button");if(!b)return;
 const d=b.dataset;ac();sfx("click");done();
-if(d.tab){S.tab=d.tab}
+if(d.tab){S.tab=d.tab;PAGE={kind:"tab"}}
+else if(d.page){openEmpire()}
+else if(d.back){goBack()}
+else if(d.sys){openSystem(S.sel)}
+else if(d.bpg){if(S.bsel)openBuilding(S.bsel)}
+else if(d.fly){const i=+d.fly;S.sel=i;PAGE={kind:"tab"};S.tab="map";flyTo(i)}
+else if(d.zin){setZoom(CAM.zoom*1.25)}
+else if(d.zout){setZoom(CAM.zoom/1.25)}
+else if(d.zhome){homeCam()}
+else if(d.zfit){fitCam()}
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
 else if(d.log){$("#hlog").innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"No events yet.";$("#hbox").hidden=false}
 else if(d.hclose){$("#hbox").hidden=true}
@@ -189,7 +221,22 @@ else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
 $("#bi-up").hidden=false;$("#bi-mv").hidden=false;$("#bi-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bi-mv").textContent=S.mv===sel.u?"Cancel move":"Move"}}
-function showTab(){const t=S.tab||"map";document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=e.dataset.pg!==t});document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",b.dataset.tab===t));const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;$("#tq").textContent=n?"Quests ("+n+")":"Quests";$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
+function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
+function systemUI(){if(PAGE.kind!=="system")return;const i=S.sel,s=SYS[i],own=S.won.includes(i),av=avail(i);$("#s-name").textContent=s.n;const hq=$("#shero").getContext("2d");if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#0a0e2a";hq.fillRect(0,0,96,96);const sp=planetSprite(i);hq.drawImage(sp,16,16,64,64)}
+$("#sinfo").innerHTML="<b>"+s.n+"</b><br><small>"+(s.t?s.t.toUpperCase()+" fleet":"Your home base")+". "+(own?"You own this system.":av?"Ready to attack.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+"</small>";
+$("#s-detail").innerHTML="Needs "+spw(i)+" power. Your fleet vs "+(s.t||"—")+": "+fpower(i).toFixed(1)+".<br><small>Loot: "+(i===0?"—":cstr(s.r))+"<br>Counter: bring "+(s.t?WEAK[s.t]+"s (+50%)":"—")+".</small>";
+const a=$("#satk");a.disabled=i===0||own||!av||total()<1;a.textContent=i===0?"Home":own?"Owned":"Attack"}
+function buildingUI(){if(PAGE.kind!=="building")return;const b=S.bl.find(z=>z.u===S.bsel);if(!b){$("#bp-name").textContent="Building";return}const t=b.t,e=effL(b),max=e>=lvlCap(t),c=cost(t,e),m=mult(b),pr=Object.keys(B[t].p)[0];$("#bp-name").textContent=B[t].n+" Lv "+b.l;const hq=$("#bhero").getContext("2d");if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#5fae4f";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
+let st=B[t].d+". ";if(b.l===0)st="Under construction. ";else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s (neighbors +"+Math.round((m-1)*100)+"%). ";else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
+$("#bp-stats").textContent=st;$("#bp-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);$("#bp-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bp-mv").textContent=S.mv===b.u?"Cancel move":"Move"}
+function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of 16 systems. Each owned system pays +0.3 credits/s.";
+$("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
+$("#e-rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")}
+function progressBars(){const now=Date.now();const set=(id,p)=>{const el=$(id);if(el)el.style.width=Math.round(Math.max(0,Math.min(1,p||0))*100)+"%"};
+const bq=S.bq.slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0);
+if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()):0)}else set("#pb-res",0);
+const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()):0)}
+function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o==="c"?"#e0584a":o==="v"?"#b07cf0":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=192/sc/WORLD.w*96,vh=240/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 $("#rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";

@@ -12,48 +12,69 @@
 <meta name="apple-mobile-web-app-title" content="Pixel Galaxy">
 <meta name="theme-color" content="#070b1f" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#e6f4ff" media="(prefers-color-scheme: light)">
-<link rel="stylesheet" href="style.css?v=11">
+<link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
 <main>
 <div class="ttl"><h1>PIXEL GALAXY</h1><span><button id="logb" data-log="1">Log</button> <button id="snd">Sound</button></span></div>
 <div id="top">
 <div class="box"><div class="res" id="res"></div></div>
-<nav id="tabs"><button data-tab="map">Galaxy</button><button data-tab="station">Station</button><button data-tab="fleet">Fleet</button><button data-tab="crew">Crew</button><button data-tab="research">Research</button><button data-tab="quests" id="tq">Quests</button></nav>
 </div>
 <section data-pg="map">
+<div class="pagehead"><h2>Galaxy</h2><button data-page="empire" id="empireb">Empire</button></div>
+<div class="mapwrap">
 <canvas id="cv" width="192" height="240"></canvas>
-<p><small>Tap a planet to inspect it. A flag marks your systems, C is Crimson Pact, V is Vael Collective.</small></p>
-<div class="box"><div class="row"><div id="info"></div><button id="atk" data-atk="1">Attack</button></div></div>
+<canvas id="mm" width="96" height="120" title="Minimap — tap to jump"></canvas>
+<div class="mapctl"><button data-zout="1" id="zout" title="Zoom out">−</button><button data-zin="1" id="zin" title="Zoom in">+</button><button data-zhome="1" id="zhome" title="Go to Home World">Home</button><button data-zfit="1" id="zfit" title="Fit whole galaxy">Fit</button></div>
+</div>
+<p><small>Drag to move around the galaxy, pinch or use + / − to zoom, double-tap to zoom in. Tap a planet to open it. A flag marks your systems, C is Crimson Pact, V is Vael Collective.</small></p>
+<div class="box"><div class="row"><div id="info"></div><button id="atk" data-atk="1">Attack</button></div><button data-sys="1" id="open-sys">Open system</button></div>
 <div class="box"><h2>Rivals</h2><small id="rvs"></small></div>
 </section>
 <section data-pg="station">
-<p><small id="cap"></small></p>
+<div class="pagehead"><h2>Station</h2><small id="cap"></small></div>
 <canvas id="st" width="288" height="288"></canvas>
-<div class="box" id="binfo"><b id="bi-name"></b><br><small id="bi-stats"></small><br><small id="bi-cost"></small><div class="bg"><button id="bi-up" data-bup="1">Upgrade</button><button id="bi-mv" data-bmv="1">Move</button></div></div>
-<div class="box"><h2>Build</h2><small id="bq"></small><div id="bmenu"></div></div>
+<div class="box" id="binfo"><b id="bi-name"></b><br><small id="bi-stats"></small><br><small id="bi-cost"></small><div class="bg"><button id="bi-up" data-bup="1">Upgrade</button><button id="bi-mv" data-bmv="1">Move</button></div><button data-bpg="1" id="open-bld">Open building</button></div>
+<div class="box"><h2>Build</h2><small id="bq"></small><div class="pbar"><div id="pb-build"></div></div><div id="bmenu"></div></div>
 </section>
 <section data-pg="fleet">
-<div class="box"><h2>Fleet</h2><small id="fpw"></small><br><small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br><small id="slots"></small><div id="ships"></div><small id="sq"></small></div>
+<div class="box"><h2>Fleet</h2><small id="fpw"></small><br><small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br><small id="slots"></small><div id="ships"></div><small id="sq"></small><div class="pbar"><div id="pb-ship"></div></div></div>
 </section>
 <section data-pg="crew">
 <div class="box"><h2>Commanders</h2><small>Hire officers who level up as you play. One leads your fleet, one runs your station.</small><div id="cmds"></div></div>
 </section>
 <section data-pg="research">
-<div class="box"><h2>Research</h2><small id="rq"></small><div id="tech"></div></div>
+<div class="box"><h2>Research</h2><small id="rq"></small><div class="pbar"><div id="pb-res"></div></div><div id="tech"></div></div>
 </section>
 <section data-pg="quests">
 <div class="box"><h2>Quests</h2><div id="quests"></div></div>
 </section>
+<section data-pg="system" hidden>
+<div class="pagehead"><button data-back="1" id="back-sys">‹ Back</button><h2 id="s-name">System</h2></div>
+<canvas id="shero" width="96" height="96"></canvas>
+<div class="box"><div id="sinfo"></div></div>
+<div class="box"><div class="row"><div id="s-detail"></div><button id="satk" data-atk="1">Attack</button></div></div>
+</section>
+<section data-pg="building" hidden>
+<div class="pagehead"><button data-back="1" id="back-bld">‹ Back</button><h2 id="bp-name">Building</h2></div>
+<canvas id="bhero" width="96" height="96"></canvas>
+<div class="box"><div id="bp-stats"></div><br><small id="bp-cost"></small><div class="bg"><button id="bp-up" data-bup="1">Upgrade</button><button id="bp-mv" data-bmv="1">Move</button></div></div>
+</section>
+<section data-pg="empire" hidden>
+<div class="pagehead"><button data-back="1" id="back-emp">‹ Back</button><h2>Empire</h2></div>
+<div class="box"><h2>Your systems</h2><small id="emp-sum"></small><div id="emp-list"></div></div>
+<div class="box"><h2>Rivals</h2><small id="e-rvs"></small></div>
+</section>
+<nav id="tabs"><button data-tab="map"><span class="ic">✦</span><span>Galaxy</span></button><button data-tab="station"><span class="ic">▦</span><span>Station</span></button><button data-tab="fleet"><span class="ic">▲</span><span>Fleet</span></button><button data-tab="crew"><span class="ic">★</span><span>Crew</span></button><button data-tab="research"><span class="ic">⚙</span><span>Research</span></button><button data-tab="quests" id="tq"><span class="ic">✓</span><span>Quests</span><span class="badge" id="tq-badge" hidden></span></button></nav>
 <div id="toasts"></div>
 <div id="bbox" hidden><div class="box bpanel"><canvas id="bt" width="192" height="96"></canvas><small id="bcap"></small><br><button id="bskip" data-skip="1">Skip</button></div></div>
 <div id="hbox" hidden><div class="box bpanel"><h2>Event log</h2><div id="hlog"></div><button data-hclose="1">Close</button></div></div>
 <div id="rbox" hidden><div class="box bpanel"><h2>Reset game?</h2><p>This deletes all your progress and cannot be undone.</p><button data-rcancel="1">Cancel</button> <button data-rgo="1">Yes, reset</button></div></div>
 <button id="reset">Reset game</button>
-<p><small>Prototype v0.8. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
+<p><small>Prototype v0.9. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
 </main>
-<script src="data.js?v=11"></script>
-<script src="art.js?v=11"></script>
-<script src="game.js?v=11"></script>
+<script src="data.js?v=12"></script>
+<script src="art.js?v=12"></script>
+<script src="game.js?v=12"></script>
 </body>
 </html>

@@ -7,9 +7,10 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 
 ## File map
 - `index.html`: page skeleton, loads the files below
-- `style.css`: layout and theme (4-color palette tokens, light and dark)
-- `data.js`: game data only (resources `R`, buildings `B`, ships `U`, weaknesses `WEAK`, star systems `SYS`)
-- `game.js`: state, save/load, production, UI updates, map drawing, attacks, game loop
+- `style.css`: layout and theme (4-color palette tokens, light and dark); bottom nav dock, resource pills, map controls, progress bars
+- `data.js`: game data only (resources `R`, buildings `B`, ships `U`, weaknesses `WEAK`, star systems `SYS`) — UNCHANGED in v0.9
+- `art.js`: pixel sprites and canvas drawing — `drawGalaxy(q, cam?)`, `drawBase(q)`, `SPR()`, `lay()`, `BBG()`, plus `planetSprite(i)` / `buildingSprite(t, l)` for the full pages (v0.9)
+- `game.js`: state, save/load, production, UI updates, map drawing, attacks, game loop; camera `CAM` + page state `PAGE` are view-only (never saved)
 
 ## Current features (v0.7)
 - 4 resources: energy, metal, crystal, credits. Storage cap grows with Command Station level.
@@ -31,6 +32,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - v0.6.1: Galaxy map scaled to fit the screen (48vh) so the info panel stays visible; battle is a popup; messages are toasts (last 3, 5s) plus a Log popup (last 30); times show as 1m 50s; Fleet tab shows total power vs each enemy type and counter hints; ship queue = 5 + 2 x Hangar level, with x5/x10 build buttons; reset asks for confirmation in a popup; quests tab lists every claimable quest first; late-game research added (w4, w5, l3, c3: Command max 13, Hangar level cap 15).
 - v0.7 interactive base map: buildings are individual objects `S.bl=[{u,t,x,y,l}]` placed on a 6x6 block map (32px sprites, canvas 192x192). Tap a building for stats, Upgrade, Move; use the Build list to Place new copies. Copy limits `MAXC()` depend on Command level (command 1, hangar up to 4, others up to 6); new copies cost 1.5x per existing copy; builder slots `bqcap()` = 2 + Command/2 and build in parallel. Derived totals `S.b` (sum of levels per type) and `S.bx` (max level) come from `recalc()` so older code still works. Old saves migrate automatically (one building per old type).
 - Save key is now `pixelgalaxy-v3` (v0.2 saves do not carry over).
+- v0.9 UI / graphics overhaul (UI ONLY — no mechanic, name, cost, power, or formula changed; see CHANGES.md): interactive galaxy map with camera `CAM={cx,cy,zoom}` (world 320x400, SYS x/y * 2.4, zoom 1-2.5, drag to pan, pinch / wheel / double-tap to zoom, tap-vs-drag threshold 8px, minimap `#mm`, Home / Fit / + / − controls, tap a planet opens a full System page); clickable menus as full pages — bottom nav dock (Galaxy, Station, Fleet, Crew, Research, Quests, Quests badge), full System page (planet hero via `planetSprite()`, power needed, fleet vs type, loot, Attack, Back), full Building page (building hero via `buildingSprite()`, stats, production, Upgrade, Move, Back), Empire page (owned systems, tap Go to to fly the camera there, Rivals). `S.tab` values are unchanged (map/station/fleet/crew/research/quests); pages live in view-only `PAGE` (tab/system/building/empire) and Back returns to the previous tab. Resource pills show name + amount + /s + storage cap; progress bars for build / research / shipyard. `data.js` is byte-identical to v0.8; `art.js` only gained the camera transform in `drawGalaxy` (no-arg call still draws the fit view) and the two sprite helpers.
 
 ## Roadmap
 1. v0.3 Living Station: DONE
@@ -44,7 +46,7 @@ A retro pixel space empire builder. Build a station, produce ships, conquer a st
 - Build times and costs, quest rewards, adjacency bonus size, ship timers
 
 ## Rules for working on this
-- index.html loads files as `data.js?v=10` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
+- index.html loads files as `data.js?v=12` etc. Bump that number on every release so browsers never serve stale cached files from GitHub Pages.
 - Keep game data in `data.js`, logic in `game.js`.
 - Ask for targeted edits to specific functions, not full rewrites.
 - If the save format changes, bump the localStorage key.

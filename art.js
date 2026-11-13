@@ -108,15 +108,24 @@ function psp(i,st){return memo("p"+i+st,()=>{const s=SYS[i],r=i===0?9:i===15?10:
 return spr(W,W,R=>{ball(R,cx,cx,r,pl[0],pl[1],pl[2],"#ffffff");
 for(let k=0;k<3;k++){const px=cx+((i*7+k*5)%(2*r-4))-r+2,py=cx+((i*11+k*7)%(2*r-4))-r+2;if((px-cx)**2+(py-cx)**2<(r-2)**2){R(px,py,3,1,pl[2]);R(px+1,py+1,2,1,pl[2])}}
 if(s.t==="armored"||i===0)for(let a=0;a<6.3;a+=.12){const px=Math.round(cx+Math.cos(a)*(r+5)),py=Math.round(cx+Math.sin(a)*(r*.4));if(Math.sin(a)>0||Math.hypot(px-cx,py-cx)>r+.5)R(px,py,1,1,pl[0])}})})}
-function drawGalaxy(q){const F=Math.floor(Date.now()/500),P=v=>Math.round(v*1.5);
+// UI OVERHAUL v0.9 (camera only): the galaxy world is 320x400 world units
+// (SYS x/y * 2.4). drawGalaxy(q) with no camera still works exactly as
+// before: it defaults to the fit view (whole world visible, zoom 1).
+// drawGalaxy(q, cam) draws the camera window: cam={cx,cy,zoom}, zoom 1-2.5,
+// cx/cy = world point at the centre of the canvas. Sprites scale with zoom.
+function drawGalaxy(q,cam){const F=Math.floor(Date.now()/500),cam2=cam||{cx:160,cy:200,zoom:1},fit=Math.min(192/320,240/400),sc=fit*cam2.zoom,ox=96-cam2.cx*sc,oy=120-cam2.cy*sc,PX=wx=>ox+wx*sc,PY=wy=>oy+wy*sc,WX=s=>s.x*2.4,WY=s=>s.y*2.4;
 q.drawImage(gbg(),0,0);
 for(let i=0;i<45;i++){q.fillStyle=(i+F)%11===0?"#ffffff":i%3?"#5a6bb0":"#8fa0e0";q.fillRect((i*37)%190,(i*53)%238,1,1)}
-SYS.forEach((s,i)=>s.l.forEach(j=>{if(j>i){const a=P(s.x),b=P(s.y),c=P(SYS[j].x),d=P(SYS[j].y),n=Math.round(Math.hypot(c-a,d-b)/5),both=S.won.includes(i)&&S.won.includes(j);q.fillStyle=both?"#6ee7f5":"#3a4a9a";for(let k=1;k<n;k++)q.fillRect(Math.round(a+(c-a)*k/n),Math.round(b+(d-b)*k/n),both?2:1,both?2:1)}}));
-SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l"),sp=psp(i,st),cx=P(s.x),cy=P(s.y),r=i===0?9:i===15?10:7;
-q.drawImage(sp,cx-(sp.width>>1),cy-(sp.height>>1));
+SYS.forEach((s,i)=>s.l.forEach(j=>{if(j>i){const a=PX(WX(s)),b=PY(WY(s)),c=PX(WX(SYS[j])),d=PY(WY(SYS[j])),n=Math.round(Math.hypot(c-a,d-b)/5),both=S.won.includes(i)&&S.won.includes(j);q.fillStyle=both?"#6ee7f5":"#3a4a9a";for(let k=1;k<n;k++)q.fillRect(Math.round(a+(c-a)*k/n),Math.round(b+(d-b)*k/n),both?2:1,both?2:1)}}));
+SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l"),sp=psp(i,st),cx=PX(WX(s)),cy=PY(WY(s)),r=(i===0?9:i===15?10:7)*cam2.zoom,zw=sp.width*cam2.zoom,zh=sp.height*cam2.zoom;
+q.drawImage(sp,cx-(zw>>1),cy-(zh>>1),zw,zh);
 if(own&&i>0){q.fillStyle="#fff";q.fillRect(cx+r-2,cy-r-6,1,7);q.fillStyle="#6ee7f5";q.fillRect(cx+r-1,cy-r-6,5,3)}
 if(o)glyph(q,o==="c"?"111100100100111":"101101101101010",cx-1,cy-2);
 if(i===S.sel){q.fillStyle=F&1?"#ffe066":"#ffffff";const z=r+5;[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(d=>{q.fillRect(cx+d[0]*z-(d[0]>0?4:0)-(d[0]>0?0:0),cy+d[1]*z-(d[1]>0?1:0),5,2);q.fillRect(cx+d[0]*z-(d[0]>0?1:0),cy+d[1]*z-(d[1]>0?4:0),2,5)})}})}
+// UI OVERHAUL v0.9: sprite helpers for the full System / Building pages.
+// They reuse the exact sprites drawGalaxy / drawBase already draw.
+function planetSprite(i){const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l");return psp(i,st)}
+function buildingSprite(t,l){if(l>0){const tt=tier(l);return memo("hero"+t+tt,()=>spr(44,44,R=>BS[t](R,tt)))}return memo("heroscaf",()=>spr(44,44,SC))}
 const lay=(list,x0,y0,mw)=>{const out=[];let x=x0,y=y0,rh=0;for(const s of list){if(x>x0&&x+s.width>x0+mw){x=x0;y+=rh+4;rh=0}if(y+s.height>92)break;out.push({x,y});x+=s.width+4;rh=Math.max(rh,s.height)}return out};
 function SPR(){return memo("ships",()=>{const P1={h:"w",s:"G",t:"c",a:"B",c:"b",e:"o",f:"y"},P2={h:"R",s:"d",t:"r",a:"P",c:"y",e:"P",f:"p"};
 const fi=p=>R=>{R(0,3,2,3,p.e);R(2,3,2,3,p.f);R(4,2,9,5,p.h);R(4,2,9,1,p.t);R(4,6,9,1,p.s);R(13,3,4,3,p.s);R(17,4,1,1,p.h);R(6,0,5,2,p.a);R(6,7,5,2,p.a);R(9,3,3,2,p.c)};
