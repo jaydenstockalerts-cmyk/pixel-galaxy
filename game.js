@@ -93,6 +93,14 @@ function syncMenuSound(){const el=$("#m-sound"); if(el) el.textContent=S.mute?"o
 const STWORLD={w:768,h:384,cell:48,plots:12};
 let STCAM={cx:32,cy:64,zoom:2.2}; // centred on the keep: grid (2,1) -> iso (32,64)
 let stFitted=false; // v1.5: fit the station cluster once, on first visit to the Station tab
+// v1.7: stCamFitted mirrors camFitted for the station — true while the
+// camera is still in its default fit state (Home on first visit, or
+// Fit). A resize or a tray appearing/disappearing refits it (see
+// sizeCanvases); any deliberate zoom/pan clears it, so a refit never
+// yanks the camera away from where the player put it. stFitKind
+// remembers WHICH fit is the default state ("home" or "fit").
+let stCamFitted=false;
+let stFitKind="home";
 const stScale=()=>((st.height||384)/480)*STCAM.zoom;
 // v1.0: station camera centres on the SAFE area (between HUD and dock),
 // not the raw canvas centre, so buildings are never hidden under a bar.
@@ -106,7 +114,7 @@ function clampStCam(){// v1.2: the keep sits near the top of the iso diamond (is
 // (with half a view of margin), and centres the world when the whole
 // diamond fits in view.
 const sc=stScale(),hw=(st.width||384)/(2*sc),hh=stSafeH()/(2*sc);if(hw>=384)STCAM.cx=0;else STCAM.cx=Math.max(-384+hw/2,Math.min(384-hw/2,STCAM.cx));if(hh>=192)STCAM.cy=Math.max(192-hh,Math.min(192+hh,STCAM.cy));else STCAM.cy=Math.max(-48+hh/2,Math.min(432-hh/2,STCAM.cy))}
-function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
+function setStZoom(z,px,py){stCamFitted=false;const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
 // v1.3: station cameras fit the OCCUPIED building cluster, not the
 // whole 12x12 diamond (live bug: the map was ~80% empty in both Home
 // and Fit, and the default view centred the clump in the upper third).
@@ -133,8 +141,8 @@ function stZoomForBox(bb,minZ,maxZ){
 // cropped the cluster once it spread out (a building at (7,7) landed
 // below the dock). The computed fit zoom is the zoom; it is ~1.0 for
 // the fresh 3-building cluster and rises as the city fills in.
-function homeStCam(){const bb=occupiedIsoBBox(24);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,1.0,2.5);clampStCam();stFitted=true}
-function fitStCam(){const bb=occupiedIsoBBox(48);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,.4,2.5);clampStCam();stFitted=true}
+function homeStCam(){const bb=occupiedIsoBBox(24);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,1.0,2.5);clampStCam();stFitted=true;stCamFitted=true;stFitKind="home"}
+function fitStCam(){const bb=occupiedIsoBBox(48);STCAM.cx=bb.cx;STCAM.cy=bb.cy;STCAM.zoom=stZoomForBox(bb,.4,2.5);clampStCam();stFitted=true;stCamFitted=true;stFitKind="fit"}
 function openPlot(x,y){POP={kind:"plot",x,y};showPopup();update()}
 const camScale=()=>((cv.height||480)/WORLD.h)*CAM.zoom;
 // v1.0: galaxy camera centres on the SAFE area (between HUD and dock).
@@ -295,7 +303,14 @@ function sizeCanvas(c){try{const r=c.getBoundingClientRect();if(!r||r.width<10||
 // v1.6: a resize refits the galaxy camera ONLY while it is still in
 // its default fit state — otherwise a window resize would yank the
 // camera away from wherever the player deliberately zoomed/panned it.
-function sizeCanvases(){measureUI();sizeCanvas(cv);sizeCanvas(st);if(camFitted)fitCam();clampCam();clampStCam()}
+// v1.7: the same for the station — and this is also what keeps the
+// bottom row of base tiles visible when the activity tray appears:
+// the tray shrinks the safe height, so a fitted station camera must
+// refit against the new safe area (live v1.6: the tray covered the
+// bottom row because the station zoom never changed when it showed).
+// activityUI already calls measureUI()+sizeCanvases() on every tray
+// show/hide transition, so the refit happens automatically.
+function sizeCanvases(){measureUI();sizeCanvas(cv);sizeCanvas(st);if(camFitted)fitCam();if(stCamFitted)(stFitKind==="fit"?fitStCam:homeStCam)();clampCam();clampStCam()}
 if(typeof window!=="undefined"&&window.addEventListener)window.addEventListener("resize",()=>{sizeCanvases();update()});
 sizeCanvases();
 function pal(){const cs=getComputedStyle(document.documentElement),c={};[["b","--bg"],["h","--hi"],["m","--mid"],["f","--fg"]].forEach(a=>c[a[0]]=cs.getPropertyValue(a[1]).trim());return c}
@@ -306,7 +321,7 @@ function draw(){drawGalaxy(x,CAM,{sx:(cv.width||384)/2,sy:safeCyCv()});drawBase(
 const stPointers=new Map();let stStart=null,stDrag=false,stPinch=0;
 st.addEventListener("pointerdown",e=>{if(POP)return; // v1.4: map cannot steal a popup tap
 if(st.setPointerCapture)try{st.setPointerCapture(e.pointerId)}catch(_){}stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(stPointers.size===1){stStart={x:e.clientX,y:e.clientY};stDrag=false}else if(stPointers.size===2){const a=[...stPointers.values()];stPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);stDrag=true}});
-st.addEventListener("pointermove",e=>{if(!stPointers.has(e.pointerId))return;stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=st.getBoundingClientRect();if(stPointers.size===2){const a=[...stPointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(stPinch>0)setStZoom(STCAM.zoom*d/stPinch,(mx-q.left)/q.width*st.width,(my-q.top)/q.height*st.height);stPinch=d;update();return}if(stStart){const dx=e.clientX-stStart.x,dy=e.clientY-stStart.y;if(Math.abs(dx)+Math.abs(dy)>8)stDrag=true;if(stDrag){const sc=stScale();STCAM.cx-=dx/q.width*st.width/sc;STCAM.cy-=dy/q.height*st.height/sc;stStart={x:e.clientX,y:e.clientY};clampStCam();update()}}});
+st.addEventListener("pointermove",e=>{if(!stPointers.has(e.pointerId))return;stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=st.getBoundingClientRect();if(stPointers.size===2){const a=[...stPointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(stPinch>0)setStZoom(STCAM.zoom*d/stPinch,(mx-q.left)/q.width*st.width,(my-q.top)/q.height*st.height);stPinch=d;update();return}if(stStart){const dx=e.clientX-stStart.x,dy=e.clientY-stStart.y;if(Math.abs(dx)+Math.abs(dy)>8)stDrag=true;if(stDrag){const sc=stScale();STCAM.cx-=dx/q.width*st.width/sc;STCAM.cy-=dy/q.height*st.height/sc;stStart={x:e.clientX,y:e.clientY};stCamFitted=false;clampStCam();update()}}});
 const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if(stPointers.size===0&&stStart&&!stDrag){const q=st.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*st.width,sy=(e.clientY-q.top)/q.height*st.height,w=stScreenToWorld(sx,sy);
  // v1.2 iso hit test: a tap on a tall building sprite must select that
  // building, not the plot behind it. Check buildings front-to-back
