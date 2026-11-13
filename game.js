@@ -13,16 +13,29 @@ function save(){try{S.t=Date.now();localStorage.setItem(KEY,JSON.stringify(S))}c
 let S=load();recalc();
 // UI OVERHAUL v0.9 — camera and page state are VIEW-ONLY: they are never
 // saved in S and never change the save format (still pixelgalaxy-v3).
-const WORLD={w:320,h:400,px:2.4}; // galaxy world, SYS x/y * 2.4
-let CAM={cx:160,cy:200,zoom:1}; // centre (world units), zoom 1-2.5 (1 = fit)
-let PAGE={kind:"tab"}; // tab | system | building | empire (S.tab is untouched by pages)
-const camScale=()=>Math.min(192/WORLD.w,240/WORLD.h)*CAM.zoom;
-const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:96+(wx-CAM.cx)*sc,y:120+(wy-CAM.cy)*sc}};
-const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-96)/sc,y:CAM.cy+(sy-120)/sc}};
-function clampCam(){const sc=camScale(),hw=96/sc,hh=120/sc;if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
-function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-96)/s0,y:CAM.cy+(py-120)/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-96)/s1;CAM.cy=w.y-(py-120)/s1}clampCam()}
+const WORLD={w:640,h:800,px:5}; // galaxy world, SYS x/y * 5 (v0.9.1: bigger, detailed map)
+let CAM={cx:80,cy:200,zoom:1.8}; // centre (world units), zoom 1-2.5; default 1.8 on Home World (v0.9.1)
+let PAGE={kind:"tab"}; // tab | system | building | empire | plot (S.tab is untouched by pages)
+// v0.9.1 station camera — VIEW-ONLY like the galaxy camera, never saved.
+// Station world: 12x12 plots x 48 = 576x576. Old 6x6 settled area is
+// plots 0-5; plots 6-11 are open land. Default: zoomed in on the buildings.
+const STWORLD={w:576,h:576,cell:48,plots:12};
+let STCAM={cx:144,cy:144,zoom:1.8};
+const stScale=()=>Math.min(384/STWORLD.w,384/STWORLD.h)*STCAM.zoom;
+const stWorldToScreen=(wx,wy)=>{const sc=stScale();return{x:192+(wx-STCAM.cx)*sc,y:192+(wy-STCAM.cy)*sc}};
+const stScreenToWorld=(sx,sy)=>{const sc=stScale();return{x:STCAM.cx+(sx-192)/sc,y:STCAM.cy+(sy-192)/sc}};
+function clampStCam(){const sc=stScale(),hw=192/sc,hh=192/sc;if(hw>=STWORLD.w/2)STCAM.cx=STWORLD.w/2;else STCAM.cx=Math.max(hw,Math.min(STWORLD.w-hw,STCAM.cx));if(hh>=STWORLD.h/2)STCAM.cy=STWORLD.h/2;else STCAM.cy=Math.max(hh,Math.min(STWORLD.h-hh,STCAM.cy))}
+function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-192)/s0,y:STCAM.cy+(py-192)/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-192)/s1;STCAM.cy=w.y-(py-192)/s1}clampStCam()}
+function fitStCam(){STCAM={cx:288,cy:288,zoom:1};clampStCam()}
+function homeStCam(){let x=0,y=0,n=0;S.bl.forEach(b=>{x+=b.x*48+24;y+=b.y*48+24;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}STCAM.zoom=Math.max(STCAM.zoom,1.8);clampStCam()}
+function openPlot(x,y){PAGE={kind:"plot",px:x,py:y};update()}
+const camScale=()=>Math.min(384/WORLD.w,480/WORLD.h)*CAM.zoom;
+const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:192+(wx-CAM.cx)*sc,y:240+(wy-CAM.cy)*sc}};
+const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-192)/sc,y:CAM.cy+(sy-240)/sc}};
+function clampCam(){const sc=camScale(),hw=192/sc,hh=240/sc;if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
+function setZoom(z,px,py){const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-192)/s0,y:CAM.cy+(py-240)/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-192)/s1;CAM.cy=w.y-(py-240)/s1}clampCam()}
 function flyTo(i){const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
-function fitCam(){CAM={cx:160,cy:200,zoom:1};clampCam()}
+function fitCam(){CAM={cx:320,cy:400,zoom:1};clampCam()}
 function homeCam(){flyTo(0)}
 function openSystem(i){S.sel=i;PAGE={kind:"system"};flyTo(i);update();save()}
 function openBuilding(u){S.bsel=u;PAGE={kind:"building"};update();save()}
@@ -96,33 +109,33 @@ baseUI(now);
 upd2();
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok()).slice(0,3)),key=open.map(q=>q.id+(q.ok()?1:0)).join();
 if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small></div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
-systemUI();buildingUI();empireUI();progressBars();
+systemUI();buildingUI();empireUI();plotUI();progressBars();
 draw();
 }
 
 const cv=$("#cv"),x=cv.getContext("2d"),st=$("#st"),y=st.getContext("2d");
 function pal(){const cs=getComputedStyle(document.documentElement),c={};[["b","--bg"],["h","--hi"],["m","--mid"],["f","--fg"]].forEach(a=>c[a[0]]=cs.getPropertyValue(a[1]).trim());return c}
-function draw(){drawGalaxy(x,CAM);drawBase(y);drawMinimap()}
-st.addEventListener("click",e=>{
-const q=st.getBoundingClientRect(),bx=Math.floor((e.clientX-q.left)/q.width*6),by=Math.floor((e.clientY-q.top)/q.height*6);
-if(bx<0||by<0||bx>5||by>5)return;
-const at=bAt(bx,by);
-if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}
-else if(S.place)placeB(S.place,bx,by);
-else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){b.x=bx;b.y=by}S.mv=null;msg("Building moved.")}
-else S.bsel=null;
-update();save();
-});
+function draw(){drawGalaxy(x,CAM);drawBase(y,STCAM);drawMinimap()}
+// v0.9.1 station: drag to pan, pinch / wheel / double-tap to zoom,
+// tap a building to open it, tap an open plot to see what can be built there.
+// Tap vs drag: a pointer that moves more than 8px is a drag, never a tap.
+const stPointers=new Map();let stStart=null,stDrag=false,stPinch=0;
+st.addEventListener("pointerdown",e=>{if(st.setPointerCapture)try{st.setPointerCapture(e.pointerId)}catch(_){}stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(stPointers.size===1){stStart={x:e.clientX,y:e.clientY};stDrag=false}else if(stPointers.size===2){const a=[...stPointers.values()];stPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);stDrag=true}});
+st.addEventListener("pointermove",e=>{if(!stPointers.has(e.pointerId))return;stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=st.getBoundingClientRect();if(stPointers.size===2){const a=[...stPointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(stPinch>0)setStZoom(STCAM.zoom*d/stPinch,(mx-q.left)/q.width*384,(my-q.top)/q.height*384);stPinch=d;update();return}if(stStart){const dx=e.clientX-stStart.x,dy=e.clientY-stStart.y;if(Math.abs(dx)+Math.abs(dy)>8)stDrag=true;if(stDrag){const sc=stScale();STCAM.cx-=dx/q.width*384/sc;STCAM.cy-=dy/q.height*384/sc;stStart={x:e.clientX,y:e.clientY};clampStCam();update()}}});
+const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if(stPointers.size===0&&stStart&&!stDrag){const q=st.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*384,sy=(e.clientY-q.top)/q.height*384,w=stScreenToWorld(sx,sy),bx=Math.floor(w.x/STWORLD.cell),by=Math.floor(w.y/STWORLD.cell);if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){b.x=bx;b.y=by}S.mv=null;msg("Building moved.")}else openPlot(bx,by)}update();save()}stStart=null;stDrag=false};
+st.addEventListener("pointerup",stEnd);st.addEventListener("pointercancel",stEnd);
+st.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=st.getBoundingClientRect();setStZoom(STCAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*384,(e.clientY-q.top)/q.height*384);update()},{passive:false});
+st.addEventListener("dblclick",e=>{const q=st.getBoundingClientRect();setStZoom(STCAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*384,(e.clientY-q.top)/q.height*384);update()});
 // UI OVERHAUL v0.9 — interactive galaxy map: drag to pan, pinch / wheel /
 // double-tap to zoom, tap to open a system. Tap vs drag: a pointer that
 // moves more than 8px is a drag and never selects anything.
 const pointers=new Map();let pStart=null,pDrag=false,pPinch=0;
 cv.addEventListener("pointerdown",e=>{if(cv.setPointerCapture)try{cv.setPointerCapture(e.pointerId)}catch(_){}pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pointers.size===1){pStart={x:e.clientX,y:e.clientY};pDrag=false}else if(pointers.size===2){const a=[...pointers.values()];pPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);pDrag=true}});
-cv.addEventListener("pointermove",e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=cv.getBoundingClientRect();if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(pPinch>0)setZoom(CAM.zoom*d/pPinch,(mx-q.left)/q.width*192,(my-q.top)/q.height*240);pPinch=d;update();return}if(pStart){const dx=e.clientX-pStart.x,dy=e.clientY-pStart.y;if(Math.abs(dx)+Math.abs(dy)>8)pDrag=true;if(pDrag){const sc=camScale();CAM.cx-=dx/q.width*192/sc;CAM.cy-=dy/q.height*240/sc;pStart={x:e.clientX,y:e.clientY};clampCam();update()}}});
-const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(pointers.size===0&&pStart&&!pDrag){const q=cv.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*192,sy=(e.clientY-q.top)/q.height*240,w=screenToWorld(sx,sy),lx=w.x/WORLD.px,ly=w.y/WORLD.px;let best=-1,bd=100;SYS.forEach((s,i)=>{const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});if(best>=0)openSystem(best)}pStart=null;pDrag=false};
+cv.addEventListener("pointermove",e=>{if(!pointers.has(e.pointerId))return;const prev=pointers.get(e.pointerId);pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=cv.getBoundingClientRect();if(pointers.size===2){const a=[...pointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(pPinch>0)setZoom(CAM.zoom*d/pPinch,(mx-q.left)/q.width*384,(my-q.top)/q.height*480);pPinch=d;update();return}if(pStart){const dx=e.clientX-pStart.x,dy=e.clientY-pStart.y;if(Math.abs(dx)+Math.abs(dy)>8)pDrag=true;if(pDrag){const sc=camScale();CAM.cx-=dx/q.width*384/sc;CAM.cy-=dy/q.height*480/sc;pStart={x:e.clientX,y:e.clientY};clampCam();update()}}});
+const cvEnd=e=>{pointers.delete(e.pointerId);if(pointers.size<2)pPinch=0;if(pointers.size===0&&pStart&&!pDrag){const q=cv.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*384,sy=(e.clientY-q.top)/q.height*480,w=screenToWorld(sx,sy),lx=w.x/WORLD.px,ly=w.y/WORLD.px;let best=-1,bd=100;SYS.forEach((s,i)=>{const d=(s.x-lx)**2+(s.y-ly)**2;if(d<bd){bd=d;best=i}});if(best>=0)openSystem(best)}pStart=null;pDrag=false};
 cv.addEventListener("pointerup",cvEnd);cv.addEventListener("pointercancel",cvEnd);
-cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=cv.getBoundingClientRect();setZoom(CAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*192,(e.clientY-q.top)/q.height*240);update()},{passive:false});
-cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*192,(e.clientY-q.top)/q.height*240);update()});
+cv.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=cv.getBoundingClientRect();setZoom(CAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*384,(e.clientY-q.top)/q.height*480);update()},{passive:false});
+cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*384,(e.clientY-q.top)/q.height*480);update()});
 const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
 document.body.addEventListener("click",e=>{
 const b=e.target.closest("button");if(!b)return;
@@ -137,6 +150,11 @@ else if(d.zin){setZoom(CAM.zoom*1.25)}
 else if(d.zout){setZoom(CAM.zoom/1.25)}
 else if(d.zhome){homeCam()}
 else if(d.zfit){fitCam()}
+else if(d.szin){setStZoom(STCAM.zoom*1.25)}
+else if(d.szout){setStZoom(STCAM.zoom/1.25)}
+else if(d.shome){homeStCam()}
+else if(d.sfit){fitStCam()}
+else if(d.place){const t=d.place;if(PAGE.kind==="plot"&&PAGE.px!==undefined){placeB(t,PAGE.px,PAGE.py);PAGE={kind:"tab"};S.tab="station"}}
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
 else if(d.log){$("#hlog").innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"No events yet.";$("#hbox").hidden=false}
 else if(d.hclose){$("#hbox").hidden=true}
@@ -232,11 +250,13 @@ $("#bp-stats").textContent=st;$("#bp-cost").textContent=max?(t==="command"?"Max 
 function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of 16 systems. Each owned system pays +0.3 credits/s.";
 $("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
 $("#e-rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")}
+function plotUI(){if(PAGE.kind!=="plot")return;const x=PAGE.px,y=PAGE.py;$("#plot-name").textContent="Open land ("+(x+1)+", "+(y+1)+")";
+$("#plot-list").innerHTML=Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="emp-row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("")+"<small>Each new copy costs 1.5x the last. Buildings next to each other produce +15%.</small>"}
 function progressBars(){const now=Date.now();const set=(id,p)=>{const el=$(id);if(el)el.style.width=Math.round(Math.max(0,Math.min(1,p||0))*100)+"%"};
 const bq=S.bq.slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0);
 if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()):0)}else set("#pb-res",0);
 const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()):0)}
-function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o==="c"?"#e0584a":o==="v"?"#b07cf0":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=192/sc/WORLD.w*96,vh=240/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
+function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o==="c"?"#e0584a":o==="v"?"#b07cf0":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=384/sc/WORLD.w*96,vh=480/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 $("#rvs").innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";

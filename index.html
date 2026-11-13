@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-title" content="Pixel Galaxy">
 <meta name="theme-color" content="#070b1f" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#e6f4ff" media="(prefers-color-scheme: light)">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
 <main>
@@ -23,7 +23,7 @@
 <section data-pg="map">
 <div class="pagehead"><h2>Galaxy</h2><button data-page="empire" id="empireb">Empire</button></div>
 <div class="mapwrap">
-<canvas id="cv" width="192" height="240"></canvas>
+<canvas id="cv" width="384" height="480"></canvas>
 <canvas id="mm" width="96" height="120" title="Minimap — tap to jump"></canvas>
 <div class="mapctl"><button data-zout="1" id="zout" title="Zoom out">−</button><button data-zin="1" id="zin" title="Zoom in">+</button><button data-zhome="1" id="zhome" title="Go to Home World">Home</button><button data-zfit="1" id="zfit" title="Fit whole galaxy">Fit</button></div>
 </div>
@@ -33,7 +33,11 @@
 </section>
 <section data-pg="station">
 <div class="pagehead"><h2>Station</h2><small id="cap"></small></div>
-<canvas id="st" width="288" height="288"></canvas>
+<div class="mapwrap">
+<canvas id="st" width="384" height="384"></canvas>
+<div class="mapctl"><button data-szout="1" title="Zoom out">−</button><button data-szin="1" title="Zoom in">+</button><button data-shome="1" title="Go to your buildings">Home</button><button data-sfit="1" title="Fit whole base">Fit</button></div>
+</div>
+<p><small>Drag to move around your homeland, pinch or use + / − to zoom. Tap a building to open it, tap open land to see what you can build there.</small></p>
 <div class="box" id="binfo"><b id="bi-name"></b><br><small id="bi-stats"></small><br><small id="bi-cost"></small><div class="bg"><button id="bi-up" data-bup="1">Upgrade</button><button id="bi-mv" data-bmv="1">Move</button></div><button data-bpg="1" id="open-bld">Open building</button></div>
 <div class="box"><h2>Build</h2><small id="bq"></small><div class="pbar"><div id="pb-build"></div></div><div id="bmenu"></div></div>
 </section>
@@ -60,6 +64,10 @@
 <canvas id="bhero" width="96" height="96"></canvas>
 <div class="box"><div id="bp-stats"></div><br><small id="bp-cost"></small><div class="bg"><button id="bp-up" data-bup="1">Upgrade</button><button id="bp-mv" data-bmv="1">Move</button></div></div>
 </section>
+<section data-pg="plot" hidden>
+<div class="pagehead"><button data-back="1" id="back-plot">‹ Back</button><h2 id="plot-name">Open land</h2></div>
+<div class="box"><h2>What can you build here?</h2><div id="plot-list"></div></div>
+</section>
 <section data-pg="empire" hidden>
 <div class="pagehead"><button data-back="1" id="back-emp">‹ Back</button><h2>Empire</h2></div>
 <div class="box"><h2>Your systems</h2><small id="emp-sum"></small><div id="emp-list"></div></div>
@@ -71,10 +79,10 @@
 <div id="hbox" hidden><div class="box bpanel"><h2>Event log</h2><div id="hlog"></div><button data-hclose="1">Close</button></div></div>
 <div id="rbox" hidden><div class="box bpanel"><h2>Reset game?</h2><p>This deletes all your progress and cannot be undone.</p><button data-rcancel="1">Cancel</button> <button data-rgo="1">Yes, reset</button></div></div>
 <button id="reset">Reset game</button>
-<p><small>Prototype v0.9. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
+<p><small>Prototype v0.9.1. Saves automatically in this browser, and your empire keeps building and earning while you are away.</small></p>
 </main>
-<script src="data.js?v=12"></script>
-<script src="art.js?v=12"></script>
-<script src="game.js?v=12"></script>
+<script src="data.js?v=13"></script>
+<script src="art.js?v=13"></script>
+<script src="game.js?v=13"></script>
 </body>
 </html>
