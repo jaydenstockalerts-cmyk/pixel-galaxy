@@ -102,10 +102,14 @@ R(4,27,36,1,"z");R(4,28,36,1,"G");
 // gold trim band under the dome, wider than the tower.
 R(12,top+2,20,1,"z");R(12,top+3,20,1,"Z");
 dome(22,top+1,9);
-// flag: thin pole with a waving red pennant. v2.0: the pole runs 3
-// rows INTO the dome top (was ending exactly at it, which left a
-// step/notch on the dome's right edge, live v1.9).
-R(22,0,1,Math.max(1,top-5),"G");R(23,0,5,1,"r");R(23,1,4,1,"r");R(22,0,1,1,"z")}
+// flag: thin pole with a waving red pennant. v2.1 (live v2.0: the
+// pole sat left of the dome centre with a notch at the apex and a
+// yellow square finial). The pole is exactly on the dome apex
+// (x=22 = dome centre) and ends AT the dome's top row — running it
+// 3 rows INTO the dome cut a dark slit through the light dome top.
+// The finial is a single red pixel, the flag's own colour — the gold
+// square is gone.
+R(22,0,1,Math.max(1,top-8),"G");R(23,0,5,1,"r");R(23,1,4,1,"r");R(22,0,1,1,"r")}
 };
 const SC=R=>{bev(R,4,36,36,6,"s","S","d");R(6,14,2,28,"n");R(36,14,2,28,"n");R(6,14,32,2,"N");R(6,26,32,2,"N");for(let i=0;i<10;i++)R(8+i*3,16+i,2,2,"n");R(30,2,2,14,"y");R(20,2,14,2,"y");R(21,4,1,8,"G");R(10,31,8,5,"x");R(12,32,4,1,"X")};
 const DC={
@@ -226,7 +230,8 @@ const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Indus
 //     gone with the gates.
 //     v2.0: the terrace skirt itself is DELETED — the south-face polys
 //     read as a dark-brown dirt trench across locked plots (live v1.9).
-//     The wall is now a thin border, not tall segments (see drawBase).
+//     v2.1: the wall itself is DELETED — the thin border read as roads
+//     (live v2.0).
 //  7. Shields tiny/misplaced — now drawn in SCREEN space at a fixed
 //     13px radius, one per building, in a second pass on top of
 //     everything. (v1.6: the stem that connected shield to building
@@ -244,16 +249,18 @@ const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hanga
 //     (v1.6: was a 6u/8u extruded block; v1.9: was 44x22 / 52x26)
 //   sprite ................ 36x36 world units, upright, LARGE (keep
 //     42x42) — the sprite IS the building, the plinth just grounds it (v1.9: was 40/48)
-//   wall .................. v2.0: a THIN low stone border stroked
-//     along the ring's outer edges (merlons on the line, compact
-//     corner towers) — never tiles on plots (live v1.9: full-tile
-//     wall diamonds covered the empty unlocked plots)
-//   towers ................ 14 tall (was 36), 32x16 footprint — small
-//     corner markers, not the biggest things on the map
-//   ground ................ ONE grass tone everywhere (#5fae4f), no
-//     checker alternation, border alpha .05 — the v1.4 checker + dark
-//     grid read as wallpaper. Farmland is now ~5 muted plots, decor
-//     ~5 items, both outside the wall.
+//   wall .................. v2.1: DELETED ENTIRELY. The v2.0 thin
+//     border stroked along the ring's outer edges read as grey-brown
+//     ROADS radiating from the keep, the merlons as beige tabs at the
+//     path ends, and the corner towers as grey plots with yellow
+//     centre dots (live v2.0). Jayden never asked for a wall; the
+//     city edge is just grass now.
+//   towers ................ DELETED with the wall (v2.1).
+//   ground ................ plots are DARKER green (#3e8236) than the
+//     grass in the gaps (#5fae4f) — v2.1, Jayden: the plots and gaps
+//     were the same tone and blended into one flat field. No checker
+//     alternation, border alpha .05. Farmland is now ~5 muted plots,
+//     decor ~5 items, both outside the city.
 //   roads/plaza ........... v2.0: NO roads at all (Jayden had the
 //     paths removed entirely — they were complained about in every
 //     version). Plaza is ONE small flat stone diamond under the
@@ -268,6 +275,16 @@ const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hanga
 // along the ring's outer edges (never tiles on plots), locks are
 // drawn last on clean grass, labels are centred + clamped to the
 // safe area, the dome is a smooth gradient.
+// v2.1 (live v2.0): the wall border read as roads, the plinth was
+// still a stack of 4 diamonds, labels still floated 150-250px above
+// their buildings at max zoom (the safeTop clamp), the flag pole cut
+// a slit through the dome top with a yellow square finial, locks
+// became huge navy blobs at zoom 5, river dashes read as stray white
+// bars, and plots blended into the gaps (same #5fae4f). Fixes: wall
+// DELETED entirely, plinth = shadow + ONE diamond, labels fixed 20px
+// above the sprite with NO clamp, pole ends at the dome top with a
+// red finial pixel, locks capped at 28px tall on screen, river
+// dashes removed, plots darker green (#3e8236) than the gaps.
 const ISO_DIA_RX=26, ISO_DIA_RY=13;
 function drawBase(q,cam,opts){
   const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv;
@@ -281,15 +298,13 @@ function drawBase(q,cam,opts){
   const diaStroke=(cx,cy,rx,ry,color,lw)=>{q.beginPath();q.moveTo(X(cx),Y(cy-ry));q.lineTo(X(cx+rx),Y(cy));q.lineTo(X(cx),Y(cy+ry));q.lineTo(X(cx-rx),Y(cy));q.closePath();q.strokeStyle=color;q.lineWidth=lw;q.stroke()};
   q.fillStyle="#5fae4f";q.fillRect(0,0,vw,vh); // v1.5: gaps between diamonds are grass, not a dark void
   const keep=S.bl.find(b=>b.t==="command")||null;
-  const keepX=keep?keep.x:-1,keepY=keep?keep.y:-1;
   let mnx=12,mxx=-1,mny=12,mxy=-1;
   S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
   if(mxx<0){mnx=3;mxx=5;mny=3;mxy=5}
   const wx0=Math.max(0,mnx-1),wx1=Math.min(11,mxx+1),wy0=Math.max(0,mny-1),wy1=Math.min(11,mxy+1);
   // v2.0: NO roads at all (Jayden: "remove the paths entirely") and
-  // NO wallPlots — the wall is a thin border drawn after the ground
-  // loop (see the plaza block below), and every locked plot
-  // (including ring plots) shows its lock.
+  // NO wall at all (v2.1: deleted entirely — the border read as
+  // roads). Every locked plot shows its lock.
   const Hh=(a,b)=>((a*73856093)^(b*19349663))>>>0;
   let farmN=0, decorN=0; // v1.5 caps: farmland and decor are sparse by count, not just by pattern
   // v2.0: NO terrace platform skirt — the ground is flat. The old
@@ -326,16 +341,14 @@ function drawBase(q,cam,opts){
         if(!riverDrawn){
           riverDrawn=true;
           const rx0=144,ry0=-88,rx1=-560,ry1=264;
-          const dx=rx1-rx0,dy=ry1-ry0,dl=Math.hypot(dx,dy),ux=dx/dl,uy=dy/dl;
           q.lineJoin="round";q.lineCap="round";
           const band=(w,col)=>{q.beginPath();q.moveTo(X(rx0),Y(ry0));q.lineTo(X(rx1),Y(ry1));q.strokeStyle=col;q.lineWidth=Math.max(1,w*k);q.stroke()};
           band(17.9,"#cdb98a"); // sand banks (outer)
           band(14.3,"#2f78b0"); // water
           band(9.8,"#4aa3df"); // lighter centre flow
-          q.strokeStyle="#9be8ff";q.lineWidth=Math.max(1,2*k);
-          const dashLen=[4,7,5,8]; // v1.9: varied flow dashes, not four identical ones
-          for(let m=0;m<4;m++){const tt=(F*0.02+m*0.25)%1,dl2=dashLen[m],px=rx0+dx*tt,py=ry0+dy*tt;
-            q.beginPath();q.moveTo(X(px-ux*dl2),Y(py-uy*dl2));q.lineTo(X(px+ux*dl2),Y(py+uy*dl2));q.stroke()}
+          // v2.1: NO flow dashes. The pale blue-white dashes read as
+          // stray white bars at Fit zoom (live v2.0) — the three-band
+          // river reads fine without them.
         }
       } else { // terrain outside the city: grass, never void
         dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#5fae4f"); // v1.5: one grass tone, no checker
@@ -343,11 +356,12 @@ function drawBase(q,cam,opts){
       return;
     }
     const h=Hh(i,j),bd0=bAt(i,j);
-    // v1.9: ALL empty plots are the same clean green grass — no stone
-    // ring, no road tint, no pads in normal view (Jayden: he likes the
-    // clean look of the far locked plots). The only difference between
-    // locked and unlocked empty plots is the lock icon (drawn last).
-    const base="#5fae4f";
+    // v2.1: plots are DARKER GREEN than the gaps (Jayden: the plot
+    // diamonds and the grass in between were the same #5fae4f, so they
+    // blended into one flat field). Plot fill #3e8236, gaps + terrain
+    // outside the grid stay #5fae4f. Applies to ALL empty plots,
+    // locked and unlocked — the padlock remains the only difference.
+    const base="#3e8236";
     dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,base); // spaced diamond: grass gap between plots
     diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"rgba(0,0,0,0.05)",1); // faint border only
     if(!bd0&&(i<wx0||i>wx1||j<wy0||j>wy1)&&(i*3+j*7)%29===0&&farmN<5){ // v1.5: farmland is ~5 muted plots, not one per tile
@@ -369,67 +383,28 @@ function drawBase(q,cam,opts){
       q.globalAlpha=1;
     }
   });
-  // --- v2.0 plaza + WALL BORDER (no roads) ---
+  // --- v2.1 plaza (no wall, no roads) ---
   // The plaza is ONE flat stone diamond sized to the KEEP'S OWN PLOT
   // only (28x14, just larger than the keep's 44x22 plinth) with a thin
   // border — a single diamond, never concentric ones (live v1.8: the
   // stacked plaza diamonds read as "filled-in squares").
-  // The WALL is a THIN low stone border stroked along the OUTER edges
-  // of the ring plots (a stepped polyline through each ring plot's
-  // outer corner), with merlons on the line and compact towers at the
-  // four corners only. It is NEVER a tile on a plot (live v1.9: the
-  // v1.9 wall drew full-tile stone diamonds on the ring plots, and at
-  // a fresh save those ARE the empty unlocked plots — every empty plot
-  // near the keep read as grey stone with a concentric inner diamond,
-  // a yellow centre square and off-white edge tiles). Gates are gaps:
-  // the border breaks at the keep's row/column on each side.
-  // NO roads (v2.0: Jayden had the paths removed entirely).
+  // v2.1: THE WALL IS DELETED ENTIRELY. The v2.0 thin border stroked
+  // along the ring plots' outer edges read as wide grey-brown ROADS
+  // radiating from the keep, the merlons read as beige tabs at the
+  // ends of the paths, and the four corner towers read as grey plots
+  // with concentric inner diamonds and yellow centre dots (live
+  // v2.0). A stroked line along plot edges looks like a road, not a
+  // wall — and Jayden never asked for a wall. The city edge is just
+  // grass. NO roads either (v2.0: Jayden had the paths removed
+  // entirely).
   if(keep){
     const kpc=isoC(keep.x,keep.y);
     dia(kpc.x,kpc.y,28,14,"#b8b09a");
     diaStroke(kpc.x,kpc.y,28,14,"#8f8a76",Math.max(1,2*k));
-    // Wall border: stepped outline of the ring (wx0..wx1, wy0..wy1).
-    // Vertices are the outer corners of the ring plots, in order:
-    // top edge (i ascending), right edge (j ascending), bottom edge
-    // (i descending), left edge (j descending). A vertex is a "gate"
-    // when its plot is the keep's row/column on that side — the
-    // border breaks there, so the gate reads as a gap, not a wall.
-    const gateAt=(i,j)=>(j===wy0&&i===keepX)||(j===wy1&&i===keepX)||(i===wx0&&j===keepY)||(i===wx1&&j===keepY);
-    const verts=[];
-    for(let i=wx0;i<=wx1;i++){const c=isoC(i,wy0);verts.push({x:c.x,y:c.y-ISO_DIA_RY,gate:gateAt(i,wy0),corner:i===wx0})}
-    for(let j=wy0;j<=wy1;j++){const c=isoC(wx1,j);verts.push({x:c.x+ISO_DIA_RX,y:c.y,gate:gateAt(wx1,j),corner:j===wy0})}
-    for(let i=wx1;i>=wx0;i--){const c=isoC(i,wy1);verts.push({x:c.x,y:c.y+ISO_DIA_RY,gate:gateAt(i,wy1),corner:i===wx1})}
-    for(let j=wy1;j>=wy0;j--){const c=isoC(wx0,j);verts.push({x:c.x-ISO_DIA_RX,y:c.y,gate:gateAt(wx0,j),corner:j===wy1})}
-    verts.push({x:verts[0].x,y:verts[0].y,gate:false,corner:false}); // close the loop
-    // Stroke maximal runs of non-gate vertices (a gate vertex breaks
-    // the run, leaving a one-plot gap). The border sits ON the plot
-    // edges — it never covers a plot's centre.
-    const strokeRun=(run)=>{
-      if(run.length<2)return;
-      q.lineJoin="round";q.lineCap="round";
-      q.strokeStyle="#8f8a76";q.lineWidth=Math.max(2,4*k);
-      q.beginPath();q.moveTo(X(run[0].x),Y(run[0].y));
-      run.slice(1).forEach(v=>q.lineTo(X(v.x),Y(v.y)));q.stroke();
-      // Merlons: small light squares sitting ON the border line.
-      run.forEach(v=>{q.fillStyle="#c9c3b0";q.fillRect(X(v.x)-Math.max(1,1.5*k),Y(v.y)-Math.max(1,1.5*k),Math.max(2,3*k),Math.max(2,3*k))});
-    };
-    let run=[];
-    const flush=()=>{strokeRun(run);run=[]};
-    verts.forEach(v=>{if(v.gate){flush()}else run.push(v)});
-    flush();
-    // Compact corner towers at the four extreme corners only: a
-    // small stone diamond centred ON the corner vertex (on the
-    // border, not a tile on the plot) + a gold dot.
-    verts.filter(v=>v.corner).forEach(v=>{
-      dia(v.x,v.y,9,5,"#6b6250");
-      dia(v.x,v.y,6,3,"#8f8a76");
-      q.fillStyle="#ffd84a";q.fillRect(X(v.x)-1,Y(v.y)-1,2,2);
-    });
-    if(window.__isoDraw)window.__isoDraw.push({wallVerts:verts.length});
   }
   // --- objects: buildings, decor — painter's order ---
-  // v2.0: NO wall/tower objects — the wall is the thin border drawn
-  // in the plaza block above, so no plot ever carries a wall tile.
+  // v2.1: NO wall/tower objects — the wall is deleted entirely, so no
+  // plot ever carries a wall tile.
   const objs=[];
   S.bl.forEach(b=>objs.push({d:b.x+b.y,kind:"bld",b}));
   // Decor: ONLY on empty ground outside the city — ground-anchored,
@@ -437,7 +412,7 @@ function drawBase(q,cam,opts){
   // v1.4: sparse, deliberate decor — a handful of trees/rocks at the
   // city edge, never adjacent to a building, never on a road or river.
   const nearB=(i,j)=>S.bl.some(b=>Math.abs(b.x-i)+Math.abs(b.y-j)<=1);
-  // v1.5: decor is a handful of trees/rocks OUTSIDE the wall, capped at 5.
+  // v2.1: decor is a handful of trees/rocks OUTSIDE the city, capped at 5.
   for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
     if(decorN>=5)break;
     if(i<0||j<0||i>11||j>11){if(i!==-1&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%41===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
@@ -460,17 +435,13 @@ function drawBase(q,cam,opts){
     // sprite is drawn LARGE and upright with its bottom overlapping
     // the plinth by 3u — so there is NO white gap under the sprite —
     // and a dark translucent shadow diamond grounds the whole thing.
-    // v1.9: plinths are SMALLER (40x20, keep 48x24) so adjacent
-    // buildings keep clear ground between them (live v1.8: the
-    // Foundry's edge abutted the keep's base and its red plinth
-    // overlapped the walkway). A dark stone foundation diamond sits
-    // under the plinth, plus the drop shadow, so the building reads as
-    // standing on a base — not pasted on a floating tile.
+    // v2.1: the base is EXACTLY TWO fills — a soft drop shadow and ONE
+    // flat plinth diamond. The old stack (stone foundation + shadow +
+    // plinth + lighter centre = four concentric diamonds) read as
+    // stacked tiles under the building (live v2.0).
     const rx=isKeep?22:20,ry=isKeep?11:10; // v2.0: plinth 40x20 (keep 44x22) on a 64x32 pitch — the keep plinth read as stacked tiles (live v1.9)
-    dia(c.x,c.y+1,rx+2,ry+1,"#6b6250"); // stone foundation under the plinth
-    dia(c.x,c.y+3,rx+4,ry+2,"#000000",.32); // drop shadow on the ground
-    dia(c.x,c.y,rx,ry,shade(roof,.85)); // flat plinth, roof-coloured
-    dia(c.x,c.y,rx*.62,ry*.62,shade(roof,1.3)); // lighter centre, a coloured rim around the sprite
+    dia(c.x,c.y+3,rx+4,ry+2,"#000000",.32); // soft drop shadow on the ground
+    dia(c.x,c.y,rx,ry,shade(roof,.85)); // ONE flat plinth diamond, roof-coloured
     const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));
     const ssw=Math.round(ssz.w*k),ssh=Math.round(ssz.h*k),spx=X(c.x),spy=Y(c.y-ph);
     q.drawImage(sp,spx-ssw/2,spy-ssh+Math.max(2,3*k),ssw,ssh); // bottom overlaps the plinth: no gap
@@ -504,49 +475,48 @@ function drawBase(q,cam,opts){
     labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss:ssh});
     if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H:isoHeight(b)});
   });
-  // --- v2.0 LOCKS, drawn LAST (after plaza, ground AND objects).
-  // v2.0: NO wallPlots exception — the wall is a border on plot edges
-  // now, so EVERY locked plot (including ring plots) gets a padlock.
-  // (v1.9's exception hid locks on ring plots: the wall diamonds were
-  // their marker, and the plots read as grey with no lock — live
-  // v1.9, cause A.) A clear padlock on clean green grass: a white
-  // shackle ARC + a dark body + a gold keyhole, sized with a pixel
-  // floor so it reads at default zoom on a phone. The lock is the ONLY
-  // difference between locked and unlocked empty plots — no dim
-  // overlay, no grey.
+  // --- v2.1 LOCKS, drawn LAST (after plaza, ground AND objects).
+  // No wall at all, so EVERY locked plot gets a padlock. A clear
+  // padlock on clean green grass: a white shackle ARC + a dark body
+  // + a gold keyhole, sized with a pixel floor so it reads at default
+  // zoom on a phone. The lock is the ONLY difference between locked
+  // and unlocked empty plots — no dim overlay, no grey.
   for(let j=0;j<12;j++)for(let i=0;i<12;i++){
     if(!plotLocked(i,j))continue;
     const c=isoC(i,j),lx=X(c.x),ly=Y(c.y);
-    const bw=Math.max(10,9*k),bh=Math.max(8,7*k),r=bw/2;
-    q.strokeStyle="#f4f6ff";q.lineWidth=Math.max(2,2*k);
+    // v2.1: cap the lock's SCREEN size. The 9k×7k lock scaled with
+    // zoom and was a ~45×35px navy blob at zoom 5 (live v2.0). lk
+    // caps the zoom factor at 4, so the body is at most 36×28px and
+    // the shackle line stays thin.
+    const lk=Math.min(4,k);
+    const bw=Math.max(10,9*lk),bh=Math.max(8,7*lk),r=bw/2;
+    q.strokeStyle="#f4f6ff";q.lineWidth=Math.max(2,Math.min(3,2*k));
     q.beginPath();q.arc(lx,ly-bh/2,r,Math.PI,0);q.stroke();
     q.fillStyle="#1e2438";q.fillRect(lx-bw/2,ly-bh/2,bw,bh);
     q.fillStyle="#ffd84a";q.fillRect(lx-1,ly-1,2,2);
     if(window.__isoDraw)window.__isoDraw.push({lock:i+","+j});
   }
   // --- second pass: level shields + names, screen space, always on top.
-  // v2.0 LABELS (live v1.9: labels floated up-RIGHT of their buildings
-  // and the keep's label+shield were half-hidden behind the HUD at max
-  // zoom). The shield+name now share ONE clamped centre x directly
-  // above the sprite — the old code drew the shield at the true centre
-  // but drawLabel clamped the NAME's x at the viewport edge, so the
-  // pair split apart near edges. The gap is a FIXED screen gap (the old
-  // 14-world-unit gap grew to ~145px at zoom 5). And the stack is
-  // clamped into the safe area (opts.safeTop, the HUD height in canvas
-  // px, passed by game.js draw()) so a label can never slide under
-  // the HUD at any zoom.
-  const safeTop=(opts&&opts.safeTop)||0;
+  // v2.1 LABELS (live v2.0: the safeTop+32 clamp pinned labels to the
+  // top bar whenever a building was zoomed/panned, so the Solar label
+  // sat ~250px above its panels with a padlock between them and the
+  // keep's label sat ~150px above the dome). The shield+name now sit
+  // a FIXED 20 screen px above the sprite with NO vertical clamp at
+  // all — a label may leave the top of the screen if the player pans
+  // its building up there (that is normal); a label floating 250px
+  // above its building is not. drawLabel's noClamp flag keeps the
+  // name glued to its shield instead of pinning it to the viewport
+  // edge.
   labels.forEach(L=>{
     const spriteTop=L.roofY-L.ss; // screen y of the sprite's top edge
     const nameW=L.name.length*7+6;
     let shx=Math.max(nameW/2+4,Math.min(vw-nameW/2-4,L.roofX));
     let shy=spriteTop-20; // shield centre: fixed 20 screen px above the sprite
-    shy=Math.max(shy,safeTop+32); // name top (shy-22-8) stays below the HUD
     q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-13);q.lineTo(shx+13,shy);q.lineTo(shx,shy+13);q.lineTo(shx-13,shy);q.closePath();q.fill();
     q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
     try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
     q.textAlign="center";q.textBaseline="middle";q.fillStyle="#ffffff";q.fillText(String(L.l),shx,shy+1);
-    drawLabel(q,L.name,Math.round(shx),Math.round(shy-22),"#ffffff",11);
+    drawLabel(q,L.name,Math.round(shx),Math.round(shy-22),"#ffffff",11,true);
     if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l,shx,shy});
   });
 }
@@ -568,7 +538,7 @@ if(s.t==="fortress"||s.t==="armored"){for(let b=-1;b<=1;b++){const yy=cx+b*5;for
 if(s.t==="armored"||i===0)for(let a=0;a<6.3;a+=.08){const px=Math.round(cx+Math.cos(a)*(r+7)),py=Math.round(cx+Math.sin(a)*(r*.45));if(Math.sin(a)>0||Math.hypot(px-cx,py-cx)>r+.5)R(px,py,2,1,pl[0])}})})}
 // v0.9.1 labels: pixel-font text on the canvas, dark-backed so it reads
 // on the starfield. Uses fillText (real canvas) — the headless stub counts it.
-function drawLabel(q,text,cx,cy,color,fs){const vw=q.canvas.width||384,vh=q.canvas.height||480,f=Math.max(11,fs||11);try{q.font="bold "+f+"px 'Courier New',monospace"}catch(e){}q.textAlign="center";q.textBaseline="middle";let w=text.length*7;try{if(q.measureText)w=Math.ceil(q.measureText(text).width)}catch(e){}const hh=Math.ceil(f*1.3);cx=Math.max(w/2+4,Math.min(vw-w/2-4,cx));cy=Math.max(hh/2+2,Math.min(vh-hh/2-2,cy));q.fillStyle="#161628";q.fillRect(Math.round(cx-w/2-3),Math.round(cy-hh/2),w+6,hh);q.fillStyle=color||"#ffffff";q.fillText(text,Math.round(cx),Math.round(cy))}
+function drawLabel(q,text,cx,cy,color,fs,noClamp){const vw=q.canvas.width||384,vh=q.canvas.height||480,f=Math.max(11,fs||11);try{q.font="bold "+f+"px 'Courier New',monospace"}catch(e){}q.textAlign="center";q.textBaseline="middle";let w=text.length*7;try{if(q.measureText)w=Math.ceil(q.measureText(text).width)}catch(e){}const hh=Math.ceil(f*1.3);if(!noClamp){cx=Math.max(w/2+4,Math.min(vw-w/2-4,cx));cy=Math.max(hh/2+2,Math.min(vh-hh/2-2,cy))}q.fillStyle="#161628";q.fillRect(Math.round(cx-w/2-3),Math.round(cy-hh/2),w+6,hh);q.fillStyle=color||"#ffffff";q.fillText(text,Math.round(cx),Math.round(cy))}
 function glyph2(q,p,x,y,s){for(let i=0;i<15;i++)if(p[i]==="1"){q.fillStyle="#161628";q.fillRect(x+(i%3)*s-1,y+Math.floor(i/3)*s-1,s+2,s+2);q.fillStyle="#ffffff";q.fillRect(x+(i%3)*s,y+Math.floor(i/3)*s,s,s)}}
 // v0.9.1: galaxy world is 640x800 world units (SYS x/y * 5), canvas 384x480.
 // drawGalaxy(q) with no camera still works: it defaults to the fit view
