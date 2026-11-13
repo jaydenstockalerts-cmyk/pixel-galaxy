@@ -50,24 +50,30 @@ function openMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.hidden=false; req
 function closeMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.classList.remove("open"); setTimeout(()=>{if(!m.classList.contains("open"))m.hidden=true},230);} if(b)b.hidden=true;}
 function syncMenuSound(){const el=$("#m-sound"); if(el) el.textContent=S.mute?"off":"on";}
 
-// v0.9.1 station camera — VIEW-ONLY like the galaxy camera, never saved.
-// Station world: 12x12 plots x 48 = 576x576. Old 6x6 settled area is
-// plots 0-5; plots 6-11 are open land. Default: zoomed in on the buildings.
-const STWORLD={w:576,h:576,cell:48,plots:12};
-let STCAM={cx:104,cy:104,zoom:2.2}; // v0.9.3: centred on the settled buildings; zoom 2.2 lets the camera reach them on wide screens
-const stScale=()=>((st.height||384)/STWORLD.h)*STCAM.zoom;
+// v1.2 ISOMETRIC station camera — VIEW-ONLY like the galaxy camera,
+// never saved. The logical plots are still 12x12 (S.bl {u,t,x,y,l});
+// but the camera now works in ISO world units:
+//   isoX = (x - y) * 32,  isoY = (x + y) * 16   (2:1 dimetric, 26.57 deg)
+// Iso world spans x -384..384, y 0..384; building height rises in -y.
+// stScale matches art.js: sc = (canvasHeight / 480) * zoom.
+const STWORLD={w:768,h:384,cell:48,plots:12};
+let STCAM={cx:32,cy:64,zoom:2.2}; // centred on the keep: grid (2,1) -> iso (32,64)
+const stScale=()=>((st.height||384)/480)*STCAM.zoom;
 // v1.0: station camera centres on the SAFE area (between HUD and dock),
 // not the raw canvas centre, so buildings are never hidden under a bar.
 const stWorldToScreen=(wx,wy)=>{const sc=stScale();return{x:(st.width||384)/2+(wx-STCAM.cx)*sc,y:safeCySt()+(wy-STCAM.cy)*sc}};
 const stScreenToWorld=(sx,sy)=>{const sc=stScale();return{x:STCAM.cx+(sx-(st.width||384)/2)/sc,y:STCAM.cy+(sy-safeCySt())/sc}};
-function clampStCam(){// v0.9.3: station camera may centre anywhere in the world — past the
-// edge is just more grass (the canvas is grass-filled), so the settled
-// buildings can be centred even on a wide screen, where the view is
-// wider than the 576-unit world.
-STCAM.cx=Math.max(0,Math.min(STWORLD.w,STCAM.cx));STCAM.cy=Math.max(0,Math.min(STWORLD.h,STCAM.cy))}
-function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-(st.height||384)/2)/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-(st.height||384)/2)/s1}clampStCam()}
-function fitStCam(){const vh=st.height||384,vw=st.width||384;STCAM={cx:288,cy:288,zoom:Math.max(.5,Math.min(vw/vh,1))};clampStCam()}
-function homeStCam(){const keep=S.bl.find(b=>b.t==="command");if(keep){STCAM.cx=keep.x*48+24;STCAM.cy=keep.y*48+24}else{let x=0,y=0,n=0;S.bl.forEach(b=>{x+=b.x*48+24;y+=b.y*48+24;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}}STCAM.zoom=Math.max(STCAM.zoom,2.2);clampStCam()}
+const stSafeH=()=>Math.max(1,(st.height||384)-UIIN.top-UIIN.bottom);
+function clampStCam(){// v1.2: the keep sits near the top of the iso diamond (iso y=64
+// for grid (2,1)), and a corner building can sit at any edge — so the
+// camera must be able to centre on them. Like v1.1 (past the edge is
+// just more terrain), the clamp lets the centre reach the world edges
+// (with half a view of margin), and centres the world when the whole
+// diamond fits in view.
+const sc=stScale(),hw=(st.width||384)/(2*sc),hh=stSafeH()/(2*sc);if(hw>=384)STCAM.cx=0;else STCAM.cx=Math.max(-384+hw/2,Math.min(384-hw/2,STCAM.cx));if(hh>=192)STCAM.cy=192;else STCAM.cy=Math.max(-48+hh/2,Math.min(432-hh/2,STCAM.cy))}
+function setStZoom(z,px,py){const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
+function fitStCam(){const vh=st.height||384,vw=st.width||384;const z=Math.min(vw*480/(vh*820),stSafeH()*480/(vh*470));STCAM={cx:0,cy:192,zoom:Math.max(.3,Math.min(1,z))};clampStCam()}
+function homeStCam(){const keep=S.bl.find(b=>b.t==="command");if(keep){STCAM.cx=(keep.x-keep.y)*32;STCAM.cy=(keep.x+keep.y+1)*16}else{let x=0,y=0,n=0;S.bl.forEach(b=>{x+=(b.x-b.y)*32;y+=(b.x+b.y+1)*16;n++});if(n){STCAM.cx=x/n;STCAM.cy=y/n}}STCAM.zoom=Math.max(STCAM.zoom,2.2);clampStCam()}
 function openPlot(x,y){POP={kind:"plot",x,y};showPopup();update()}
 const camScale=()=>((cv.height||480)/WORLD.h)*CAM.zoom;
 // v1.0: galaxy camera centres on the SAFE area (between HUD and dock).
@@ -181,7 +187,16 @@ function draw(){drawGalaxy(x,CAM,{sx:(cv.width||384)/2,sy:safeCyCv()});drawBase(
 const stPointers=new Map();let stStart=null,stDrag=false,stPinch=0;
 st.addEventListener("pointerdown",e=>{if(st.setPointerCapture)try{st.setPointerCapture(e.pointerId)}catch(_){}stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});if(stPointers.size===1){stStart={x:e.clientX,y:e.clientY};stDrag=false}else if(stPointers.size===2){const a=[...stPointers.values()];stPinch=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);stDrag=true}});
 st.addEventListener("pointermove",e=>{if(!stPointers.has(e.pointerId))return;stPointers.set(e.pointerId,{x:e.clientX,y:e.clientY});const q=st.getBoundingClientRect();if(stPointers.size===2){const a=[...stPointers.values()],d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;if(stPinch>0)setStZoom(STCAM.zoom*d/stPinch,(mx-q.left)/q.width*st.width,(my-q.top)/q.height*st.height);stPinch=d;update();return}if(stStart){const dx=e.clientX-stStart.x,dy=e.clientY-stStart.y;if(Math.abs(dx)+Math.abs(dy)>8)stDrag=true;if(stDrag){const sc=stScale();STCAM.cx-=dx/q.width*st.width/sc;STCAM.cy-=dy/q.height*st.height/sc;stStart={x:e.clientX,y:e.clientY};clampStCam();update()}}});
-const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if(stPointers.size===0&&stStart&&!stDrag){const q=st.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*st.width,sy=(e.clientY-q.top)/q.height*st.height,w=stScreenToWorld(sx,sy),bx=Math.floor(w.x/STWORLD.cell),by=Math.floor(w.y/STWORLD.cell);if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){b.x=bx;b.y=by}S.mv=null;msg("Building moved.")}else openPlot(bx,by)}update();save()}stStart=null;stDrag=false};
+const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if(stPointers.size===0&&stStart&&!stDrag){const q=st.getBoundingClientRect(),sx=(e.clientX-q.left)/q.width*st.width,sy=(e.clientY-q.top)/q.height*st.height,w=stScreenToWorld(sx,sy);
+ // v1.2 iso hit test: a tap on a tall building sprite must select that
+ // building, not the plot behind it. Check buildings front-to-back
+ // (highest x+y first) against their iso silhouette (isoBuildingHit),
+ // then fall back to the ground diamond the tap lands in.
+ let hit=null;
+ [...S.bl].sort((a,b)=>(b.x+b.y)-(a.x+a.y)).some(b=>{if(isoBuildingHit(w.x,w.y,b)){hit=b;return true}return false});
+ if(hit){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(hit.u)}
+ else{const cell=isoCellFromPoint(w.x,w.y),bx=cell.i,by=cell.j;if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){b.x=bx;b.y=by}S.mv=null;msg("Building moved.")}else openPlot(bx,by)}}
+ update();save()}stStart=null;stDrag=false};
 st.addEventListener("pointerup",stEnd);st.addEventListener("pointercancel",stEnd);
 st.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=st.getBoundingClientRect();setStZoom(STCAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*st.width,(e.clientY-q.top)/q.height*st.height);update()},{passive:false});
 st.addEventListener("dblclick",e=>{const q=st.getBoundingClientRect();setStZoom(STCAM.zoom>=2?1:2,(e.clientX-q.left)/q.width*st.width,(e.clientY-q.top)/q.height*st.height);update()});

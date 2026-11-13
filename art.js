@@ -81,125 +81,189 @@ return c})}
 const DG=["111101101101111","010110010010111","111001111100111","111001111001111","101101111001001","111100111001111","111100111101111","111001001001001","111101111101111","111101111001111"];
 function num(q,n,x,y){const s=String(n);q.fillStyle="#161628";q.fillRect(x,y,s.length*4+2,7);q.fillStyle="#fff";for(let k=0;k<s.length;k++){const p=DG[+s[k]];for(let i=0;i<15;i++)if(p[i]==="1")q.fillRect(x+1+k*4+i%3,y+1+Math.floor(i/3),1,1)}}
 function glyph(q,p,x,y){q.fillStyle="#161628";for(let i=0;i<15;i++)if(p[i]==="1")q.fillRect(x+1+i%3,y+1+Math.floor(i/3),1,1);q.fillStyle="#fff";for(let i=0;i<15;i++)if(p[i]==="1")q.fillRect(x+i%3,y+Math.floor(i/3),1,1)}
-// v0.9.1 station: 12x12 plots (48 world units each, world 576x576),
-// the old 6x6 settled area in the top-left, open land around it.
-// drawBase(q) with no camera draws the fit view; drawBase(q, cam) draws
-// the camera window (cam={cx,cy,zoom}, zoom 1-2.5). Camera is view-only.
-// v1.1 Hobbit-style city: the station is a walled city, not a grid.
-// Logical model is UNCHANGED: 12x12 plots, S.bl {u,t,x,y,l}, adjacency is
-// still orthogonal neighbours, MAXC / newCost / placeB untouched.
-// Visual only:
-//  - Command Station = the keep, drawn bigger on a stone plaza at its
-//    logical cell (visual overlap only; tap target stays that cell).
-//  - Districts are emergent, by building type: Power (Solar), Industrial
-//    (Foundry+Mine), Trade (Hub), Military (Hangar). Each occupied plot
-//    gets a district ground tint under its pad.
-//  - Roads: a stone/dirt cross through the keep to the wall gates, plus
-//    an L-shaped spur road from the keep to every occupied building.
-//  - Wall: a stone ring (with crenellations + gates where roads cross)
-//    around the occupied bounding box expanded by 1 plot — it grows as
-//    the city grows. Farmland (crop rows) covers empty plots outside it.
-//  - Open plots are cleared foundation pads: stone border, dirt centre,
-//    dashed outline + a small "+" — always visible, brighter in Place/Move mode.
+// v1.2 ISOMETRIC station — Hobbit: Kingdoms of Middle-earth is an
+// isometric city view, not a top-down grid (GameSkinny: "an isometric
+// view of your inner city where military and residential structures
+// can be built and upgraded"). The logical model is UNCHANGED: 12x12
+// plots, S.bl {u,t,x,y,l}, adjacency still orthogonal neighbours,
+// MAXC / newCost / placeB untouched. Only the rendering changes.
+// Projection (2:1 dimetric, the pixel-art standard):
+//   screenX = (gx - gy) * 32,  screenY = (gx + gy) * 16 - z
+// for grid coords (gx,gy); a tile is a 64x32 diamond (axes ~26.57°).
+// Ground is drawn first, then buildings / decor / wall in painter's
+// order (back-to-front by x+y), so nearer buildings cover farther ones.
+// Buildings are extruded iso blocks: the existing pixel sprite is
+// sheared onto the TOP (roof) face, and the two visible front faces
+// are the same roof colour darkened (left 0.72x, right 0.52x), so the
+// block reads as solid. Height grows with level; the Command Station
+// (the keep) is the tallest. A purple level shield floats above each
+// building, like Hobbit's level shields (1, 2, 5, 10).
+// v1.1 city dressing is kept in iso form: keep/plaza, districts by
+// building type, roads (cross through the keep + spur to every
+// building), wall + gates + corner towers that grow with the city,
+// farmland outside the wall, foundation pads on open plots.
+// NOTE: ground() above is the legacy top-down terrain canvas; it is
+// no longer used by drawBase (iso tiles are drawn procedurally).
+const ISO_TW=64, ISO_TH=32, ISO_H=480; // tile size + iso world height (game.js stScale uses the same 480)
+const ISO_BASE={solar:"#4aa3df",foundry:"#d46a4f",mine:"#b07cf0",hub:"#ecdcb4",hangar:"#aab4c9",command:"#f4f6ff"};
+function isoC(i,j){return{x:(i-j)*ISO_TW/2,y:(i+j+1)*ISO_TH/2}} // centre of plot (i,j), ground level
+function isoPt(gx,gy){return{x:(gx-gy)*ISO_TW/2,y:(gx+gy)*ISO_TH/2}}
+function isoHeight(b){if(!b||b.l<=0)return 6;return 12+Math.min(13,b.l)*3+(b.t==="command"?16:b.t==="hangar"?6:0)}
+function isoCellFromPoint(wx,wy){const gx=wx/(ISO_TW/2),gy=wy/(ISO_TH/2);return{i:Math.floor((gx+gy)/2),j:Math.floor((gy-gx)/2)}}
+function shade(hex,f){const n=parseInt(hex.slice(1),16);return"rgb("+Math.round(((n>>16)&255)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")"}
+function isoBuildingHit(wx,wy,b){
+  const c=isoC(b.x,b.y),H=isoHeight(b)+(b.t==="command"?8:0);
+  // level shield above the roof
+  if(Math.abs(wx-c.x)<=10&&wy>=c.y-H-38&&wy<=c.y-H-18)return true;
+  // building silhouette: roof diamond + two front faces (a hexagon)
+  const poly=[[c.x,c.y-H-16],[c.x+32,c.y-H],[c.x+32,c.y],[c.x,c.y+16],[c.x-32,c.y],[c.x-32,c.y-H]];
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
+    if(((yi>wy)!==(yj>wy))&&(wx<(xj-xi)*(wy-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
 const DISTTINT={solar:"#ffe066",foundry:"#ff9a3c",mine:"#b07cf0",hub:"#9be8ff",hangar:"#4aa3df",command:"#f4f6ff"};
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};
-function drawBase(q,cam,opts){const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv,cam2=cam||{cx:288,cy:288,zoom:1},vw=q.canvas.width||384,vh=q.canvas.height||384,sc=(vh/576)*cam2.zoom,sx=opts&&opts.sx!==undefined?opts.sx:vw/2,sy=opts&&opts.sy!==undefined?opts.sy:vh/2,ox=sx-cam2.cx*sc,oy=sy-cam2.cy*sc,CS=48*sc,k=CS/48;
-const X=wx=>ox+wx*sc, Y=wy=>oy+wy*sc;
-const R2=(x,y,w,h,c,al)=>{if(al!==undefined)q.globalAlpha=al;q.fillStyle=c;q.fillRect(X(x),Y(y),Math.max(1,w*sc),Math.max(1,h*sc));if(al!==undefined)q.globalAlpha=1};
-q.fillStyle="#59a64a";q.fillRect(0,0,vw,vh);
-const pad=memo("pad",()=>spr(46,46,R=>{bev(R,0,0,46,46,"e","s","S");[11,23,34].forEach(v=>{R(v,0,1,46,"S");R(0,v,46,1,"S")})}));
-q.drawImage(ground(),ox,oy,576*sc,576*sc);
-// --- city layer: keep, wall box, plaza, roads, farmland, district tints ---
-const keep=S.bl.find(b=>b.t==="command")||null;
-const kx=keep?keep.x*48+24:288, ky=keep?keep.y*48+24:288;
-let mnx=12,mxx=-1,mny=12,mxy=-1;
-S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
-if(mxx<0){mnx=3;mxx=5;mny=3;mxy=5}
-const wx0=Math.max(0,mnx-1),wx1=Math.min(11,mxx+1),wy0=Math.max(0,mny-1),wy1=Math.min(11,mxy+1);
-const wallX0=wx0*48, wallX1=(wx1+1)*48, wallY0=wy0*48, wallY1=(wy1+1)*48;
-// farmland: crop rows on empty plots outside the wall
-for(let j=0;j<12;j++)for(let i=0;i<12;i++){
-  if(i>=wx0&&i<=wx1&&j>=wy0&&j<=wy1)continue;
-  if(bAt(i,j))continue;
-  R2(i*48+3,j*48+6,42,36,(i+j)%2?"#7ccb5e":"#8fe070",.55);
-  for(let r=0;r<4;r++)R2(i*48+5,j*48+10+r*9,38,2,(i+j+r)%2?"#ffd84a":"#5fae4f",.8);
-}
-// plaza: stone tiles around the keep (3x3 cells, clamped)
-for(let j=-1;j<=1;j++)for(let i=-1;i<=1;i++){
-  const px=keep?keep.x+i:5, py=keep?keep.y+j:5;
-  if(px<0||px>11||py<0||py>11)continue;
-  R2(px*48,py*48,48,48,(i+j)%2?"#c9c3b0":"#b8b09a");
-  R2(px*48,py*48,48,2,"#8f8a76"); R2(px*48,py*48,2,48,"#8f8a76");
-}
-// roads: dirt/stone cross through the keep to the wall gates
-R2(wallX0,ky-7,wallX1-wallX0,14,"#cdb98a"); R2(wallX0,ky-7,wallX1-wallX0,2,"#8f8a76"); R2(wallX0,ky+5,wallX1-wallX0,2,"#8f8a76");
-R2(kx-7,wallY0,14,wallY1-wallY0,"#cdb98a"); R2(kx-7,wallY0,2,wallY1-wallY0,"#8f8a76"); R2(kx+5,wallY0,2,wallY1-wallY0,"#8f8a76");
-// spur roads: keep -> every occupied building (L-shaped, under buildings)
-S.bl.forEach(b=>{
-  if(!keep||b.u===keep.u)return;
-  const bx=b.x*48+24, by=b.y*48+24;
-  R2(Math.min(kx,bx),by-5,Math.abs(bx-kx)+10,10,"#cdb98a");
-  R2(kx-5,Math.min(ky,by),10,Math.abs(by-ky)+10,"#cdb98a");
-});
-// district tints under occupied plots
-S.bl.forEach(b=>{R2(b.x*48+2,b.y*48+2,44,44,DISTTINT[b.t]||"#ffffff",.20)});
-// wall: stone ring around the settled area, gates where the cross roads pass
-const WT=8, gateW=48;
-const gateX0=kx-gateW/2, gateY0=ky-gateW/2;
-const wallSeg=(x,y,w,h)=>{R2(x,y,w,h,"#8f8a76");};
-// top + bottom edges (gap at the keep's x = north/south gates)
-wallSeg(wallX0,wallY0,Math.max(0,gateX0-wallX0),WT); wallSeg(gateX0+gateW,wallY0,Math.max(0,wallX1-(gateX0+gateW)),WT);
-wallSeg(wallX0,wallY1-WT,Math.max(0,gateX0-wallX0),WT); wallSeg(gateX0+gateW,wallY1-WT,Math.max(0,wallX1-(gateX0+gateW)),WT);
-// left + right edges (gap at the keep's y = west/east gates)
-wallSeg(wallX0,wallY0,WT,Math.max(0,gateY0-wallY0)); wallSeg(wallX0,gateY0+gateW,WT,Math.max(0,wallY1-(gateY0+gateW)));
-wallSeg(wallX1-WT,wallY0,WT,Math.max(0,gateY0-wallY0)); wallSeg(wallX1-WT,gateY0+gateW,WT,Math.max(0,wallY1-(gateY0+gateW)));
-// crenellations along the wall + corner towers
-for(let xx=wallX0;xx<wallX1;xx+=16){R2(xx,wallY0-4,8,6,"#c9c3b0");R2(xx,wallY1-2,8,6,"#c9c3b0")}
-for(let yy=wallY0;yy<wallY1;yy+=16){R2(wallX0-4,yy,6,8,"#c9c3b0");R2(wallX1-2,yy,6,8,"#c9c3b0")}
-[[wallX0,wallY0],[wallX1,wallY0],[wallX0,wallY1],[wallX1,wallY1]].forEach(c=>{R2(c[0]-8,c[1]-8,16,16,"#8f8a76");R2(c[0]-4,c[1]-12,8,6,"#c9c3b0")});
-// gate posts (south gate, the main entrance)
-R2(gateX0-6,wallY1-WT-10,8,18,"#8f8a76"); R2(gateX0+gateW-2,wallY1-WT-10,8,18,"#8f8a76");
-R2(gateX0-6,wallY1-WT-12,8,4,"#ffd84a"); R2(gateX0+gateW-2,wallY1-WT-12,8,4,"#ffd84a");
-// --- plots: foundations + buildings (non-keep first, keep last so it overlaps) ---
-const drawPlot=(i,j,bd)=>{
-  const a=ox+i*48*sc,b=oy+j*48*sc;
-  if(!bd){
-    // cleared foundation pad: stone border, dirt centre, dashed outline, "+"
-    R2(i*48+4,j*48+4,40,40,"#8f8a76");
-    R2(i*48+7,j*48+7,34,34,"#cdb98a");
-    const dash=go?(F&1?"#ffffff":"#8fe070"):"#ecdcb4";
-    [[4,4],[22,4],[4,42],[22,42],[4,22],[42,22],[22,4],[22,42]].forEach(pt=>R2(i*48+pt[0],j*48+pt[1],4,2,dash));
-    q.fillStyle=go?"#8fe070":"#ffffff";q.globalAlpha=go?.95:.55;
-    q.fillRect(a+CS/2-1.5*k,b+CS/2-7*k,3*k,14*k);q.fillRect(a+CS/2-7*k,b+CS/2-1.5*k,14*k,3*k);q.globalAlpha=1;
-    if((i*3+j*5)%4!==0){const dc=decor(i,j),ds=CS*.34;q.drawImage(dc,a+CS*.62,b+CS*.02,ds,ds)}
-    return;
+function drawBase(q,cam,opts){
+  const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv;
+  const cam2=cam||{cx:0,cy:192,zoom:1};
+  const vw=q.canvas.width||384,vh=q.canvas.height||384,sc=(vh/ISO_H)*cam2.zoom;
+  const sx=opts&&opts.sx!==undefined?opts.sx:vw/2,sy=opts&&opts.sy!==undefined?opts.sy:vh/2;
+  const ox=sx-cam2.cx*sc,oy=sy-cam2.cy*sc,k=sc;
+  const X=wx=>ox+wx*sc,Y=wy=>oy+wy*sc;
+  const poly=(pts,fill,al)=>{if(al!==undefined)q.globalAlpha=al;q.beginPath();q.moveTo(X(pts[0][0]),Y(pts[0][1]));for(let n=1;n<pts.length;n++)q.lineTo(X(pts[n][0]),Y(pts[n][1]));q.closePath();q.fillStyle=fill;q.fill();if(al!==undefined)q.globalAlpha=1};
+  const dia=(cx,cy,rx,ry,fill,al)=>poly([[cx,cy-ry],[cx+rx,cy],[cx,cy+ry],[cx-rx,cy]],fill,al);
+  const diaStroke=(cx,cy,rx,ry,color,lw)=>{q.beginPath();q.moveTo(X(cx),Y(cy-ry));q.lineTo(X(cx+rx),Y(cy));q.lineTo(X(cx),Y(cy+ry));q.lineTo(X(cx-rx),Y(cy));q.closePath();q.strokeStyle=color;q.lineWidth=lw;q.stroke()};
+  q.fillStyle="#35683a";q.fillRect(0,0,vw,vh);
+  // river source / waterfall at the top (north) corner of the diamond
+  for(let kk=0;kk<4;kk++){q.globalAlpha=.8;q.fillStyle="#9be8ff";q.fillRect(X(-10+kk*5),Y(-46-((F+kk*5)%10)),Math.max(2,3*k),Math.max(4,20*k))}
+  q.globalAlpha=1;
+  const keep=S.bl.find(b=>b.t==="command")||null;
+  let mnx=12,mxx=-1,mny=12,mxy=-1;
+  S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
+  if(mxx<0){mnx=3;mxx=5;mny=3;mxy=5}
+  const wx0=Math.max(0,mnx-1),wx1=Math.min(11,mxx+1),wy0=Math.max(0,mny-1),wy1=Math.min(11,mxy+1);
+  const roads=new Set();
+  const roadTo=(i0,j0,i1,j1)=>{let i=i0,j=j0;roads.add(i+","+j);while(i!==i1){i+=Math.sign(i1-i);roads.add(i+","+j)}while(j!==j1){j+=Math.sign(j1-j);roads.add(i+","+j)}};
+  if(keep){for(let i=wx0;i<=wx1;i++)roads.add(i+","+keep.y);for(let j=wy0;j<=wy1;j++)roads.add(keep.x+","+j);S.bl.forEach(b=>{if(b.u!==keep.u)roadTo(keep.x,keep.y,b.x,b.y)})}
+  const Hh=(a,b)=>((a*73856093)^(b*19349663))>>>0;
+  // --- ground: cliff ring + river band + grass diamonds, back-to-front ---
+  const cells=[];
+  for(let j=-1;j<=12;j++)for(let i=-1;i<=12;i++)cells.push([i,j]);
+  cells.sort((a,b)=>(a[0]+a[1])-(b[0]+b[1])||a[0]-b[0]);
+  cells.forEach(([i,j])=>{
+    const c=isoC(i,j);
+    if(i<0||j<0||i>11||j>11){
+      if(i===-1){ // river band along the north-west edge
+        dia(c.x,c.y,32,16,(i+j)%2?"#4aa3df":"#2f78b0");
+        q.globalAlpha=.5;q.fillStyle="#9be8ff";q.fillRect(X(c.x-8),Y(c.y-2),Math.max(2,16*k),Math.max(1,2*k));q.globalAlpha=1;
+      } else dia(c.x,c.y,32,16,(i+j)%2?"#4a5a44":"#42523e"); // terraced cliffs
+      return;
+    }
+    const h=Hh(i,j),bd0=bAt(i,j);
+    let base=(i+j)%2?"#5fae4f":"#59a64a";
+    if(roads.has(i+","+j))base="#cdb98a";
+    else if(keep&&Math.abs(i-keep.x)<=1&&Math.abs(j-keep.y)<=1)base=(i+j)%2?"#c9c3b0":"#b8b09a";
+    dia(c.x,c.y,32,16,base);
+    if(bd0)dia(c.x,c.y,30,15,DISTTINT[bd0.t]||"#ffffff",.22);
+    else if(i<wx0||i>wx1||j<wy0||j>wy1){ // farmland outside the wall
+      for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,20,3,(i+j+r)%2?"#ffd84a":"#5fae4f",.85);
+    } else {
+      q.fillStyle=h%3?"#7ccb5e":"#3e8236";q.fillRect(X(c.x-10+(h%17)),Y(c.y-2+(h%7)),Math.max(1,2*k),Math.max(1,2*k));
+      if(h%19===0){q.fillStyle=["#ff6b8a","#ffd84a","#ffffff","#b07cf0"][h%4];q.fillRect(X(c.x+6),Y(c.y-4),Math.max(1,2*k),Math.max(1,2*k))}
+    }
+    if(!bd0){ // cleared foundation pad: stone border, dirt centre, dashed outline, "+"
+      dia(c.x,c.y,26,13,"#8f8a76");
+      dia(c.x,c.y,20,10,"#cdb98a");
+      const dash=go?(F&1?"#ffffff":"#8fe070"):"#ecdcb4";
+      [[0,-13],[26,0],[0,13],[-26,0]].forEach(pt=>{q.fillStyle=dash;q.fillRect(X(c.x+pt[0]-2),Y(c.y+pt[1]-1),Math.max(2,4*k),Math.max(1,2*k))});
+      q.fillStyle=go?"#8fe070":"#ffffff";q.globalAlpha=go?.95:.55;
+      q.fillRect(X(c.x)-Math.max(1,1.5*k),Y(c.y)-Math.max(3,7*k),Math.max(2,3*k),Math.max(6,14*k));
+      q.fillRect(X(c.x)-Math.max(3,7*k),Y(c.y)-Math.max(1,1.5*k),Math.max(6,14*k),Math.max(2,3*k));
+      q.globalAlpha=1;
+    }
+  });
+  // --- objects: wall, towers, gates, buildings, decor — painter's order ---
+  const block=(cx,cy,H,base,top,sp,rx,ry)=>{
+    rx=rx||32;ry=ry||16;
+    dia(cx,cy+2,rx*.9,ry*.9,"#000000",.28);
+    poly([[cx-rx,cy-H],[cx,cy-H+ry],[cx,cy+ry],[cx-rx,cy]],shade(base,.72));
+    poly([[cx+rx,cy-H],[cx,cy-H+ry],[cx,cy+ry],[cx+rx,cy]],shade(base,.52));
+    dia(cx,cy-H,rx,ry,top||shade(base,1.2));
+    if(sp){const w=sp.width,h=sp.height;q.save();q.setTransform(rx*sc/w,ry*sc/w,-rx*sc/h,ry*sc/h,X(cx),Y(cy-H-ry));q.drawImage(sp,0,0);q.restore()}
+  };
+  const objs=[];
+  const keepX=keep?keep.x:-1,keepY=keep?keep.y:-1;
+  for(let i=wx0;i<=wx1;i++){
+    objs.push({d:i+wy0,kind:"wall",i,j:wy0,gate:i===keepX});
+    objs.push({d:i+wy1,kind:"wall",i,j:wy1,gate:i===keepX});
   }
-  q.drawImage(pad,a,b,CS,CS);
-  const isKeep=keep&&bd.u===keep.u;
-  const sz=isKeep?CS*1.5:CS*1.08;
-  q.globalAlpha=.30;q.fillStyle="#000";q.fillRect(a+CS/2-sz*.42,b+CS*.82,sz*.84,7*k);q.globalAlpha=1;
-  const t=tier(bd.l),sp=bd.l>0?memo(bd.t+t,()=>spr(44,44,R=>BS[bd.t](R,t))):memo("scaf",()=>spr(44,44,SC));
-  if(isKeep)q.drawImage(sp,a+CS/2-sz/2,b+CS-sz*.96,sz,sz);
-  else q.drawImage(sp,a+CS/2-sz/2,b+CS/2-sz/2,sz,sz);
-  if(bd.l===0){q.fillStyle="#ffd84a";q.fillRect(a+CS/2-10*k,b+2*k,20*k,3*k);q.fillStyle="#161628";q.fillRect(a+CS/2-10*k,b+2*k,3*k,3*k);q.fillRect(a+CS/2+7*k,b+2*k,3*k,3*k)}
-};
-for(let j=0;j<12;j++)for(let i=0;i<12;i++){const bd=bAt(i,j);if(bd&&keep&&bd.u===keep.u)continue;drawPlot(i,j,bd)}
-if(keep)drawPlot(keep.x,keep.y,keep);
-S.bl.forEach(bd=>{const a=ox+bd.x*48*sc,b=oy+bd.y*48*sc;
-if(bd.l>0){const n=String(bd.l).length;num(q,bd.l,a+CS-(n*4+2)-2*k,b+CS-9*k);
-const tp=tier(bd.l);for(let pp=0;pp<tp;pp++){q.fillStyle="#ffe066";q.fillRect(a+4*k+pp*6*k,b+3*k,4*k,4*k)}}
-const job=S.bq.filter(j=>j.u===bd.u).sort((u,v)=>u.end-v.end)[0];
-if(job&&job.s){const p=Math.min(1,(now-job.s)/(job.end-job.s));q.fillStyle="#161628";q.fillRect(a+4*k,b+44*k,40*k,3*k);q.fillStyle="#ffe066";q.fillRect(a+5*k,b+45*k,Math.round(38*p)*k,1*k)}
-else if(job){q.fillStyle="#ffe066";q.fillRect(a+4*k,b+44*k,4*k,3*k)}
-if(bd.l>0){
-if(bd.t==="foundry")for(let kk=0;kk<3;kk++){const g=(F+kk*3)%9,s=3+(g>>2);q.globalAlpha=.75*(1-g/9);q.fillStyle="#e8ecf5";q.fillRect(a+27*k+Math.round(Math.sin((F+kk)/2)*2),b+3*k-g*2*k,s*k,s*k);q.globalAlpha=1}
-if(bd.t==="mine"&&F%6<2){q.fillStyle="#fff";q.fillRect(a+10*k,b+20*k,2*k,2*k);q.fillRect(a+38*k,b+23*k,2*k,2*k)}
-if(bd.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(a+20*k,b+6*k,3*k,3*k)}
-if(bd.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(a+8*k,b+10*k,3*k,3*k);q.fillRect(a+36*k,b+10*k,3*k,3*k);if(F%4<2){q.fillStyle="#ffe066";q.fillRect(a+22*k,b+2*k,3*k,3*k)}}
-if(bd.t==="solar"){q.fillStyle="#fff";q.fillRect(a+7*k+(F*4)%34*k,b+24*k,2*k,1*k);q.fillRect(a+30*k-((F*3)%28)*k,b+8*k,2*k,2*k)}
-if(bd.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(a+22*k,b+5*k,4*k,3*k);q.fillStyle="#ffffff";for(let ll=0;ll<4;ll++)q.fillRect(a+(8+ll*9)*k,b+42*k,3*k,2*k)}
-if(bd.t==="command"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(a+22*k,b+2*k,4*k,2*k);q.fillStyle="#e0584a";const wv=Math.round(Math.sin(F/2)*2);q.fillRect(a+CS/2+2*k+wv,b-6*k,10*k,5*k)}}
-if(bd.u===S.bsel||bd.u===S.mv){q.fillStyle=F&1?"#ffe066":"#ffffff";const c1=1*k,c2=9*k,c3=38*k,c4=45*k;q.fillRect(a+c1,b+c1,c2,2*k);q.fillRect(a+c1,b+c1,2*k,c2);q.fillRect(a+c3,b+c1,c2,2*k);q.fillRect(a+c4,b+c1,2*k,c2);q.fillRect(a+c1,b+c4,c2,2*k);q.fillRect(a+c1,b+c3,2*k,c2);q.fillRect(a+c3,b+c4,c2,2*k);q.fillRect(a+c4,b+c3,2*k,c2)}})}
+  for(let j=wy0;j<=wy1;j++){
+    objs.push({d:wx0+j,kind:"wall",i:wx0,j,gate:j===keepY});
+    objs.push({d:wx1+j,kind:"wall",i:wx1,j,gate:j===keepY});
+  }
+  [[wx0,wy0],[wx1,wy0],[wx0,wy1],[wx1,wy1]].forEach(c=>objs.push({d:c[0]+c[1],kind:"tower",i:c[0],j:c[1]}));
+  S.bl.forEach(b=>objs.push({d:b.x+b.y,kind:"bld",b}));
+  for(let j=wy0;j<=wy1;j++)for(let i=wx0;i<=wx1;i++){if(!bAt(i,j)&&(i*3+j*5)%4===0)objs.push({d:i+j,kind:"decor",i,j})}
+  objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
+  objs.forEach(o=>{
+    if(o.kind==="wall"){
+      const c=isoC(o.i,o.j);
+      if(o.gate){
+        block(c.x-22,c.y-2,16,"#8f8a76","#c9c3b0",null,9,5);
+        block(c.x+22,c.y-2,16,"#8f8a76","#c9c3b0",null,9,5);
+        q.fillStyle="#ffd84a";q.fillRect(X(c.x-14),Y(c.y-20),Math.max(4,28*k),Math.max(2,3*k));
+      } else {
+        block(c.x,c.y,10,"#8f8a76","#c9c3b0",null);
+        q.fillStyle="#c9c3b0";
+        [-16,0,16].forEach(dx=>q.fillRect(X(c.x+dx-2),Y(c.y-14),Math.max(2,4*k),Math.max(2,3*k)));
+      }
+      return;
+    }
+    if(o.kind==="tower"){
+      const c=isoC(o.i,o.j);
+      block(c.x,c.y,24,"#8f8a76","#c9c3b0",null);
+      q.fillStyle="#e0584a";q.fillRect(X(c.x+2),Y(c.y-34),Math.max(3,10*k),Math.max(2,5*k));
+      return;
+    }
+    if(o.kind==="decor"){
+      const c=isoC(o.i,o.j),dc=decor(o.i,o.j),ds=26*k;
+      q.drawImage(dc,X(c.x)-ds/2,Y(c.y)-ds*.92,ds,ds);
+      return;
+    }
+    const b=o.b,c=isoC(b.x,b.y),isKeep=keep&&b.u===keep.u;
+    const H=isoHeight(b)+(isKeep?8:0);
+    const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));
+    if(isKeep)block(c.x,c.y,H,ISO_BASE[b.t],"#ffffff",sp,40,20);
+    else block(c.x,c.y,H,ISO_BASE[b.t]||"#aab4c9",null,sp);
+    if(b.l===0){
+      q.fillStyle="#ffd84a";q.fillRect(X(c.x)-Math.max(6,14*k),Y(c.y-H-4),Math.max(12,28*k),Math.max(2,3*k));
+      q.fillStyle="#161628";q.fillRect(X(c.x)-Math.max(6,14*k),Y(c.y-H-4),Math.max(2,4*k),Math.max(2,3*k));
+    }
+    if(b.l>0){
+      const shx=X(c.x),shy=Y(c.y-H-28);
+      q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-9);q.lineTo(shx+9,shy);q.lineTo(shx,shy+9);q.lineTo(shx-9,shy);q.closePath();q.fill();
+      const n=String(b.l).length;num(q,b.l,Math.round(shx-(n*4+2)/2),Math.round(shy-3));
+      if(window.__isoDraw)window.__isoDraw.push({shield:b.u,l:b.l});
+    }
+    if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H});
+    if(b.l>0){
+      if(b.t==="foundry")for(let kk=0;kk<3;kk++){const g=(F+kk*3)%9,s=3+(g>>2);q.globalAlpha=.75*(1-g/9);q.fillStyle="#e8ecf5";q.fillRect(X(c.x+12+Math.round(Math.sin((F+kk)/2)*2)),Y(c.y-H-8-g*2),Math.max(1,s*k),Math.max(1,s*k));q.globalAlpha=1}
+      if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(X(c.x-4),Y(c.y-H-10),Math.max(1,3*k),Math.max(1,3*k))}
+      if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(X(c.x-14),Y(c.y-6),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(X(c.x+11),Y(c.y-6),Math.max(1,3*k),Math.max(1,3*k))}
+      if(b.t==="solar"){q.fillStyle="#ffffff";q.fillRect(X(c.x-8+(F*4)%16),Y(c.y-H-4),Math.max(1,2*k),Math.max(1,1*k))}
+      if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(X(c.x),Y(c.y-H-8),Math.max(2,4*k),Math.max(1,3*k))}
+      if(b.t==="command"){q.fillStyle="#e0584a";const wv=Math.round(Math.sin(F/2)*2);q.fillRect(X(c.x+2+wv),Y(c.y-H-16),Math.max(3,10*k),Math.max(2,5*k))}
+    }
+    const job=S.bq.filter(j=>j.u===b.u).sort((u,v)=>u.end-v.end)[0];
+    if(job&&job.s){const p=Math.min(1,(now-job.s)/(job.end-job.s));q.fillStyle="#161628";q.fillRect(X(c.x-20),Y(c.y+20),Math.max(4,40*k),Math.max(2,3*k));q.fillStyle="#ffe066";q.fillRect(X(c.x-19),Y(c.y+21),Math.max(1,38*p*k),Math.max(1,1*k))}
+    else if(job){q.fillStyle="#ffe066";q.fillRect(X(c.x-20),Y(c.y+20),Math.max(2,4*k),Math.max(2,3*k))}
+    if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,32,16,F&1?"#ffe066":"#ffffff",Math.max(1,2*k));
+  });
+}
+
 const gbgFor=(w,h)=>memo("gbg"+w+"x"+h,()=>{const c=document.createElement("canvas");c.width=w;c.height=h;const q=c.getContext("2d");q.fillStyle="#0a0e2a";q.fillRect(0,0,w,h);
 for(let k=0;k<14;k++){const cx=(k*71)%w,cy=(k*97)%h,r=40+k*6;q.fillStyle=k%3===0?"#1a1442":k%3===1?"#121a46":"#241a4a";for(let dy=-r;dy<=r;dy+=2)for(let dx=-r;dx<=r;dx+=2)if(dx*dx+dy*dy<r*r&&(((dx>>1)+(dy>>1))&1)===0)q.fillRect(cx+dx,cy+dy,2,2)}return c});
 const gbg=()=>gbgFor(384,480);
