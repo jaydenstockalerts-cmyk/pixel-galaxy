@@ -8,6 +8,14 @@ const o=m.map(r=>r.slice());
 for(let j=0;j<H;j++)for(let i=0;i<W;i++)if(!m[j][i]&&((i>0&&m[j][i-1])||(i<W-1&&m[j][i+1])||(j>0&&m[j-1][i])||(j<H-1&&m[j+1][i])))o[j][i]="ol";
 const cv=document.createElement("canvas");cv.width=W;cv.height=H;const q=cv.getContext("2d");
 for(let j=0;j<H;j++)for(let i=0;i<W;i++){const c=o[j][flip?W-1-i:i];if(c){q.fillStyle=PAL[c]||c;q.fillRect(i,j,1,1)}}
+// v2.2: topmost drawn row (canvas px, outline included) — labels anchor
+// to the VISIBLE top of the sprite, not the canvas top. Sprites are
+// drawn on a 44x44 grid but the content does not fill it (the Lv1
+// Solar Array's panels start at grid row 19, so ~40% of the canvas
+// above them is empty and a label anchored to the canvas top floated
+// ~115px above the panels at Fit zoom, live v2.1).
+let _top=H;for(let j=0;j<H;j++){let _a=false;for(let i=0;i<W;i++)if(o[j][i]){_a=true;break}if(_a){_top=j;break}}
+cv._top=_top;
 return cv}
 const bev=(R,x,y,w,h,l,m,d)=>{R(x,y,w,h,m);R(x,y,w,1,l);R(x,y,1,h,l);R(x,y+h-1,w,1,d);R(x+w-1,y,1,h,d)};
 const win=(R,x,y,lit)=>{R(x,y,5,6,"d");R(x+1,y+1,3,4,lit?"y":"b");R(x+1,y+1,1,1,lit?"w":"c");R(x+3,y+4,1,1,lit?"z":"B")};
@@ -15,16 +23,13 @@ function ball(R,cx,cy,r,l,m,d,hi){for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;d
 function cr(R,x,y,h,a,b){for(let j=0;j<h;j++){const w=Math.max(0,Math.round(Math.min(j,h-1-j)*.45+.4));R(x-w,y+j,2*w+1,1,j<h*.4?b:a)}R(x,y+1,1,Math.max(1,h-3),"w")}
 const tier=l=>l>=12?3:l>=8?2:l>=4?1:0;
 const BS={
-solar:(R,t)=>{const g=t>1,pn=(x,y)=>{bev(R,x,y,11,11,g?"z":"c","u",g?"Z":"U");R(x+5,y+1,1,9,"U");R(x+1,y+5,9,1,"U");R(x+2,y+2,2,1,"w");R(x+5,y+11,2,4,"G")};
+solar:(R,t)=>{const g=t>1,pn=(x,y)=>{bev(R,x,y,11,11,g?"z":"c","u",g?"Z":"U");R(x+5,y+1,1,9,"U");R(x+1,y+5,9,1,"U");R(x+2,y+2,2,1,"w");R(x+5,y+11,2,8,"G")};
 if(t>0)for(let i=0;i<3;i++)pn(5+i*12,5);
-// v1.7: the base platform is a STEPPED diamond that stays INSIDE the
-// plinth diamond at every height — the old 40-wide slab overhung the
-// plinth's top point (live v1.6: the grey slab covered the top of the
-// blue plinth diamond). Row widths follow the plinth slope (plinth
-// 40x20 (v1.9: was 44x22): half-width grows ~2u per 1u down), so the slab reads as
-// sitting ON the plinth instead of spilling past it.
-R(17,33,10,2,"g");R(13,35,18,2,"g");R(9,37,26,2,"g");R(5,39,34,2,"g");R(2,41,40,2,"g");
-R(17,33,10,1,"G");R(2,42,40,1,"d");
+// v2.2: the mount is ONE flat slab, not a stepped pyramid. The five
+// inset rows read as a small stack sitting on the blue plinth (live
+// v2.1). The flat slab spans the full sprite width at the bottom;
+// the panel legs reach down to meet it (8 tall, was 4).
+R(2,38,40,4,"g");R(2,38,40,1,"G");R(2,41,40,1,"d");
 for(let i=0;i<3;i++)pn(5+i*12,19);
 if(t>2){R(21,0,2,5,"G");ball(R,22,2,3,"y","z","Z")}},
 foundry:(R,t)=>{
@@ -112,20 +117,19 @@ dome(22,top+1,9);
 R(22,0,1,Math.max(1,top-8),"G");R(23,0,5,1,"r");R(23,1,4,1,"r");R(22,0,1,1,"r")}
 };
 const SC=R=>{bev(R,4,36,36,6,"s","S","d");R(6,14,2,28,"n");R(36,14,2,28,"n");R(6,14,32,2,"N");R(6,26,32,2,"N");for(let i=0;i<10;i++)R(8+i*3,16+i,2,2,"n");R(30,2,2,14,"y");R(20,2,14,2,"y");R(21,4,1,8,"G");R(10,31,8,5,"x");R(12,32,4,1,"X")};
+// v2.2 MARS decor: no green trees, no blue ponds on Mars — decor is
+// rocks, craters and mineral crystals only (dark rust/grey blobs).
 const DC={
-tree:R=>{R(13,18,4,10,"N");R(13,18,1,10,"n");ball(R,15,12,11,"l","t","T","L");R(9,10,2,1,"T");R(18,14,2,1,"T");R(14,6,2,1,"L")},
-bush:R=>{ball(R,15,18,8,"l","t","T","L");R(10,18,2,1,"T");R(18,21,2,1,"T")},
-flower:R=>{[[6,8,"r"],[16,6,"y"],[22,14,"w"],[10,18,"p"],[19,22,"r"],[5,24,"y"]].forEach(f=>{R(f[0],f[1],2,2,f[2]);R(f[0],f[1]+2,1,2,"T")})},
 rock:R=>{ball(R,13,19,7,"s","S","G");ball(R,21,22,4,"s","S","G")},
-crystal:R=>{R(6,24,18,4,"S");cr(R,13,6,18,"p","P");cr(R,21,12,14,"c","b");cr(R,8,16,11,"c","b")},
-pond:R=>{for(let j=-7;j<=7;j++){const w=Math.round(13*Math.sqrt(1-(j/8)*(j/8)));R(15-w,15+j,2*w,1,j<-4?"c":j<3?"b":"B")}R(11,13,3,1,"w");R(18,16,2,1,"c");R(24,6,1,7,"T");R(26,8,1,5,"T")}
+crater:R=>{for(let j=-6;j<=6;j++){const w=Math.round(11*Math.sqrt(1-(j/7)*(j/7)));R(15-w,16+j,2*w,1,j<=-3?"G":j<=2?"d":"k")}R(9,12,4,1,"e");R(20,11,3,1,"e")},
+crystal:R=>{R(6,24,18,4,"S");cr(R,13,6,18,"p","P");cr(R,21,12,14,"c","b");cr(R,8,16,11,"c","b")}
 };
-const decor=(i,j)=>{const k=["tree","flower","rock","bush","pond","crystal","tree"][(((i*5+j*11)%7)+7)%7];return memo("d"+k,()=>spr(30,30,DC[k]))};
+const decor=(i,j)=>{const k=["rock","crater","crystal","rock","crater","crystal","rock"][(((i*5+j*11)%7)+7)%7];return memo("d"+k,()=>spr(30,30,DC[k]))};
 function ground(){return memo("g",()=>{const c=document.createElement("canvas");c.width=576;c.height=576;const q=c.getContext("2d"),H=(a,b)=>((a*73856093)^(b*19349663))>>>0;
-for(let tx=0;tx<36;tx++)for(let ty=0;ty<36;ty++){const h=H(tx,ty),x=tx*16,y=ty*16;q.fillStyle=(tx+ty)&1?"#5fae4f":"#59a64a";q.fillRect(x,y,16,16);
-for(let k=0;k<4;k++){const hh=H(tx*7+k,ty*3+k*5),px=x+(hh%13)+1,py=y+((hh>>4)%13)+2;q.fillStyle=k&1?"#7ccb5e":"#3e8236";q.fillRect(px,py,1,1);q.fillRect(px+1,py-1,1,1);q.fillRect(px-1,py-1,1,1)}
+for(let tx=0;tx<36;tx++)for(let ty=0;ty<36;ty++){const h=H(tx,ty),x=tx*16,y=ty*16;q.fillStyle=(tx+ty)&1?"#c98a5a":"#b56a3c";q.fillRect(x,y,16,16);
+for(let k=0;k<4;k++){const hh=H(tx*7+k,ty*3+k*5),px=x+(hh%13)+1,py=y+((hh>>4)%13)+2;q.fillStyle=k&1?"#e8a06a":"#7a3b26";q.fillRect(px,py,1,1);q.fillRect(px+1,py-1,1,1);q.fillRect(px-1,py-1,1,1)}
 if(h%23===0){q.fillStyle="#a89468";q.fillRect(x+3,y+5,10,6);q.fillStyle="#8f8a76";q.fillRect(x+5,y+7,6,2)}
-if(h%19===0){q.fillStyle=["#ff6b8a","#ffd84a","#ffffff","#b07cf0"][h%4];q.fillRect(x+4,y+6,2,2);q.fillStyle="#3e8236";q.fillRect(x+4,y+8,1,2)}}
+if(h%19===0){q.fillStyle=["#ff6b8a","#ffd84a","#ffffff","#b07cf0"][h%4];q.fillRect(x+4,y+6,2,2);q.fillStyle="#7a3b26";q.fillRect(x+4,y+8,1,2)}}
 return c})}
 const DG=["111101101101111","010110010010111","111001111100111","111001111001111","101101111001001","111100111001111","111100111101111","111001001001001","111101111101111","111101111001111"];
 function num(q,n,x,y){const s=String(n);q.fillStyle="#161628";q.fillRect(x,y,s.length*4+2,7);q.fillStyle="#fff";for(let k=0;k<s.length;k++){const p=DG[+s[k]];for(let i=0;i<15;i++)if(p[i]==="1")q.fillRect(x+1+k*4+i%3,y+1+Math.floor(i/3),1,1)}}
@@ -174,8 +178,15 @@ function isoPlinthH(b){return b&&b.t==="command"?ISO_PLINTH_KEEP_H:ISO_PLINTH_H}
 function isoSpriteSize(b){return b&&b.t==="command"?{w:ISO_SPRITE_KEEP_W,h:ISO_SPRITE_KEEP_H}:{w:ISO_SPRITE_W,h:ISO_SPRITE_H}}
 function isoHeight(b){const s=isoSpriteSize(b);return isoPlinthH(b)+s.h} // top of the sprite above the ground
 function isoCellFromPoint(wx,wy){const gx=wx/(ISO_TW/2),gy=wy/(ISO_TH/2);return{i:Math.floor((gx+gy)/2),j:Math.floor((gy-gx)/2)}}
-function shade(hex,f){const n=parseInt(hex.slice(1),16);return"rgb("+Math.round(((n>>16)&255)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")"}
-function isoBuildingHit(wx,wy,b){
+function shade(hex,f){const n=parseInt(hex.slice(1),16);return"rgb("+Math.round(((n>>16)&255)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")";}
+// v2.2: topmost visible row of a building's sprite canvas, as a
+// fraction of the canvas height (0 = content starts at the very top).
+// The sprite's visible content does not fill the 44x44 grid — the
+// Lv1 Solar Array's panels start at grid row 19, so ~40% of the
+// canvas above them is empty. Labels (and the shield hit circle)
+// anchor to the VISIBLE content top, not the canvas top.
+function spriteTopFrac(b){const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));return (sp._top||0)/sp.height}
+function isoBuildingHit(wx,wy,b,k){
   // v1.7 KEEP HITBOX TAPER: the keep's dome is narrow, so the sprite
   // BODY test tapers for command only — the dome zone (the top ~12u
   // of the sprite) is only the dome / central tower wide (±10u), so
@@ -185,11 +196,13 @@ function isoBuildingHit(wx,wy,b){
   // Roof centre, plinth and sprite body still select the building;
   // ground one tile away selects that plot.
   const c=isoC(b.x,b.y), s=isoSpriteSize(b), ph=isoPlinthH(b);
-  // v2.0: the drawn shield sits a small FIXED screen gap above the
-  // sprite (see the label pass) — the hit test uses a 10u-radius
-  // circle centred 10u above the sprite top, which covers the drawn
-  // shield's position at every zoom (2.5u at zoom 5 to ~13u at zoom 1).
-  if(Math.hypot(wx-c.x,wy-(c.y-ph-s.h-10))<=10)return true;
+  // v2.2: the drawn shield sits a FIXED 20 screen px above the
+  // VISIBLE top of the sprite (see the label pass) — the hit circle
+  // must match it. k = world->screen scale (stScale(), passed by
+  // game.js); without it, fall back to the old canvas-top circle,
+  // which is correct at zoom ~1.
+  if(k!==undefined){const shY=c.y-ph-s.h+spriteTopFrac(b)*s.h-20/k;if(Math.hypot(wx-c.x,wy-shY)<=10)return true}
+  else if(Math.hypot(wx-c.x,wy-(c.y-ph-s.h-10))<=10)return true;
   const yTop=c.y-ph-s.h+14, yBot=c.y-ph+2;
   if(b.t==="command"){
     const hw=wy<yTop+12?10:21;
@@ -256,11 +269,11 @@ const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hanga
 //     centre dots (live v2.0). Jayden never asked for a wall; the
 //     city edge is just grass now.
 //   towers ................ DELETED with the wall (v2.1).
-//   ground ................ plots are DARKER green (#3e8236) than the
-//     grass in the gaps (#5fae4f) — v2.1, Jayden: the plots and gaps
-//     were the same tone and blended into one flat field. No checker
-//     alternation, border alpha .05. Farmland is now ~5 muted plots,
-//     decor ~5 items, both outside the city.
+//   ground ................ v2.2 MARS: plots are DARKER RUST
+//     (#7a3b26) than the Mars sand in the gaps (#c98a5a) — no green
+//     anywhere on the station ground. No checker alternation, border
+//     alpha .05. Farmland REMOVED entirely (v2.2), decor ~5 Mars
+//     rocks/craters/crystals, all outside the city.
 //   roads/plaza ........... v2.0: NO roads at all (Jayden had the
 //     paths removed entirely — they were complained about in every
 //     version). Plaza is ONE small flat stone diamond under the
@@ -285,6 +298,16 @@ const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hanga
 // above the sprite with NO clamp, pole ends at the dome top with a
 // red finial pixel, locks capped at 28px tall on screen, river
 // dashes removed, plots darker green (#3e8236) than the gaps.
+// v2.2 (live v2.1): the Solar label floated ~115px above its panels
+// (label anchored to the sprite CANVAS top, but the solar's visible
+// content starts at grid row 19); one locked plot had stray
+// farmland rows on it; the plaza had a hard rim. Plus Jayden's Mars
+// direction: station ground goes rust/sand, river becomes lava.
+// Fixes: labels anchor to the VISIBLE content top per sprite
+// (measured in spr()), farmland REMOVED entirely, plaza = one flat
+// basalt diamond + soft shadow only, ground is Mars rust/sand with
+// NO green anywhere, river is a lava channel (basalt banks, molten
+// orange, bright centre), decor is rocks/craters/crystals only.
 const ISO_DIA_RX=26, ISO_DIA_RY=13;
 function drawBase(q,cam,opts){
   const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv;
@@ -296,7 +319,7 @@ function drawBase(q,cam,opts){
   const poly=(pts,fill,al)=>{if(al!==undefined)q.globalAlpha=al;q.beginPath();q.moveTo(X(pts[0][0]),Y(pts[0][1]));for(let n=1;n<pts.length;n++)q.lineTo(X(pts[n][0]),Y(pts[n][1]));q.closePath();q.fillStyle=fill;q.fill();if(al!==undefined)q.globalAlpha=1};
   const dia=(cx,cy,rx,ry,fill,al)=>poly([[cx,cy-ry],[cx+rx,cy],[cx,cy+ry],[cx-rx,cy]],fill,al);
   const diaStroke=(cx,cy,rx,ry,color,lw)=>{q.beginPath();q.moveTo(X(cx),Y(cy-ry));q.lineTo(X(cx+rx),Y(cy));q.lineTo(X(cx),Y(cy+ry));q.lineTo(X(cx-rx),Y(cy));q.closePath();q.strokeStyle=color;q.lineWidth=lw;q.stroke()};
-  q.fillStyle="#5fae4f";q.fillRect(0,0,vw,vh); // v1.5: gaps between diamonds are grass, not a dark void
+  q.fillStyle="#c98a5a";q.fillRect(0,0,vw,vh); // v2.2 MARS: gaps between diamonds are light Mars sand, not a dark void
   const keep=S.bl.find(b=>b.t==="command")||null;
   let mnx=12,mxx=-1,mny=12,mxy=-1;
   S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
@@ -306,7 +329,7 @@ function drawBase(q,cam,opts){
   // NO wall at all (v2.1: deleted entirely — the border read as
   // roads). Every locked plot shows its lock.
   const Hh=(a,b)=>((a*73856093)^(b*19349663))>>>0;
-  let farmN=0, decorN=0; // v1.5 caps: farmland and decor are sparse by count, not just by pattern
+  let decorN=0; // v1.5 caps: decor is sparse by count, not just by pattern
   // v2.0: NO terrace platform skirt — the ground is flat. The old
   // south-face polys (#4a3f30/#5d4f3c) read as a dark-brown dirt
   // trench crossing locked plots and running off the edges (live
@@ -320,7 +343,10 @@ function drawBase(q,cam,opts){
     const c=isoC(i,j);
     if(i<0||j<0||i>11||j>11){
       if(i===-1&&j>=0&&j<=11){
-        // v1.7 RIVER: ONE continuous channel, not per-tile diamonds.
+        // v2.2 LAVA (Jayden: Mars / space vibe — the river is lava
+        // now). Same channel geometry, new palette only: dark
+        // charred-basalt banks, molten orange, bright yellow-orange
+        // centre. No blue water anywhere on the station.
         // Live v1.6: the per-tile diamonds (20x10 on a 64x32 pitch)
         // left grass gaps between them, so the river read as 5-6
         // separate blue tiles / small pools, with a road cutting
@@ -336,38 +362,37 @@ function drawBase(q,cam,opts){
         // draw nothing — the canvas underneath is already grass.
         // (A diamond of rx,ry has perpendicular half-width
         // rx*ry/sqrt(rx^2+ry^2) along this diagonal: 8.94 / 7.16 /
-        // 4.92 world units for sand / water / centre — hence the
+        // 4.92 world units for bank / lava / centre — hence the
         // 17.9 / 14.3 / 9.8 stroke widths.)
         if(!riverDrawn){
           riverDrawn=true;
           const rx0=144,ry0=-88,rx1=-560,ry1=264;
           q.lineJoin="round";q.lineCap="round";
           const band=(w,col)=>{q.beginPath();q.moveTo(X(rx0),Y(ry0));q.lineTo(X(rx1),Y(ry1));q.strokeStyle=col;q.lineWidth=Math.max(1,w*k);q.stroke()};
-          band(17.9,"#cdb98a"); // sand banks (outer)
-          band(14.3,"#2f78b0"); // water
-          band(9.8,"#4aa3df"); // lighter centre flow
+          band(17.9,"#3a2a26"); // v2.2 LAVA: dark charred basalt banks (outer)
+          band(14.3,"#ff6a00"); // molten orange lava
+          band(9.8,"#ffb02e"); // brighter yellow-orange centre flow
           // v2.1: NO flow dashes. The pale blue-white dashes read as
           // stray white bars at Fit zoom (live v2.0) — the three-band
           // river reads fine without them.
         }
-      } else { // terrain outside the city: grass, never void
-        dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#5fae4f"); // v1.5: one grass tone, no checker
+      } else { // terrain outside the city: Mars sand, never void
+        dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#c98a5a"); // v2.2: light Mars sand, no checker
       }
       return;
     }
     const h=Hh(i,j),bd0=bAt(i,j);
-    // v2.1: plots are DARKER GREEN than the gaps (Jayden: the plot
-    // diamonds and the grass in between were the same #5fae4f, so they
-    // blended into one flat field). Plot fill #3e8236, gaps + terrain
-    // outside the grid stay #5fae4f. Applies to ALL empty plots,
+    // v2.2 MARS: plots are DARKER RUST than the gaps (Jayden: the
+    // plot diamonds and the sand in between must read as different
+    // ground). Plot fill #7a3b26, gaps + terrain outside the grid
+    // stay light Mars sand #c98a5a. Applies to ALL empty plots,
     // locked and unlocked — the padlock remains the only difference.
-    const base="#3e8236";
-    dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,base); // spaced diamond: grass gap between plots
+    const base="#7a3b26";
+    dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,base); // spaced diamond: sand gap between plots
     diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"rgba(0,0,0,0.05)",1); // faint border only
-    if(!bd0&&(i<wx0||i>wx1||j<wy0||j>wy1)&&(i*3+j*7)%29===0&&farmN<5){ // v1.5: farmland is ~5 muted plots, not one per tile
-      farmN++;
-      for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,12,2,(i+j+r)%2?"#d8c98a":"#6fae4f",.55);
-    }
+    // v2.2: FARMLAND IS REMOVED ENTIRELY. The three pale rows read as
+    // a stray mark on a locked plot (live v2.1, SE quadrant) — it was
+    // decorative clutter Jayden never asked for. Nothing replaces it.
     // v1.9: NO dim overlay on locked plots — a locked plot is clean
     // green grass exactly like an unlocked one; the lock icon is drawn
     // in a LAST pass (after plaza/roads/objects), so the plaza and the
@@ -377,30 +402,25 @@ function drawBase(q,cam,opts){
     if(!bd0&&go&&!plotLocked(i,j)){
       dia(c.x,c.y,22,11,"#8f8a76");
       dia(c.x,c.y,17,8,"#cdb98a");
-      q.fillStyle="#8fe070";q.globalAlpha=.9;
+      q.fillStyle="#ffb02e";q.globalAlpha=.9; // v2.2 MARS: amber + (was bright green) — buildable marker on rust
       q.fillRect(X(c.x)-Math.max(1,1.5*k),Y(c.y)-Math.max(3,7*k),Math.max(2,3*k),Math.max(6,14*k));
       q.fillRect(X(c.x)-Math.max(3,7*k),Y(c.y)-Math.max(1,1.5*k),Math.max(6,14*k),Math.max(2,3*k));
       q.globalAlpha=1;
     }
   });
-  // --- v2.1 plaza (no wall, no roads) ---
-  // The plaza is ONE flat stone diamond sized to the KEEP'S OWN PLOT
-  // only (28x14, just larger than the keep's 44x22 plinth) with a thin
-  // border — a single diamond, never concentric ones (live v1.8: the
-  // stacked plaza diamonds read as "filled-in squares").
-  // v2.1: THE WALL IS DELETED ENTIRELY. The v2.0 thin border stroked
-  // along the ring plots' outer edges read as wide grey-brown ROADS
-  // radiating from the keep, the merlons read as beige tabs at the
-  // ends of the paths, and the four corner towers read as grey plots
-  // with concentric inner diamonds and yellow centre dots (live
-  // v2.0). A stroked line along plot edges looks like a road, not a
-  // wall — and Jayden never asked for a wall. The city edge is just
-  // grass. NO roads either (v2.0: Jayden had the paths removed
-  // entirely).
+  // --- v2.2 plaza (no wall, no roads) ---
+  // The plaza is ONE flat diamond sized to the KEEP'S OWN PLOT only
+  // (28x14, just larger than the keep's 44x22 plinth) — a single
+  // diamond, never concentric ones (live v1.8: the stacked plaza
+  // diamonds read as "filled-in squares"). v2.2 MARS: dark basalt
+  // grey (#4b4b57, was beige/tan stone) + a SOFT shadow only — the
+  // hard border stroke read as a second rim around the diamond
+  // (live v2.1: grey-brown band on the SE edge, pale beige band on
+  // the NE edge).
   if(keep){
     const kpc=isoC(keep.x,keep.y);
-    dia(kpc.x,kpc.y,28,14,"#b8b09a");
-    diaStroke(kpc.x,kpc.y,28,14,"#8f8a76",Math.max(1,2*k));
+    dia(kpc.x,kpc.y+1,30,15,"#000000",.15); // soft shadow under the plaza
+    dia(kpc.x,kpc.y,28,14,"#4b4b57");
   }
   // --- objects: buildings, decor — painter's order ---
   // v2.1: NO wall/tower objects — the wall is deleted entirely, so no
@@ -472,7 +492,13 @@ function drawBase(q,cam,opts){
     // The old 2k-wide lemon-gold outline read as a thick bright yellow
     // diamond around the selected building (live v1.9: Solar Array).
     if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#c9a86a",2);
-    labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss:ssh});
+    // v2.2: label anchor = VISIBLE content top of the sprite, not the
+    // canvas top. ct is the screen y of the first drawn pixel row
+    // (sp._top, measured in spr()). The shield sits 20 screen px
+    // above ct in the label pass, so the gap from shield bottom to
+    // visible building top is 7px for EVERY building type.
+    const ctY=(spy-ssh+Math.max(2,3*k))+(sp._top||0)/sp.height*ssh;
+    labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss:ssh,ct:ctY});
     if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H:isoHeight(b)});
   });
   // --- v2.1 LOCKS, drawn LAST (after plaza, ground AND objects).
@@ -497,18 +523,19 @@ function drawBase(q,cam,opts){
     if(window.__isoDraw)window.__isoDraw.push({lock:i+","+j});
   }
   // --- second pass: level shields + names, screen space, always on top.
-  // v2.1 LABELS (live v2.0: the safeTop+32 clamp pinned labels to the
-  // top bar whenever a building was zoomed/panned, so the Solar label
-  // sat ~250px above its panels with a padlock between them and the
-  // keep's label sat ~150px above the dome). The shield+name now sit
-  // a FIXED 20 screen px above the sprite with NO vertical clamp at
-  // all — a label may leave the top of the screen if the player pans
-  // its building up there (that is normal); a label floating 250px
-  // above its building is not. drawLabel's noClamp flag keeps the
-  // name glued to its shield instead of pinning it to the viewport
-  // edge.
+  // v2.2 LABELS (live v2.1: the Solar Array's label floated ~115px
+  // above its panels at Fit zoom, ~190px at max zoom — Foundry was
+  // ~25-35px and Command ~15px. Cause: the shield anchored to the
+  // top of the 44x44 sprite CANVAS, but the solar's visible content
+  // (panels) starts at grid row 19, so ~40% of the canvas above them
+  // is empty and the label sat over the locked plot above the panels.
+  // The shield+name now anchor to the VISIBLE content top (L.ct,
+  // measured per sprite in spr()) with the same fixed 20 screen px
+  // gap and NO vertical clamp. A label may leave the top of the
+  // screen if the player pans its building up there (that is normal);
+  // a label floating above empty canvas space is not.
   labels.forEach(L=>{
-    const spriteTop=L.roofY-L.ss; // screen y of the sprite's top edge
+    const spriteTop=L.ct!==undefined?L.ct:L.roofY-L.ss; // screen y of the VISIBLE sprite top (first drawn pixel row)
     const nameW=L.name.length*7+6;
     let shx=Math.max(nameW/2+4,Math.min(vw-nameW/2-4,L.roofX));
     let shy=spriteTop-20; // shield centre: fixed 20 screen px above the sprite
