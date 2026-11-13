@@ -196,6 +196,22 @@ function isoBuildingHit(wx,wy,b,k){
   // keeps the full width (±21u, covers the side towers and body).
   // Roof centre, plinth and sprite body still select the building;
   // ground one tile away selects that plot.
+  // v2.4 KEEP DOME FIX (live v2.3, reproduced twice): the dome was
+  // NOT tappable — tapping it opened "Open land (2,1)", the plot
+  // behind/north of the keep. Root cause, verified by measurement:
+  // the body rect started 14u below the sprite top (yTop = 33), so
+  // the dome and flag (the top ~11u of the DRAWN sprite, world y
+  // 22..33 — flag pole rows 0..6, dome rows 6..15) were covered only
+  // by the 10u shield circle, which sits 20 screen px ABOVE the
+  // visible top: at Fit zoom it doesn't reach the dome at all, and
+  // at max zoom it only reaches the flag. The rect now starts at the
+  // VISIBLE content top (drawn canvas top + spriteTopFrac), so the
+  // whole keep — flag, pennant, dome, tower, base — is tappable.
+  // The taper is unchanged (dome/flag band ±10u, body ±21u, switch
+  // at the old yTop+12), so ground just left of the dome still
+  // selects the land, not the keep — the v1.7 taper probes still
+  // pass. Hit zones stay generous (plot-sized ground diamond below);
+  // nothing is shrunk to fix this.
   const c=isoC(b.x,b.y), s=isoSpriteSize(b), ph=isoPlinthH(b);
   // v2.2: the drawn shield sits a FIXED 20 screen px above the
   // VISIBLE top of the sprite (see the label pass) — the hit circle
@@ -206,8 +222,9 @@ function isoBuildingHit(wx,wy,b,k){
   else if(Math.hypot(wx-c.x,wy-(c.y-ph-s.h-10))<=10)return true;
   const yTop=c.y-ph-s.h+14, yBot=c.y-ph+2;
   if(b.t==="command"){
+    const visTop=c.y-ph-s.h+3+spriteTopFrac(b)*s.h; // drawn canvas top (+3u overlap shift) + visible-content offset; flag pole starts at row 0, so 22 for the Lv1 keep
     const hw=wy<yTop+12?10:21;
-    if(Math.abs(wx-c.x)<=hw&&wy>=yTop&&wy<=yBot)return true;
+    if(Math.abs(wx-c.x)<=hw&&wy>=visTop&&wy<=yBot)return true;
   } else if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=yTop&&wy<=yBot)return true;
   // v2.3: the HIT zone stays the plot-sized ground diamond (40x20,
   // keep 44x22) — a generous tap target on phones — even though the
@@ -589,8 +606,12 @@ const gbgFor=(w,h)=>memo("gbg"+w+"x"+h,()=>{const c=document.createElement("canv
 const blobs=[[.22,.30,110,"#241a4a"],[.55,.22,130,"#1a1442"],[.82,.45,120,"#121a46"],[.35,.68,140,"#241a4a"],[.68,.78,120,"#1a1442"],[.12,.82,90,"#2a1a5a"],[.92,.15,90,"#121a46"]];
 blobs.forEach(b=>{const g=q.createRadialGradient(b[0]*w,b[1]*h,0,b[0]*w,b[1]*h,b[2]);g.addColorStop(0,b[3]);g.addColorStop(1,"rgba(10,14,42,0)");q.globalAlpha=.55;q.fillStyle=g;q.fillRect(0,0,w,h)});q.globalAlpha=1;return c});
 const gbg=()=>gbgFor(384,480);
-const GP={p:["#d8ffd0","#5fc66a","#2d7a46"],c:["#ffd0c8","#e0584a","#8f2a22"],v:["#e0d0ff","#9a74f0","#563aa8"],l:["#7c849c","#4a5270","#2e3552"],swarm:["#ffe0b0","#e8a050","#a8602a"],armored:["#dff2ff","#82aadc","#486c9e"],fortress:["#f0d6ff","#b078f0","#6a40b0"]};
-function psp(i,st){return memo("p"+i+st,()=>{const s=SYS[i],r=i===0?18:i===15?20:14,W=2*r+28,pl=GP[st==="a"?s.t:st],cx=W>>1;
+const GP={p:["#d8ffd0","#5fc66a","#2d7a46"],c:["#ffd0c8","#e0584a","#8f2a22"],v:["#e0d0ff","#9a74f0","#563aa8"],k:["#ffedc2","#ffb02e","#8a5a1a"],a:["#d8f4ff","#4fc3f7","#2a6a9a"],m:["#ffd0ea","#ff7ad9","#8f2a6a"],l:["#7c849c","#4a5270","#2e3552"],swarm:["#ffe0b0","#e8a050","#a8602a"],armored:["#dff2ff","#82aadc","#486c9e"],fortress:["#f0d6ff","#b078f0","#6a40b0"]};
+// v2.4: every faction id in RV needs a GP entry — psp() looks the
+// planet palette up by the holder's faction id, and an unknown id
+// used to crash drawGalaxy (pl undefined). The ||GP.l fallback keeps
+// that impossible even for a future faction.
+function psp(i,st){return memo("p"+i+st,()=>{const s=SYS[i],r=i===0?18:i===15?20:14,W=2*r+28,pl=GP[st==="a"?s.t:st]||GP.l,cx=W>>1;
 return spr(W,W,R=>{ball(R,cx,cx,r,pl[0],pl[1],pl[2],"#ffffff");
 // surface detail: craters, patches and bands, seeded per system
 for(let k=0;k<7;k++){const px=cx+((i*7+k*5)%(2*r-4))-r+2,py=cx+((i*11+k*7)%(2*r-4))-r+2;if((px-cx)**2+(py-cx)**2<(r-3)**2){R(px,py,4,2,pl[2]);R(px+1,py+1,2,1,pl[2])}}
@@ -604,6 +625,11 @@ if(s.t==="armored"||i===0)for(let a=0;a<6.3;a+=.08){const px=Math.round(cx+Math.
 // on the starfield. Uses fillText (real canvas) — the headless stub counts it.
 function drawLabel(q,text,cx,cy,color,fs,noClamp){const vw=q.canvas.width||384,vh=q.canvas.height||480,f=Math.max(11,fs||11);try{q.font="bold "+f+"px 'Courier New',monospace"}catch(e){}q.textAlign="center";q.textBaseline="middle";let w=text.length*7;try{if(q.measureText)w=Math.ceil(q.measureText(text).width)}catch(e){}const hh=Math.ceil(f*1.3);if(!noClamp){cx=Math.max(w/2+4,Math.min(vw-w/2-4,cx));cy=Math.max(hh/2+2,Math.min(vh-hh/2-2,cy))}q.fillStyle="#161628";q.fillRect(Math.round(cx-w/2-3),Math.round(cy-hh/2),w+6,hh);q.fillStyle=color||"#ffffff";q.fillText(text,Math.round(cx),Math.round(cy))}
 function glyph2(q,p,x,y,s){for(let i=0;i<15;i++)if(p[i]==="1"){q.fillStyle="#161628";q.fillRect(x+(i%3)*s-1,y+Math.floor(i/3)*s-1,s+2,s+2);q.fillStyle="#ffffff";q.fillRect(x+(i%3)*s,y+Math.floor(i/3)*s,s,s)}}
+// v2.4: five factions need five distinct 3x5 glyphs and label colours
+// (was: Crimson got a glyph, Vael got a glyph, anything else fell
+// through to Vael's). Keth amber, Aurelian light cyan, Vortex pink.
+const RGLYPH={c:"111100100100111",v:"101101101101010",k:"101101111101101",a:"010101111101101",m:"101111111101101"};
+const RCOL={c:"#ff9a8a",v:"#d0b0ff",k:"#ffb02e",a:"#7dd8ff",m:"#ff7ad9"};
 // v0.9.1: galaxy world is 640x800 world units (SYS x/y * 5), canvas 384x480.
 // drawGalaxy(q) with no camera still works: it defaults to the fit view
 // (whole world visible, zoom 1). Planets are ~2x larger and labelled.
@@ -612,16 +638,20 @@ function glyph2(q,p,x,y,s){for(let i=0;i<15;i++)if(p[i]==="1"){q.fillStyle="#161
 function drawGalaxy(q,cam,opts){const F=Math.floor(Date.now()/500),cam2=cam||{cx:320,cy:400,zoom:1},vw=q.canvas.width||384,vh=q.canvas.height||480,sc=(vh/800)*cam2.zoom,sx=opts&&opts.sx!==undefined?opts.sx:vw/2,sy=opts&&opts.sy!==undefined?opts.sy:vh/2,ox=sx-cam2.cx*sc,oy=sy-cam2.cy*sc,PX=wx=>ox+wx*sc,PY=wy=>oy+wy*sc,WX=s=>s.x*5,WY=s=>s.y*5,fs=Math.max(11,Math.round(11*sc/1.2));
 q.drawImage(gbgFor(vw,vh),0,0);
 for(let i=0;i<120;i++){const sz=i%9===0?3:i%3===0?2:1;q.fillStyle=(i+F)%13===0?"#ffffff":i%3?"#5a6bb0":"#8fa0e0";q.fillRect((i*37)%Math.max(1,vw-2),(i*53)%Math.max(1,vh-2),sz,sz)}
-SYS.forEach((s,i)=>s.l.forEach(j=>{if(j>i){const a=PX(WX(s)),b=PY(WY(s)),c=PX(WX(SYS[j])),d=PY(WY(SYS[j])),n=Math.max(2,Math.round(Math.hypot(c-a,d-b)/4)),both=S.won.includes(i)&&S.won.includes(j),th=both?3:2;q.fillStyle=both?"#6ee7f5":"#3a4a9a";for(let k=1;k<n;k++)q.fillRect(Math.round(a+(c-a)*k/n),Math.round(b+(d-b)*k/n),th,th)}}));
+// v2.5 SECTORS: draw ONLY the active sector (SEC, view-only in
+// game.js). Routes are drawn only when BOTH ends are in the active
+// sector, so the cross-sector gate links (9-21, 13-27) never draw a
+// line to a system that isn't on this map.
+SYS.forEach((s,i)=>{if(secOf(i)!==SEC)return;s.l.forEach(j=>{if(j>i&&secOf(j)===SEC){const a=PX(WX(s)),b=PY(WY(s)),c=PX(WX(SYS[j])),d=PY(WY(SYS[j])),n=Math.max(2,Math.round(Math.hypot(c-a,d-b)/4)),both=S.won.includes(i)&&S.won.includes(j),th=both?3:2;q.fillStyle=both?"#6ee7f5":"#3a4a9a";for(let k=1;k<n;k++)q.fillRect(Math.round(a+(c-a)*k/n),Math.round(b+(d-b)*k/n),th,th)}})});
 const labels=[];
-SYS.forEach((s,i)=>{const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l"),sp=psp(i,st),cx=PX(WX(s)),cy=PY(WY(s)),baseR=i===0?18:i===15?20:14,zw=sp.width*sc*1.2,zh=sp.height*sc*1.2,r=baseR*sc*1.2;
+SYS.forEach((s,i)=>{if(secOf(i)!==SEC)return;const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l"),sp=psp(i,st),cx=PX(WX(s)),cy=PY(WY(s)),baseR=i===0?18:i===15?20:14,zw=sp.width*sc*1.2,zh=sp.height*sc*1.2,r=baseR*sc*1.2;
 q.drawImage(sp,cx-(zw>>1),cy-(zh>>1),zw,zh);
 if(own&&i>0){const fw=Math.max(8,Math.round(r*.7));q.fillStyle="#fff";q.fillRect(Math.round(cx+r-2),Math.round(cy-r-fw),2,fw);q.fillStyle="#6ee7f5";q.fillRect(Math.round(cx+r-1),Math.round(cy-r-fw),Math.max(8,fw),Math.max(4,fw>>1))}
-if(o)glyph2(q,o==="c"?"111100100100111":"101101101101010",Math.round(cx-3),Math.round(cy-3),2);
+if(o)glyph2(q,RGLYPH[o]||RGLYPH.c,Math.round(cx-3),Math.round(cy-3),2);
 if(i===S.sel){q.fillStyle=F&1?"#ffe066":"#ffffff";const z=r+8,bs=Math.max(3,Math.round(2*cam2.zoom));[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(d=>{q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?bs*2:0)),Math.round(cy+d[1]*z-(d[1]>0?1:0)),bs*2+1,bs);q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?1:0)),Math.round(cy+d[1]*z-(d[1]>0?bs*2:0)),bs,bs*2+1)})}
 // v1.6: name threshold was 0.55 — the extra galaxy bottom margin
 // lowers the fit zoom on narrow screens, and names must still show.
-if(cam2.zoom>=0.4)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o==="c"?"#ff9a8a":o==="v"?"#d0b0ff":avail(i)?"#ffe066":"#aab4c9",fs});
+if(cam2.zoom>=0.4)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o?RCOL[o]||"#aab4c9":avail(i)?"#ffe066":"#aab4c9",fs});
 if(cam2.zoom>=1.2&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});});
 labels.forEach(l=>drawLabel(q,l.text,l.cx,l.cy,l.color,l.fs));}
 // UI OVERHAUL v0.9: sprite helpers for the full System / Building pages.
