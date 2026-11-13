@@ -71,7 +71,7 @@ rock:R=>{ball(R,13,19,7,"s","S","G");ball(R,21,22,4,"s","S","G")},
 crystal:R=>{R(6,24,18,4,"S");cr(R,13,6,18,"p","P");cr(R,21,12,14,"c","b");cr(R,8,16,11,"c","b")},
 pond:R=>{for(let j=-7;j<=7;j++){const w=Math.round(13*Math.sqrt(1-(j/8)*(j/8)));R(15-w,15+j,2*w,1,j<-4?"c":j<3?"b":"B")}R(11,13,3,1,"w");R(18,16,2,1,"c");R(24,6,1,7,"T");R(26,8,1,5,"T")}
 };
-const decor=(i,j)=>{const k=["tree","flower","rock","bush","pond","crystal","tree"][(i*5+j*11)%7];return memo("d"+k,()=>spr(30,30,DC[k]))};
+const decor=(i,j)=>{const k=["tree","flower","rock","bush","pond","crystal","tree"][(((i*5+j*11)%7)+7)%7];return memo("d"+k,()=>spr(30,30,DC[k]))};
 function ground(){return memo("g",()=>{const c=document.createElement("canvas");c.width=576;c.height=576;const q=c.getContext("2d"),H=(a,b)=>((a*73856093)^(b*19349663))>>>0;
 for(let tx=0;tx<36;tx++)for(let ty=0;ty<36;ty++){const h=H(tx,ty),x=tx*16,y=ty*16;q.fillStyle=(tx+ty)&1?"#5fae4f":"#59a64a";q.fillRect(x,y,16,16);
 for(let k=0;k<4;k++){const hh=H(tx*7+k,ty*3+k*5),px=x+(hh%13)+1,py=y+((hh>>4)%13)+2;q.fillStyle=k&1?"#7ccb5e":"#3e8236";q.fillRect(px,py,1,1);q.fillRect(px+1,py-1,1,1);q.fillRect(px-1,py-1,1,1)}
@@ -85,7 +85,7 @@ function glyph(q,p,x,y){q.fillStyle="#161628";for(let i=0;i<15;i++)if(p[i]==="1"
 // isometric city view, not a top-down grid (GameSkinny: "an isometric
 // view of your inner city where military and residential structures
 // can be built and upgraded"). The logical model is UNCHANGED: 12x12
-// plots, S.bl {u,t,x,y,l}, adjacency still orthogonal neighbours,
+// plots, S.bl {u,t,x,y,l} (adjacency BONUS removed in v1.4 — see game.js mult()),
 // MAXC / newCost / placeB untouched. Only the rendering changes.
 // Projection (2:1 dimetric, the pixel-art standard):
 //   screenX = (gx - gy) * 32,  screenY = (gx + gy) * 16 - z
@@ -116,7 +116,8 @@ function isoBuildingHit(wx,wy,b){
   // level shield above the roof
   if(Math.abs(wx-c.x)<=10&&wy>=c.y-H-38&&wy<=c.y-H-18)return true;
   // building silhouette: roof diamond + two front faces (a hexagon)
-  const poly=[[c.x,c.y-H-16],[c.x+32,c.y-H],[c.x+32,c.y],[c.x,c.y+16],[c.x-32,c.y],[c.x-32,c.y-H]];
+  const fw=b.t==="command"?30:20, fh=b.t==="command"?15:10; // v1.4 footprint
+  const poly=[[c.x-fw*.6,c.y-H-40],[c.x+fw*.6,c.y-H-40],[c.x+fw,c.y-H],[c.x+fw,c.y],[c.x,c.y+fh],[c.x-fw,c.y],[c.x-fw,c.y-H]];
   let inside=false;
   for(let i=0,j=poly.length-1;i<poly.length;j=i++){
     const xi=poly[i][0],yi=poly[i][1],xj=poly[j][0],yj=poly[j][1];
@@ -126,6 +127,63 @@ function isoBuildingHit(wx,wy,b){
 }
 const DISTTINT={solar:"#ffe066",foundry:"#ff9a3c",mine:"#b07cf0",hub:"#9be8ff",hangar:"#4aa3df",command:"#f4f6ff"};
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};
+// ---- v1.3 station rewrite (live-browser bug fixes) ----
+// What was wrong in v1.2, seen live at 1919x998:
+//  1. Floating red/yellow bars — tower red flags, gate yellow bars and
+//     the Lv0 hazard bar floated in mid-air. REMOVED: no flags, no gate
+//     bars, no hazard bar. The only bar left is the build progress bar,
+//     anchored to the building's base on the ground.
+//  2. Buildings fused into one grey mass — the sprite was SHEARED onto
+//     the roof (a skewed sticker) and neighbours touched. Now each type
+//     has a distinct roof colour, the roof is a clean iso diamond, the
+//     sprite is drawn UPRIGHT (unsheared) sitting on the roof, footprints
+//     are smaller than the tile (visible gap + shadow between neighbours),
+//     and every building gets a name label + level shield.
+//  3. Map ~80% empty / 11. noisy ground — empty plots are now plain grass
+//     diamonds with a faint border; the "+" foundation pad only shows in
+//     Place/Move mode. Terrain diamonds are drawn over a WIDE area
+//     (i,j -4..15) so there is no flat void outside the city.
+//  4. Waterfall floated in the void — REMOVED entirely.
+//  5. River unreadable — now a continuous band with a sand bank stroke
+//     and a light centre line, kept on the i=-1 edge, clear of plots.
+//  6. No visible wall/cliffs — the city sits on a raised terrace
+//     platform with a visible vertical skirt, the wall is taller (22)
+//     with crenellations that touch its top, corner towers are taller
+//     with gold roofs, and gates are plain gaps in the wall (no posts,
+//     no yellow bar). 10. The four grey pillars were the gate posts —
+//     gone with the gates.
+//  7. Shields tiny/misplaced — now drawn in SCREEN space at a fixed
+//     13px radius, one per building, in a second pass on top of
+//     everything, with a stem connecting the shield to its building.
+//  8. Trees pasted on buildings — decor now only on empty plots
+//     OUTSIDE the wall, never adjacent to a building, ground-anchored.
+const ROOF={solar:"#2f78b0",foundry:"#e0584a",mine:"#b07cf0",hub:"#4fc3f7",hangar:"#7c849c",command:"#ffd84a"};
+// ---- v1.4 spacing + clean organised city (Hobbit, not a mess) ----
+// SPACING NUMBERS (iso world units; tile pitch stays 64x32, so the
+// projection and tap math are untouched):
+//   tile pitch ............ 64 wide x 32 tall (isoC unchanged)
+//   ground diamond drawn .. 52 x 26 (rx 26, ry 13) -> 5.4u grass gap
+//     between neighbouring diamonds (was 64x32: gap 0, tiles touched)
+//   building footprint .... 40 x 20 (rx 20, ry 10; keep 60x30)
+//     -> gap between neighbouring footprints ~10.7u (was ~3.6u)
+//     At Home zoom ~2 (sc ~1.6) that is ~17 screen px of clear ground
+//     between buildings, and ~9px of grass between plot diamonds.
+// ORGANISATION (same logical grid, same S.bl positions):
+//   - Roads: ONE main cross through the keep + ONE short spur per
+//     DISTRICT (to the district centroid), not a spur per building.
+//     No tangled paths, no road crossing a building's footprint.
+//   - Plaza: clear stone ring (3x3) around the keep, no decor in it.
+//   - Districts: each occupied plot keeps its subtle district tint
+//     (inset diamond, alpha .22), so a district reads as one tidy
+//     block with green/grass strips between districts.
+//   - Decor: sparse and deliberate — a handful of trees/rocks outside
+//     the city, never adjacent to a building, never on a road/river.
+//   - Ground: ONE clean grass tone per checker square, no random dirt
+//     patches, no speckles, no flower noise on plots. Farmland only
+//     on every 4th outside plot, the rest plain grass.
+//   - The wall stays continuous (rx 32) — a wall should join up;
+//     only plots and buildings get the gaps.
+const ISO_DIA_RX=26, ISO_DIA_RY=13;
 function drawBase(q,cam,opts){
   const now=Date.now(),F=Math.floor(now/250),go=S.place||S.mv;
   const cam2=cam||{cx:0,cy:192,zoom:1};
@@ -136,10 +194,7 @@ function drawBase(q,cam,opts){
   const poly=(pts,fill,al)=>{if(al!==undefined)q.globalAlpha=al;q.beginPath();q.moveTo(X(pts[0][0]),Y(pts[0][1]));for(let n=1;n<pts.length;n++)q.lineTo(X(pts[n][0]),Y(pts[n][1]));q.closePath();q.fillStyle=fill;q.fill();if(al!==undefined)q.globalAlpha=1};
   const dia=(cx,cy,rx,ry,fill,al)=>poly([[cx,cy-ry],[cx+rx,cy],[cx,cy+ry],[cx-rx,cy]],fill,al);
   const diaStroke=(cx,cy,rx,ry,color,lw)=>{q.beginPath();q.moveTo(X(cx),Y(cy-ry));q.lineTo(X(cx+rx),Y(cy));q.lineTo(X(cx),Y(cy+ry));q.lineTo(X(cx-rx),Y(cy));q.closePath();q.strokeStyle=color;q.lineWidth=lw;q.stroke()};
-  q.fillStyle="#35683a";q.fillRect(0,0,vw,vh);
-  // river source / waterfall at the top (north) corner of the diamond
-  for(let kk=0;kk<4;kk++){q.globalAlpha=.8;q.fillStyle="#9be8ff";q.fillRect(X(-10+kk*5),Y(-46-((F+kk*5)%10)),Math.max(2,3*k),Math.max(4,20*k))}
-  q.globalAlpha=1;
+  q.fillStyle="#4a7a38";q.fillRect(0,0,vw,vh);
   const keep=S.bl.find(b=>b.t==="command")||null;
   let mnx=12,mxx=-1,mny=12,mxy=-1;
   S.bl.forEach(b=>{mnx=Math.min(mnx,b.x);mxx=Math.max(mxx,b.x);mny=Math.min(mny,b.y);mxy=Math.max(mxy,b.y)});
@@ -147,125 +202,148 @@ function drawBase(q,cam,opts){
   const wx0=Math.max(0,mnx-1),wx1=Math.min(11,mxx+1),wy0=Math.max(0,mny-1),wy1=Math.min(11,mxy+1);
   const roads=new Set();
   const roadTo=(i0,j0,i1,j1)=>{let i=i0,j=j0;roads.add(i+","+j);while(i!==i1){i+=Math.sign(i1-i);roads.add(i+","+j)}while(j!==j1){j+=Math.sign(j1-j);roads.add(i+","+j)}};
-  if(keep){for(let i=wx0;i<=wx1;i++)roads.add(i+","+keep.y);for(let j=wy0;j<=wy1;j++)roads.add(keep.x+","+j);S.bl.forEach(b=>{if(b.u!==keep.u)roadTo(keep.x,keep.y,b.x,b.y)})}
+  if(keep){for(let i=wx0;i<=wx1;i++)roads.add(i+","+keep.y);for(let j=wy0;j<=wy1;j++)roads.add(keep.x+","+j);
+    // v1.4: ONE short spur per DISTRICT (to its centroid), not per
+    // building — a clean cross + spurs, no tangled paths.
+    const dist={};S.bl.forEach(b=>{if(b.u===keep.u)return;const d=DISTNAME[b.t]||b.t;(dist[d]=dist[d]||[]).push(b)});
+    Object.values(dist).forEach(bs=>{const cx=Math.round(bs.reduce((s,b)=>s+b.x,0)/bs.length),cy=Math.round(bs.reduce((s,b)=>s+b.y,0)/bs.length);roadTo(keep.x,keep.y,cx,cy)})}
   const Hh=(a,b)=>((a*73856093)^(b*19349663))>>>0;
-  // --- ground: cliff ring + river band + grass diamonds, back-to-front ---
+  // --- terrace platform skirt: the city sits on a raised platform.
+  // South faces are vertical, so the terrace reads as 3D at any zoom.
+  const pTop=isoPt(wx0-1,wy0-1),pRight=isoPt(wx1+2,wy0-1),pBot=isoPt(wx1+2,wy1+2),pLeft=isoPt(wx0-1,wy1+2),SK=18;
+  poly([[pLeft.x,pLeft.y],[pBot.x,pBot.y],[pBot.x,pBot.y+SK],[pLeft.x,pLeft.y+SK]],"#4a3f30");
+  poly([[pBot.x,pBot.y],[pRight.x,pRight.y],[pRight.x,pRight.y+SK],[pBot.x,pBot.y+SK]],"#5d4f3c");
+  // --- ground: wide terrain first, then plots, back-to-front ---
   const cells=[];
-  for(let j=-1;j<=12;j++)for(let i=-1;i<=12;i++)cells.push([i,j]);
+  for(let j=-4;j<=15;j++)for(let i=-4;i<=15;i++)cells.push([i,j]);
   cells.sort((a,b)=>(a[0]+a[1])-(b[0]+b[1])||a[0]-b[0]);
   cells.forEach(([i,j])=>{
     const c=isoC(i,j);
     if(i<0||j<0||i>11||j>11){
-      if(i===-1){ // river band along the north-west edge
-        dia(c.x,c.y,32,16,(i+j)%2?"#4aa3df":"#2f78b0");
-        q.globalAlpha=.5;q.fillStyle="#9be8ff";q.fillRect(X(c.x-8),Y(c.y-2),Math.max(2,16*k),Math.max(1,2*k));q.globalAlpha=1;
-      } else dia(c.x,c.y,32,16,(i+j)%2?"#4a5a44":"#42523e"); // terraced cliffs
+      if(i===-1&&j>=0&&j<=11){ // river band along the NW edge, clear of plots
+        dia(c.x,c.y,32,16,"#2f78b0");
+        dia(c.x,c.y,24,12,"#4aa3df");
+        q.globalAlpha=.85;q.fillStyle="#9be8ff";q.fillRect(X(c.x-14),Y(c.y-1),Math.max(4,28*k),Math.max(1,2*k));q.globalAlpha=1;
+        diaStroke(c.x,c.y,32,16,"#cdb98a",Math.max(1,2*k)); // sand banks
+      } else { // terrain outside the city: grass, never void
+        dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,(i+j)%2?"#4f8a44":"#47803c"); // v1.4: clean grass, spaced diamonds
+      }
       return;
     }
     const h=Hh(i,j),bd0=bAt(i,j);
-    let base=(i+j)%2?"#5fae4f":"#59a64a";
+    let base=(i+j)%2?"#5fae4f":"#57a647"; // v1.4: one clean grass tone, no random patches
     if(roads.has(i+","+j))base="#cdb98a";
-    else if(keep&&Math.abs(i-keep.x)<=1&&Math.abs(j-keep.y)<=1)base=(i+j)%2?"#c9c3b0":"#b8b09a";
-    dia(c.x,c.y,32,16,base);
-    if(bd0)dia(c.x,c.y,30,15,DISTTINT[bd0.t]||"#ffffff",.22);
-    else if(i<wx0||i>wx1||j<wy0||j>wy1){ // farmland outside the wall
-      for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,20,3,(i+j+r)%2?"#ffd84a":"#5fae4f",.85);
-    } else {
-      q.fillStyle=h%3?"#7ccb5e":"#3e8236";q.fillRect(X(c.x-10+(h%17)),Y(c.y-2+(h%7)),Math.max(1,2*k),Math.max(1,2*k));
-      if(h%19===0){q.fillStyle=["#ff6b8a","#ffd84a","#ffffff","#b07cf0"][h%4];q.fillRect(X(c.x+6),Y(c.y-4),Math.max(1,2*k),Math.max(1,2*k))}
+    else if(keep&&Math.abs(i-keep.x)<=1&&Math.abs(j-keep.y)<=1)base=(i+j)%2?"#c9c3b0":"#b8b09a"; // keep plaza ring
+    dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,base); // spaced diamond: grass gap between plots
+    diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"rgba(0,0,0,0.10)",1); // faint border only
+    if(bd0)dia(c.x,c.y,24,12,DISTTINT[bd0.t]||"#ffffff",.22); // district tint, inset diamond
+    else if((i<wx0||i>wx1||j<wy0||j>wy1)&&(i+j)%4===0){ // farmland: only every 4th outside plot
+      for(let r=0;r<3;r++)dia(c.x,c.y-7+r*7,16,3,(i+j+r)%2?"#ffd84a":"#5fae4f",.85);
     }
-    if(!bd0){ // cleared foundation pad: stone border, dirt centre, dashed outline, "+"
-      dia(c.x,c.y,26,13,"#8f8a76");
-      dia(c.x,c.y,20,10,"#cdb98a");
-      const dash=go?(F&1?"#ffffff":"#8fe070"):"#ecdcb4";
-      [[0,-13],[26,0],[0,13],[-26,0]].forEach(pt=>{q.fillStyle=dash;q.fillRect(X(c.x+pt[0]-2),Y(c.y+pt[1]-1),Math.max(2,4*k),Math.max(1,2*k))});
-      q.fillStyle=go?"#8fe070":"#ffffff";q.globalAlpha=go?.95:.55;
+    // Foundation pad ONLY in Place/Move mode — normal ground is terrain, not grid.
+    if(!bd0&&go){
+      dia(c.x,c.y,22,11,"#8f8a76");
+      dia(c.x,c.y,17,8,"#cdb98a");
+      q.fillStyle="#8fe070";q.globalAlpha=.9;
       q.fillRect(X(c.x)-Math.max(1,1.5*k),Y(c.y)-Math.max(3,7*k),Math.max(2,3*k),Math.max(6,14*k));
       q.fillRect(X(c.x)-Math.max(3,7*k),Y(c.y)-Math.max(1,1.5*k),Math.max(6,14*k),Math.max(2,3*k));
       q.globalAlpha=1;
     }
   });
-  // --- objects: wall, towers, gates, buildings, decor — painter's order ---
-  const block=(cx,cy,H,base,top,sp,rx,ry)=>{
+  // --- objects: wall, towers, buildings, decor — painter's order ---
+  // block(): extruded iso block with a CLEAN roof diamond (no sheared
+  // sprite — the sprite is drawn upright on top afterwards).
+  const block=(cx,cy,H,base,top,rx,ry)=>{
     rx=rx||32;ry=ry||16;
-    dia(cx,cy+2,rx*.9,ry*.9,"#000000",.28);
+    dia(cx,cy+2,rx*.9,ry*.9,"#000000",.25); // ground shadow = the gap between neighbours
     poly([[cx-rx,cy-H],[cx,cy-H+ry],[cx,cy+ry],[cx-rx,cy]],shade(base,.72));
     poly([[cx+rx,cy-H],[cx,cy-H+ry],[cx,cy+ry],[cx+rx,cy]],shade(base,.52));
     dia(cx,cy-H,rx,ry,top||shade(base,1.2));
-    if(sp){const w=sp.width,h=sp.height;q.save();q.setTransform(rx*sc/w,ry*sc/w,-rx*sc/h,ry*sc/h,X(cx),Y(cy-H-ry));q.drawImage(sp,0,0);q.restore()}
   };
   const objs=[];
   const keepX=keep?keep.x:-1,keepY=keep?keep.y:-1;
   for(let i=wx0;i<=wx1;i++){
-    objs.push({d:i+wy0,kind:"wall",i,j:wy0,gate:i===keepX});
-    objs.push({d:i+wy1,kind:"wall",i,j:wy1,gate:i===keepX});
+    if(i!==keepX)objs.push({d:i+wy0,kind:"wall",i,j:wy0}); // gates are plain gaps, no posts
+    if(i!==keepX)objs.push({d:i+wy1,kind:"wall",i,j:wy1});
   }
   for(let j=wy0;j<=wy1;j++){
-    objs.push({d:wx0+j,kind:"wall",i:wx0,j,gate:j===keepY});
-    objs.push({d:wx1+j,kind:"wall",i:wx1,j,gate:j===keepY});
+    if(j!==keepY)objs.push({d:wx0+j,kind:"wall",i:wx0,j});
+    if(j!==keepY)objs.push({d:wx1+j,kind:"wall",i:wx1,j});
   }
   [[wx0,wy0],[wx1,wy0],[wx0,wy1],[wx1,wy1]].forEach(c=>objs.push({d:c[0]+c[1],kind:"tower",i:c[0],j:c[1]}));
   S.bl.forEach(b=>objs.push({d:b.x+b.y,kind:"bld",b}));
-  for(let j=wy0;j<=wy1;j++)for(let i=wx0;i<=wx1;i++){if(!bAt(i,j)&&(i*3+j*5)%4===0)objs.push({d:i+j,kind:"decor",i,j})}
+  // Decor: ONLY on empty ground outside the city — ground-anchored,
+  // sized to the tile, never on a building or a road.
+  // v1.4: sparse, deliberate decor — a handful of trees/rocks at the
+  // city edge, never adjacent to a building, never on a road or river.
+  const nearB=(i,j)=>S.bl.some(b=>Math.abs(b.x-i)+Math.abs(b.y-j)<=1);
+  for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
+    if(i<0||j<0||i>11||j>11){if(i!==-1&&!roads.has(i+","+j)&&!nearB(i,j)&&(i*7+j*11)%23===0)objs.push({d:i+j,kind:"decor",i,j,out:true})}
+  }
   objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
+  const labels=[]; // second pass: shields + names drawn on top, screen space
   objs.forEach(o=>{
     if(o.kind==="wall"){
       const c=isoC(o.i,o.j);
-      if(o.gate){
-        block(c.x-22,c.y-2,16,"#8f8a76","#c9c3b0",null,9,5);
-        block(c.x+22,c.y-2,16,"#8f8a76","#c9c3b0",null,9,5);
-        q.fillStyle="#ffd84a";q.fillRect(X(c.x-14),Y(c.y-20),Math.max(4,28*k),Math.max(2,3*k));
-      } else {
-        block(c.x,c.y,10,"#8f8a76","#c9c3b0",null);
-        q.fillStyle="#c9c3b0";
-        [-16,0,16].forEach(dx=>q.fillRect(X(c.x+dx-2),Y(c.y-14),Math.max(2,4*k),Math.max(2,3*k)));
-      }
+      block(c.x,c.y,22,"#8f8a76","#c9c3b0",null);
+      // Crenellations sit ON the roof diamond, touching it.
+      [-16,0,16].forEach(dx=>{const px=X(c.x+dx),py=Y(c.y-22-(dx===0?14:7));q.fillStyle="#c9c3b0";q.fillRect(px-2,py-2,Math.max(3,4*k),Math.max(3,4*k))});
       return;
     }
     if(o.kind==="tower"){
       const c=isoC(o.i,o.j);
-      block(c.x,c.y,24,"#8f8a76","#c9c3b0",null);
-      q.fillStyle="#e0584a";q.fillRect(X(c.x+2),Y(c.y-34),Math.max(3,10*k),Math.max(2,5*k));
+      block(c.x,c.y,36,"#8f8a76","#ffd84a",null,28,14); // gold roof, no flag
       return;
     }
     if(o.kind==="decor"){
-      const c=isoC(o.i,o.j),dc=decor(o.i,o.j),ds=26*k;
-      q.drawImage(dc,X(c.x)-ds/2,Y(c.y)-ds*.92,ds,ds);
+      const c=isoC(o.i,o.j),dc=decor(o.i,o.j),ds=Math.round(22*k);
+      q.drawImage(dc,X(c.x)-ds/2,Y(c.y+8)-ds,ds,ds); // bottom anchored to the ground
       return;
     }
     const b=o.b,c=isoC(b.x,b.y),isKeep=keep&&b.u===keep.u;
     const H=isoHeight(b)+(isKeep?8:0);
+    const roof=ROOF[b.t]||"#aab4c9";
+    const rx=isKeep?30:20,ry=isKeep?15:10; // v1.4 SPACING: footprint 40x20 (keep 60x30) on a 64x32 pitch
+    block(c.x,c.y,H,roof,shade(roof,1.25),rx,ry);
+    dia(c.x,c.y-H,rx*.55,ry*.55,shade(roof,1.45)); // lighter roof centre
+    // Upright sprite sitting on the roof — NOT sheared, NOT skewed.
     const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));
-    if(isKeep)block(c.x,c.y,H,ISO_BASE[b.t],"#ffffff",sp,40,20);
-    else block(c.x,c.y,H,ISO_BASE[b.t]||"#aab4c9",null,sp);
-    if(b.l===0){
-      q.fillStyle="#ffd84a";q.fillRect(X(c.x)-Math.max(6,14*k),Y(c.y-H-4),Math.max(12,28*k),Math.max(2,3*k));
-      q.fillStyle="#161628";q.fillRect(X(c.x)-Math.max(6,14*k),Y(c.y-H-4),Math.max(2,4*k),Math.max(2,3*k));
-    }
-    if(b.l>0){
-      const shx=X(c.x),shy=Y(c.y-H-28);
-      q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-9);q.lineTo(shx+9,shy);q.lineTo(shx,shy+9);q.lineTo(shx-9,shy);q.closePath();q.fill();
-      const n=String(b.l).length;num(q,b.l,Math.round(shx-(n*4+2)/2),Math.round(shy-3));
-      if(window.__isoDraw)window.__isoDraw.push({shield:b.u,l:b.l});
-    }
-    if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H});
+    const ss=Math.round(26*k),spx=X(c.x),spy=Y(c.y-H);
+    q.drawImage(sp,spx-ss/2,spy-ss*.92,ss,ss);
+    // Roof-face details (drawn ON the roof, never floating above it).
     if(b.l>0){
       if(b.t==="foundry")for(let kk=0;kk<3;kk++){const g=(F+kk*3)%9,s=3+(g>>2);q.globalAlpha=.75*(1-g/9);q.fillStyle="#e8ecf5";q.fillRect(X(c.x+12+Math.round(Math.sin((F+kk)/2)*2)),Y(c.y-H-8-g*2),Math.max(1,s*k),Math.max(1,s*k));q.globalAlpha=1}
-      if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(X(c.x-4),Y(c.y-H-10),Math.max(1,3*k),Math.max(1,3*k))}
+      if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(X(c.x-3),Y(c.y-H-2),Math.max(2,4*k),Math.max(2,4*k))}
       if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(X(c.x-14),Y(c.y-6),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(X(c.x+11),Y(c.y-6),Math.max(1,3*k),Math.max(1,3*k))}
-      if(b.t==="solar"){q.fillStyle="#ffffff";q.fillRect(X(c.x-8+(F*4)%16),Y(c.y-H-4),Math.max(1,2*k),Math.max(1,1*k))}
-      if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(X(c.x),Y(c.y-H-8),Math.max(2,4*k),Math.max(1,3*k))}
-      if(b.t==="command"){q.fillStyle="#e0584a";const wv=Math.round(Math.sin(F/2)*2);q.fillRect(X(c.x+2+wv),Y(c.y-H-16),Math.max(3,10*k),Math.max(2,5*k))}
+      if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(X(c.x-10),Y(c.y-H+2),Math.max(2,4*k),Math.max(2,3*k));q.fillRect(X(c.x+10),Y(c.y-H+2),Math.max(2,4*k),Math.max(2,3*k))}
+      if(b.t==="command"){q.fillStyle="#ffd84a";q.fillRect(X(c.x-2),Y(c.y-H-2),Math.max(2,4*k),Math.max(2,4*k))}
+      if(b.t==="solar"){q.fillStyle="#ffffff";q.fillRect(X(c.x-8),Y(c.y-H),Math.max(4,12*k),Math.max(1,2*k))}
     }
+    // Build progress: anchored to the building's base on the ground.
     const job=S.bq.filter(j=>j.u===b.u).sort((u,v)=>u.end-v.end)[0];
-    if(job&&job.s){const p=Math.min(1,(now-job.s)/(job.end-job.s));q.fillStyle="#161628";q.fillRect(X(c.x-20),Y(c.y+20),Math.max(4,40*k),Math.max(2,3*k));q.fillStyle="#ffe066";q.fillRect(X(c.x-19),Y(c.y+21),Math.max(1,38*p*k),Math.max(1,1*k))}
-    else if(job){q.fillStyle="#ffe066";q.fillRect(X(c.x-20),Y(c.y+20),Math.max(2,4*k),Math.max(2,3*k))}
-    if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,32,16,F&1?"#ffe066":"#ffffff",Math.max(1,2*k));
+    if(job&&job.s){const p=Math.min(1,(now-job.s)/(job.end-job.s));q.fillStyle="#161628";q.fillRect(X(c.x)-18,Y(c.y+20),36,5);q.fillStyle="#ffe066";q.fillRect(X(c.x)-17,Y(c.y+21),Math.max(1,Math.round(34*p)),3)}
+    else if(job){q.fillStyle="#ffe066";q.fillRect(X(c.x)-18,Y(c.y+20),8,5)}
+    if(b.u===S.bsel||b.u===S.mv)diaStroke(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,F&1?"#ffe066":"#ffffff",Math.max(1,2*k));
+    labels.push({u:b.u,l:b.l,name:B[b.t].n,roofX:spx,roofY:spy,ss});
+    if(window.__isoDraw)window.__isoDraw.push({u:b.u,d:b.x+b.y,t:b.t,l:b.l,H});
+  });
+  // --- second pass: level shields + names, screen space, always on top.
+  // Shield: fixed 13px radius, stem connects it to its own building.
+  labels.forEach(L=>{
+    const shx=L.roofX,shy=L.roofY-L.ss-16;
+    q.fillStyle="#7a4fc0";q.fillRect(shx-1,shy+12,2,L.ss+4); // stem down to the sprite
+    q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-13);q.lineTo(shx+13,shy);q.lineTo(shx,shy+13);q.lineTo(shx-13,shy);q.closePath();q.fill();
+    q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
+    try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
+    q.textAlign="center";q.textBaseline="middle";q.fillStyle="#ffffff";q.fillText(String(L.l),shx,shy+1);
+    drawLabel(q,L.name,Math.round(shx),Math.round(shy-24),"#ffffff",11);
+    if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l});
   });
 }
 
 const gbgFor=(w,h)=>memo("gbg"+w+"x"+h,()=>{const c=document.createElement("canvas");c.width=w;c.height=h;const q=c.getContext("2d");q.fillStyle="#0a0e2a";q.fillRect(0,0,w,h);
-for(let k=0;k<14;k++){const cx=(k*71)%w,cy=(k*97)%h,r=40+k*6;q.fillStyle=k%3===0?"#1a1442":k%3===1?"#121a46":"#241a4a";for(let dy=-r;dy<=r;dy+=2)for(let dx=-r;dx<=r;dx+=2)if(dx*dx+dy*dy<r*r&&(((dx>>1)+(dy>>1))&1)===0)q.fillRect(cx+dx,cy+dy,2,2)}return c});
+const blobs=[[.22,.30,110,"#241a4a"],[.55,.22,130,"#1a1442"],[.82,.45,120,"#121a46"],[.35,.68,140,"#241a4a"],[.68,.78,120,"#1a1442"],[.12,.82,90,"#2a1a5a"],[.92,.15,90,"#121a46"]];
+blobs.forEach(b=>{const g=q.createRadialGradient(b[0]*w,b[1]*h,0,b[0]*w,b[1]*h,b[2]);g.addColorStop(0,b[3]);g.addColorStop(1,"rgba(10,14,42,0)");q.globalAlpha=.55;q.fillStyle=g;q.fillRect(0,0,w,h)});q.globalAlpha=1;return c});
 const gbg=()=>gbgFor(384,480);
 const GP={p:["#d8ffd0","#5fc66a","#2d7a46"],c:["#ffd0c8","#e0584a","#8f2a22"],v:["#e0d0ff","#9a74f0","#563aa8"],l:["#7c849c","#4a5270","#2e3552"],swarm:["#ffe0b0","#e8a050","#a8602a"],armored:["#dff2ff","#82aadc","#486c9e"],fortress:["#f0d6ff","#b078f0","#6a40b0"]};
 function psp(i,st){return memo("p"+i+st,()=>{const s=SYS[i],r=i===0?18:i===15?20:14,W=2*r+28,pl=GP[st==="a"?s.t:st],cx=W>>1;
@@ -297,8 +375,8 @@ q.drawImage(sp,cx-(zw>>1),cy-(zh>>1),zw,zh);
 if(own&&i>0){const fw=Math.max(8,Math.round(r*.7));q.fillStyle="#fff";q.fillRect(Math.round(cx+r-2),Math.round(cy-r-fw),2,fw);q.fillStyle="#6ee7f5";q.fillRect(Math.round(cx+r-1),Math.round(cy-r-fw),Math.max(8,fw),Math.max(4,fw>>1))}
 if(o)glyph2(q,o==="c"?"111100100100111":"101101101101010",Math.round(cx-3),Math.round(cy-3),2);
 if(i===S.sel){q.fillStyle=F&1?"#ffe066":"#ffffff";const z=r+8,bs=Math.max(3,Math.round(2*cam2.zoom));[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(d=>{q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?bs*2:0)),Math.round(cy+d[1]*z-(d[1]>0?1:0)),bs*2+1,bs);q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?1:0)),Math.round(cy+d[1]*z-(d[1]>0?bs*2:0)),bs,bs*2+1)})}
-if(cam2.zoom>=1.5)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o==="c"?"#ff9a8a":o==="v"?"#d0b0ff":avail(i)?"#ffe066":"#aab4c9",fs});
-if(cam2.zoom>=2&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});});
+if(cam2.zoom>=0.55)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o==="c"?"#ff9a8a":o==="v"?"#d0b0ff":avail(i)?"#ffe066":"#aab4c9",fs});
+if(cam2.zoom>=1.2&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});});
 labels.forEach(l=>drawLabel(q,l.text,l.cx,l.cy,l.color,l.fs));}
 // UI OVERHAUL v0.9: sprite helpers for the full System / Building pages.
 // They reuse the exact sprites drawGalaxy / drawBase already draw.
