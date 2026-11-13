@@ -17,7 +17,14 @@ const tier=l=>l>=12?3:l>=8?2:l>=4?1:0;
 const BS={
 solar:(R,t)=>{const g=t>1,pn=(x,y)=>{bev(R,x,y,11,11,g?"z":"c","u",g?"Z":"U");R(x+5,y+1,1,9,"U");R(x+1,y+5,9,1,"U");R(x+2,y+2,2,1,"w");R(x+5,y+11,2,4,"G")};
 if(t>0)for(let i=0;i<3;i++)pn(5+i*12,5);
-bev(R,2,33,40,9,"g","G","d");R(4,36,36,1,"d");
+// v1.7: the base platform is a STEPPED diamond that stays INSIDE the
+// plinth diamond at every height — the old 40-wide slab overhung the
+// plinth's top point (live v1.6: the grey slab covered the top of the
+// blue plinth diamond). Row widths follow the plinth slope (plinth
+// 44x22: half-width grows ~2u per 1u down), so the slab reads as
+// sitting ON the plinth instead of spilling past it.
+R(17,33,10,2,"g");R(13,35,18,2,"g");R(9,37,26,2,"g");R(5,39,34,2,"g");R(2,41,40,2,"g");
+R(17,33,10,1,"G");R(2,42,40,1,"d");
 for(let i=0;i<3;i++)pn(5+i*12,19);
 if(t>2){R(21,0,2,5,"G");ball(R,22,2,3,"y","z","Z")}},
 foundry:(R,t)=>{
@@ -127,23 +134,21 @@ function isoHeight(b){const s=isoSpriteSize(b);return isoPlinthH(b)+s.h} // top 
 function isoCellFromPoint(wx,wy){const gx=wx/(ISO_TW/2),gy=wy/(ISO_TH/2);return{i:Math.floor((gx+gy)/2),j:Math.floor((gy-gx)/2)}}
 function shade(hex,f){const n=parseInt(hex.slice(1),16);return"rgb("+Math.round(((n>>16)&255)*f)+","+Math.round(((n>>8)&255)*f)+","+Math.round((n&255)*f)+")"}
 function isoBuildingHit(wx,wy,b){
-  // v1.6 TIGHT hitbox: the WHOLE visible building, but nothing more.
-  // Live v1.5: taps on the blue tiles above the Solar Array selected
-  // it — the old hitbox was the full sprite rectangle (40 wide, 46
-  // tall) plus a 12-radius shield circle, so it swallowed the ground
-  // behind/above the building. Now:
-  //  (1) shield: radius 9, only the diamond itself;
-  //  (2) sprite BODY: the lower part of the sprite only, width
-  //      s.w/2-4 — the tall top of the sprite no longer claims the
-  //      plot behind it, and a tap one tile above/beside (offset
-  //      +/-32 in x in iso space) falls outside it;
-  //  (3) plinth: the actual plinth diamond (rx 22 / ry 11, keep
-  //      26/13), not the oversized 26/13 ground diamond.
-  // Roof centre (plinth centre), plinth side and sprite body all
-  // select the building; ground one tile away selects that plot.
+  // v1.7 KEEP HITBOX TAPER: the keep's dome is narrow, so the sprite
+  // BODY test tapers for command only — the dome zone (the top ~12u
+  // of the sprite) is only the dome / central tower wide (±10u), so
+  // a tap on the ground just left of the dome selects the LAND, not
+  // the Command Station (live v1.6). The tower/body zone below it
+  // keeps the full width (±21u, covers the side towers and body).
+  // Roof centre, plinth and sprite body still select the building;
+  // ground one tile away selects that plot.
   const c=isoC(b.x,b.y), s=isoSpriteSize(b), ph=isoPlinthH(b);
   if(Math.hypot(wx-c.x,wy-(c.y-ph-s.h-14))<=9)return true;
-  if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=c.y-ph-s.h+14&&wy<=c.y-ph+2)return true;
+  const yTop=c.y-ph-s.h+14, yBot=c.y-ph+2;
+  if(b.t==="command"){
+    const hw=wy<yTop+12?10:21;
+    if(Math.abs(wx-c.x)<=hw&&wy>=yTop&&wy<=yBot)return true;
+  } else if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=yTop&&wy<=yBot)return true;
   const rx=b.t==="command"?26:22, ry=b.t==="command"?13:11;
   return Math.abs(wx-c.x)/rx+Math.abs(wy-c.y)/ry<=1.0;
 }
@@ -166,8 +171,11 @@ const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Indus
 //     Place/Move mode. Terrain diamonds are drawn over a WIDE area
 //     (i,j -4..15) so there is no flat void outside the city.
 //  4. Waterfall floated in the void — REMOVED entirely.
-//  5. River unreadable — now a continuous band with a sand bank stroke
-//     and a light centre line, kept on the i=-1 edge, clear of plots.
+//  5. River unreadable — v1.7: actually one continuous band now
+//     (a single stroked channel with sand banks and flow dashes —
+//     the v1.3/v1.6 per-tile diamonds left grass gaps between them
+//     and read as separate blue tiles). Kept on the i=-1 edge,
+//     clear of plots.
 //  6. No visible wall/cliffs — the city sits on a raised terrace
 //     platform with a visible vertical skirt, the wall is taller (22)
 //     with crenellations that touch its top, corner towers are taller
@@ -241,17 +249,39 @@ function drawBase(q,cam,opts){
   const cells=[];
   for(let j=-4;j<=15;j++)for(let i=-4;i<=15;i++)cells.push([i,j]);
   cells.sort((a,b)=>(a[0]+a[1])-(b[0]+b[1])||a[0]-b[0]);
+  let riverDrawn=false; // v1.7: the river band is drawn ONCE, at its first cell
   cells.forEach(([i,j])=>{
     const c=isoC(i,j);
     if(i<0||j<0||i>11||j>11){
-      if(i===-1&&j>=0&&j<=11){ // v1.6 river: NARROW (20x10, was 32x16),
-        // deep blue with a sand bank on each side and a light flow
-        // line down the middle — it must read as one continuous
-        // stream, not a field of bright-blue tiles.
-        dia(c.x,c.y,20,10,"#cdb98a"); // sand banks (outer)
-        dia(c.x,c.y,16,8,"#2f78b0"); // water
-        dia(c.x,c.y,11,5,"#4aa3df"); // lighter centre flow
-        q.fillStyle="#9be8ff";q.fillRect(X(c.x)-Math.max(2,6*k),Y(c.y)-1,Math.max(4,12*k),Math.max(1,2*k));
+      if(i===-1&&j>=0&&j<=11){
+        // v1.7 RIVER: ONE continuous channel, not per-tile diamonds.
+        // Live v1.6: the per-tile diamonds (20x10 on a 64x32 pitch)
+        // left grass gaps between them, so the river read as 5-6
+        // separate blue tiles / small pools, with a road cutting
+        // across the row. The river centres are collinear —
+        // isoC(-1,j) steps (-32,+16) — so the whole river is ONE
+        // straight stroked band from (-16,-8) to (-400,184): a sand
+        // bank stroke, a water stroke, a lighter centre flow, and
+        // four animated flow dashes. Drawn once, at the first river
+        // cell (depth -1, behind everything); the other river cells
+        // draw nothing — the canvas underneath is already grass.
+        // (A diamond of rx,ry has perpendicular half-width
+        // rx*ry/sqrt(rx^2+ry^2) along this diagonal: 8.94 / 7.16 /
+        // 4.92 world units for sand / water / centre — hence the
+        // 17.9 / 14.3 / 9.8 stroke widths.)
+        if(!riverDrawn){
+          riverDrawn=true;
+          const rx0=-16,ry0=-8,rx1=-400,ry1=184;
+          const dx=rx1-rx0,dy=ry1-ry0,dl=Math.hypot(dx,dy),ux=dx/dl,uy=dy/dl;
+          q.lineJoin="round";q.lineCap="round";
+          const band=(w,col)=>{q.beginPath();q.moveTo(X(rx0),Y(ry0));q.lineTo(X(rx1),Y(ry1));q.strokeStyle=col;q.lineWidth=Math.max(1,w*k);q.stroke()};
+          band(17.9,"#cdb98a"); // sand banks (outer)
+          band(14.3,"#2f78b0"); // water
+          band(9.8,"#4aa3df"); // lighter centre flow
+          q.strokeStyle="#9be8ff";q.lineWidth=Math.max(1,2*k);
+          for(let m=0;m<4;m++){const tt=(F*0.03+m*0.25)%1,px=rx0+dx*tt,py=ry0+dy*tt;
+            q.beginPath();q.moveTo(X(px-ux*5),Y(py-uy*5));q.lineTo(X(px+ux*5),Y(py+uy*5));q.stroke()}
+        }
       } else { // terrain outside the city: grass, never void
         dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#5fae4f"); // v1.5: one grass tone, no checker
       }
@@ -373,9 +403,13 @@ function drawBase(q,cam,opts){
     const ssw=Math.round(ssz.w*k),ssh=Math.round(ssz.h*k),spx=X(c.x),spy=Y(c.y-ph);
     q.drawImage(sp,spx-ssw/2,spy-ssh+Math.max(2,3*k),ssw,ssh); // bottom overlaps the plinth: no gap
     // Production effects, anchored to the sprite (never floating above it).
+    // v1.7: the foundry smoke is REMOVED — its rising grey squares
+    // drifted above the sprite top, right where the level shield and
+    // name sit, and read as stray white/grey squares on the map at
+    // zoom (live v1.6). The other effects are small marks ON the
+    // sprite body, so they stay.
     if(b.l>0){
       const sTop=spy-ssh;
-      if(b.t==="foundry")for(let kk=0;kk<3;kk++){const g=(F+kk*3)%9,s=3+(g>>2);q.globalAlpha=.75*(1-g/9);q.fillStyle="#e8ecf5";q.fillRect(spx+Math.round(10*k)+Math.round(Math.sin((F+kk)/2)*2*k),sTop-Math.max(2,2*k)-g*Math.max(2,2*k),Math.max(1,s*k),Math.max(1,s*k));q.globalAlpha=1}
       if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(spx-Math.max(1,2*k),sTop+Math.max(2,6*k),Math.max(2,4*k),Math.max(2,4*k))}
       if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(spx-Math.max(3,10*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(spx+Math.max(3,7*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k))}
       if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(spx-Math.max(3,8*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k));q.fillRect(spx+Math.max(3,4*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k))}
