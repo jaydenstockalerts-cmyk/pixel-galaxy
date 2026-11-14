@@ -22,7 +22,7 @@ if(!s.gar||typeof s.gar!=="object")s.gar={};
 if(!s.war||typeof s.war!=="object")s.war={};
 // v2.7 migration: diplomacy (S.dip per faction: {truceUntil, pact,
 // ally}), rival-pair relations (S.pair "a-b" -> "pact"|"war"), end
-// flags (S.end {v13, v2x, lost}) and colony stability (S.stab system
+// flags (S.end {v13, vnx, v2x, lost}) and colony stability (S.stab system
 // id -> 0-100). Old saves get empty diplomacy, no end flags, and
 // every existing colony starts at stability 100; stale stability
 // records for systems without a colony are dropped.
@@ -175,7 +175,7 @@ const TUT_STEPS=[
 {t:"Welcome, Commander",tab:"map",b:"Your job: build up your home station, train a fleet, and conquer systems all the way to the Dark Nexus, the big boss at the far edge of the galaxy. This guide walks you through it, step by step. You can skip it any time, or tap Later to hide it and pick up where you left off."},
 {t:"Your resources",tab:"map",hl:"#res",b:"Energy, metal, crystal and credits live at the top. Buildings make them every second — a Solar Array makes energy, a Metal Foundry makes metal, a Crystal Mine digs crystal. Each one has a storage limit: upgrade the Command Station to store more. Tap the bar to see the details."},
 {t:"Your station",tab:"station",hl:'section[data-pg="station"] .mapwrap',b:"This is your home station. Tap a building to see what it does, or tap open land to build something new. Plots unlock as you upgrade the Command Station — the city grows outward from the keep in the middle."},
-{t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 25 metal and 10 energy and takes a few seconds — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
+{t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 25 metal and 10 energy and takes about half a minute — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
 {t:"Quests pay you",tab:"quests",hl:"#quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",bAlt:"Quests are jobs with rewards. Tap Claim on any quest you see to collect its reward — free resources are the fastest way to grow early on.",bAltWhen:()=>{const q=Q.find(z=>z.id==="q1");return !q||S.q.includes("q1")||!q.ok()},done:()=>S.q.length>TUT.baseQ||(S.q.length>0&&!Q.some(q=>!S.q.includes(q.id)&&q.ok()))},
 {t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 84 metal, 56 crystal and 28 credits. If that's more than you have right now, that's normal — keep building and come back to it.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
 {t:"The galaxy",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Tap the Pirate Outpost. Every system shows the fleet power you need to take it, and which ship type counters it — fighters beat swarm fleets, so the Outpost is your first target.",seen:()=>POP&&POP.kind==="system"&&S.sel===1,done:()=>TUT.seen&&!POP},
@@ -183,9 +183,9 @@ const TUT_STEPS=[
 {t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 10 energy and 5 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
 {t:"Conquer the Pirate Outpost",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Go to the Galaxy tab, tap the Pirate Outpost, and tap Attack. With 4 Fighters you should win — and you'll loot metal and credits. If you lose, rebuild and try again. Claim the 80-credit quest reward afterwards: you'll need it for research.",done:()=>S.won.includes(1)},
 {t:"Build a Trade Hub",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Credits are the slow resource. A Trade Hub earns half a credit every second, forever. Tap open land and build one — it costs 30 metal and 20 crystal.",done:()=>S.b.hub>=1},
-{t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 17 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes a minute. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
+{t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 17 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes three minutes. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
 {t:"Your crew",tab:"crew",hl:"#crew-panel",act:true,b:"Crew are workers — assign them and everything gets faster, +2% per crew. Tap + next to Mining. Your crew grows as your Command Station levels up and as you found colonies. Commanders, below, are officers who level up as you play.",done:()=>S.crew.mine>=1},
-{t:"Your empire and your rivals",tab:"empire",hl:"#emp-rivals",b:"This is the Empire page — open it any time from the menu, top left. Five rival factions are expanding on their own clock. This board shows their systems, power, and whether you're at war. You win by holding 13 systems, or at least 5 systems and twice as many as the next faction. Rival raids start after about 10 minutes of play: a strong home fleet, plus garrisons on your systems, repels them."},
+{t:"Your empire and your rivals",tab:"empire",hl:"#emp-rivals",b:"This is the Empire page — open it any time from the menu, top left. Five rival factions are expanding on their own clock. This board shows their systems, power, and whether you're at war. You win by holding 13 systems, or by conquering the Dark Nexus, the big boss at the far edge of the galaxy. Rival raids start after about 10 minutes of play: a strong home fleet, plus garrisons on your systems, repels them."},
 {t:"Colonies and garrisons",tab:"map",hl:'section[data-pg="map"] .mapwrap',b:"A system you conquer becomes a colony. Pick a focus — Mining, Forge or Trade — and it earns for you. It also adds defence. Station ships there as a garrison: tap a system you own to see its Garrison section. Garrisons defend at full strength, and half your home fleet rushes to help."},
 {t:"Diplomacy and the wider galaxy",tab:"map",sec:1,hl:'section[data-pg="map"] .mapwrap',b:"You don't have to fight everyone. On the Empire page you can pay tribute (300 credits) for a 30-minute truce, sign a pact (500), or ally (1000) — and rivals make deals with each other too. Beyond the jump gates lies Sector 2: you can scout it for free, but attacks there need Jump Drive research. Colonies connected to Home World also pay trade credits."},
 {t:"You're ready, Commander",tab:"map",b:"That's the whole loop: build, research, crew up, conquer, repeat — all the way to the Dark Nexus. If you ever forget something, 'How to play' in the menu brings this guide back. Good luck out there."}
@@ -398,11 +398,12 @@ const scap=()=>(5+tsum("slot"))*S.b.hangar;
 const qcap=()=>5+2*S.b.hangar;
 function gain(s,n){const id=S.slot[s];if(id)S.cx[id]=(S.cx[id]||0)+n}
 const cap=()=>100+500*S.b.command;
-const lvlCap=id=>id==="command"?5+tsum("cmax"):Math.min(15,S.b.command*2+1);
+const lvlCap=id=>id==="command"?5+tsum("cmax"):Math.min(15,S.b.command); // v3.2 pacing: a building can never exceed the Command Station's level (Hobbit Keep rule) — at Lv1 you build, you don't upgrade
 const effL=b=>b.l+S.bq.filter(j=>j.u===b.u).length;
 const cnt=t=>S.bl.filter(x=>x.t===t).length;
 const MAXC=t=>t==="command"?1:t==="hangar"?Math.min(4,1+Math.floor(S.b.command/3)):Math.min(6,1+Math.floor(S.b.command/2));
-const bqcap=()=>2+Math.floor(S.b.command/2);
+// v3.2 pacing (Jayden, Hobbit-style): ONE builder — a single building job at a time, shared by construction, upgrades and colony upgrades.
+const bqcap=()=>1;
 const bAt=(x,y)=>S.bl.find(b=>b.x===x&&b.y===y);
 // v1.5 PLOT LOCKING (Jayden, approved mechanics change, Hobbit-style):
 // plots unlock by distance from the Command Station (the keep), nearest
@@ -430,7 +431,7 @@ const keepMoveStranded=(nx,ny)=>S.bl.find(z=>z.t!=="command"&&S.b.command<Math.m
 const unlockedCount=()=>{let n=0;for(let i=0;i<12;i++)for(let j=0;j<12;j++)if(!plotLocked(i,j))n++;return n};
 const newCost=t=>{const c=cost(t,0),f=Math.pow(1.5,cnt(t)),o={};for(const r in c)o[r]=Math.ceil(c[r]*f);return o};
 const cost=(id,l)=>{const o={};for(const r in B[id].c)o[r]=Math.ceil(B[id].c[r]*Math.pow(1.4,l));return o};
-const dur=l=>4*Math.pow(1.35,l)*tmul();
+const dur=l=>30*Math.pow(1.6,l)*tmul(); // v3.2 pacing: was 4s x 1.35^level — now 30s x 1.6^level (Lv1→2: 48s, Lv5→6: ~5m, Lv10→11: ~55m)
 const can=c=>Object.keys(c).every(r=>S.res[r]>=c[r]);
 const pay=c=>{for(const r in c)S.res[r]-=c[r]};
 const fmt=n=>n>=1000?(n/1000).toFixed(1)+"k":String(Math.floor(n));
@@ -552,7 +553,7 @@ syncMenuSound();
 $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command Station to store more.";
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
-$("#sq").textContent=S.sq.length?"Shipyard: "+S.sq.map(j=>U[j.k].n+" ("+left(j.end-now)+")").join(", "):"Shipyard idle ("+qcap()+" ships can be queued).";
+$("#sq").textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
 b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||usedQ()+U[k].sz>slots||S.sq.length>=qcap()||!can(U[k].c);$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled}
 const s=SYS[S.sel],a=$("#atk"),inf=$("#info");
@@ -664,6 +665,7 @@ else if(a==="res"){S.tab="research";PAGE={kind:"tab"};update()}
 else if(a==="ship"){S.tab="fleet";PAGE={kind:"tab"};update()}}
 else if(d.hide){setUIHidden(true)}
 else if(d.showui){setUIHidden(false)}
+else if(d.tray){TRAYOPEN=!TRAYOPEN;try{localStorage.setItem("pixelgalaxy-tray-open",TRAYOPEN?"1":"0")}catch(e){}actKeyCache="";activityUI();measureUI();sizeCanvases()}
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
 else if(d.log){PAGE={kind:"log"};update()}
 else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b.t,l);if(l<lvlCap(b.t)&&S.bq.length<bqcap()&&can(c)){pay(c);{const s0=Math.max(Date.now(),...S.bq.filter(j=>j.u===b.u).map(j=>j.end));S.bq.push({u:b.u,s:s0,end:s0+dur(l)*1000})}msg(B[b.t].n+" upgrade started.")}}}
@@ -708,7 +710,7 @@ for(const k in s.r)S.res[k]=Math.min(cap(),S.res[k]+s.r[k]);
 gain("fleet",2);msg(i===15?"You conquered the Dark Nexus. The galaxy is yours!":i===7?"The Hive Core falls, but the galaxy is bigger than you thought.":"Victory! "+s.n+" is yours and now pays you credits.")}
 else{for(const k in U)S.ships[k]=Math.floor(S.ships[k]*(.4+tsum("keep")));msg("Defeat. Your fleet retreats with heavy losses. Build the ship type this enemy is weak to, or upgrade the Command Station.")}
 closePopup();
-battle(win,pre,s,p,need);
+battle(win,pre,s,p,need,holder);
 }
 else if(b.id==="snd"){S.mute=S.mute?0:1;sfx("ok")}
 else if(b.id==="reset"){$("#rbox").hidden=false}
@@ -760,7 +762,7 @@ function dpower(){let p=0;for(const k in U)p+=S.ships[k]*U[k].pw;return p*(1+.2*
 // Starting systems, in order c, v, k, a, m, first-free from each list,
 // never 0/1/2/3/15. v2.5: the three new factions relocated to Sector 2
 // (see RV_START below).
-const CYCLE_MS=300000,CYCLE_CAP=24;
+const CYCLE_MS=480000,CYCLE_CAP=15; // v3.2 pacing: rival cycles 5→8 min to match the slower player pace; 15 cycles keeps the 2h offline catch-up window
 // v2.5: k/a/m start in Sector 2 — Keth at Ember Drift (16), Aurelian
 // at Gilded Throne (31), Vortex at Stormbreak Point (19). c/v keep
 // their Sector 1 homes (14/11). First-free from each list, as before.
@@ -814,28 +816,29 @@ function rivalDiplomacy(){
 }
 // v2.7 VICTORY / DEFEAT — one checkEnd() after every ownership
 // change (attack win, raid resolution, cycle claims, offline sim, and
-// update() as a backstop). Victory: hold 13 systems (40% of 32) OR
-// twice the next faction's count — but only once you hold at least
-// VICTORY_FLOOR systems (v3.1: without the floor, 2 vs 1 fired the
-// full victory modal mid-tutorial on the very first conquest).
-// Each achievement shows its overlay once (S.end.v13 / S.end.v2x);
+// update() as a backstop). Victory (v3.2, Jayden): hold 13 systems
+// (40% of 32) OR conquer the Dark Nexus (system 15). The old 2x
+// shortcut is gone — it fired the full victory modal at 5 systems
+// while the rivals were still small. Doubling the next faction is
+// now just a one-time feed milestone (S.end.v2x), not a win.
+// Each victory shows its overlay once (S.end.v13 / S.end.vnx);
 // "Keep playing" continues. Defeat: Home World falls (S.end.lost) —
 // overlay with restart only.
 const VICTORY_SYSTEMS=13;
-const VICTORY_FLOOR=5;
 function nextFaction(){let best=null,bn=0;for(const id in RV){const n=heldCount(id);if(n>bn){bn=n;best=id}}return{id:best,n:bn}}
 function checkEnd(){
   if(!S.end||typeof S.end!=="object")S.end={};
   if(S.end.lost)return;
   if(!S.end.v13&&S.won.length>=VICTORY_SYSTEMS){S.end.v13=1;showEnd("win","13");return}
+  if(!S.end.vnx&&S.won.includes(15)){S.end.vnx=1;showEnd("win","nexus");return}
   const nx=nextFaction();
-  if(!S.end.v2x&&nx.id&&nx.n>=1&&S.won.length>=VICTORY_FLOOR&&S.won.length>=2*nx.n){S.end.v2x=1;showEnd("win","2x")}
+  if(!S.end.v2x&&nx.id&&nx.n>=1&&S.won.length>=5&&S.won.length>=2*nx.n){S.end.v2x=1;msg("Dominance: you hold twice as many systems as the "+RV[nx.id].n+" — the galaxy is taking notice.")}
 }
 function endStats(){const nx=nextFaction();return "You hold "+S.won.length+" of "+SYS.length+" systems."+(nx.id?" The next strongest faction is the "+RV[nx.id].n+" with "+nx.n+".":" No rival holds any systems.")}
 function showEnd(kind,how){
   const t=$("#end-title"),s=$("#end-stats"),k=$("#end-keep"),box=$("#end");
   if(!t||!s||!box)return;
-  if(kind==="win"){t.textContent="Victory! The galaxy is yours.";s.textContent=(how==="13"?"You hold 13 systems — 40% of the galaxy. ":"You hold at least 5 systems and twice as many as the next faction. ")+endStats();if(k)k.hidden=false;msg("Victory! "+(how==="13"?"You hold 13 systems.":"You hold at least 5 systems and twice as many as the next faction."));sfx("win")}
+  if(kind==="win"){t.textContent="Victory! The galaxy is yours.";s.textContent=(how==="13"?"You hold 13 systems — 40% of the galaxy. ":"You conquered the Dark Nexus — the final boss has fallen. ")+endStats();if(k)k.hidden=false;msg("Victory! "+(how==="13"?"You hold 13 systems.":"You conquered the Dark Nexus."));sfx("win")}
   else{t.textContent="Defeat — your Home World has fallen.";s.textContent="A rival fleet overran your Home World. Your empire is scattered. "+endStats();if(k)k.hidden=true;msg("Defeat — your Home World has fallen.");sfx("lose")}
   box.hidden=false;
 }
@@ -972,7 +975,7 @@ if(now-r.cy>=CYCLE_MS){r.cy+=CYCLE_MS;rivalCycle(id,false,null)}}}
 // Offline production itself is UNCHANGED: full rate, 8h cap, storage
 // cap — the balance now comes from rivals advancing + garrisons.
 function offlineSim(away){
-  const cycles=Math.min(CYCLE_CAP,Math.floor(away/300));
+  const cycles=Math.min(CYCLE_CAP,Math.floor(away/(CYCLE_MS/1000)));
   if(cycles<1)return;
   const lost={};
   const before={};for(const id in RV)before[id]=heldCount(id);
@@ -986,20 +989,28 @@ function offlineSim(away){
 }
 let BT=null;
 const nU=o=>o.fighter+o.cruiser+o.capital;
-function battle(win,pre,s,p,need){const text=HELD;HOLD=false;
+function battle(win,pre,s,p,need,holder){const text=HELD;HOLD=false;
 const ps=[];["capital","cruiser","fighter"].forEach(k=>{for(let n=0;n<pre[k]&&ps.length<12;n++)ps.push(k)});
 if(BT&&BT.iv)clearInterval(BT.iv);
-BT={f:0,win,ps,en:s.t==="swarm"?10:s.t==="armored"?6:3,t:s.t,keep:nU(S.ships)/Math.max(1,nU(pre)),lp:ps.length,le:99,done:0,lost:nU(pre)-nU(S.ships),msg:text};
-$("#bbox").hidden=false;$("#bskip").textContent="Skip";$("#bcap").textContent="Power "+Math.round(p)+" vs "+need;
+BT={f:0,win,ps,sys:s,en:s.t==="swarm"?10:s.t==="armored"?6:3,t:s.t,keep:nU(S.ships)/Math.max(1,nU(pre)),lp:ps.length,le:99,done:0,lost:nU(pre)-nU(S.ships),msg:text};
+const tn={swarm:"Swarm",armored:"Armored",fortress:"Fortress"}[s.t]||s.t;
+const ck=WEAK[s.t],cn=U[ck].n,have=pre[ck]||0;
+const fleetTxt=["fighter","cruiser","capital"].filter(k=>pre[k]>0).map(k=>pre[k]+" "+U[k].n+(pre[k]>1?"s":"")).join(", ")||"No ships";
+$("#btitle").textContent=s.n;
+$("#bsub").textContent=tn+" defenders"+(holder?" — held by the "+RV[holder].n:" — unclaimed system");
+$("#bfleets").textContent="Your fleet: "+fleetTxt+"  ·  Defenders: "+BT.en+" "+tn;
+$("#bpow").textContent="Power "+Math.round(p)+" vs "+need+"  ·  "+(have>0?cn+"s deal +50% vs "+s.t:"Tip: "+cn+"s deal +50% vs "+s.t+" — build some before your next attack");
+$("#bresult").hidden=true;$("#bresult").innerHTML="";
+$("#bbox").hidden=false;$("#bskip").textContent="Skip";
 BT.iv=setInterval(bframe,70)}
-function bframe(){const b=BT;if(!b||b.done)return;b.f++;const f=b.f,t=Math.min(1,f/50),q=$("#bt").getContext("2d"),SP=SPR();b.fx=b.fx||[];
-if(!b.pp){const ps=b.ps.map(k=>SP[k]),es=Array(b.en).fill(SP["e"+b.t]);b.pp=lay(ps,6,6,88);b.ee=lay(es,0,6,88).map((p,i)=>({x:186-p.x-es[i].width,y:p.y}));b.lp=b.pp.length;b.le=99}
+function bframe(){const b=BT;if(!b||b.done)return;b.f++;const f=b.f,t=Math.min(1,f/50),q=$("#bt").getContext("2d"),SP=SPR();b.fx=b.fx||[];const W=q.canvas.width,H=q.canvas.height;
+if(!b.pp){const ps=b.ps.map(k=>SP[k]),es=Array(b.en).fill(SP["e"+b.t]);b.pp=lay(ps,6,6,Math.floor(W/2)-12,H-4);b.ee=lay(es,0,6,Math.floor(W/2)-12,H-4).map((p,i)=>({x:W-6-p.x-es[i].width,y:p.y}));b.lp=b.pp.length;b.le=99}
 const np=b.pp.length,ne=b.ee.length,pa=Math.round(np*(1-(1-b.keep)*t)),ea=Math.ceil(ne*(b.win?1-t:1-.3*t));
 if(b.le===99)b.le=ea;
 if(ea<b.le){for(let i=ea;i<b.le;i++)b.fx.push({x:b.ee[i].x+10,y:b.ee[i].y+6,f});b.le=ea;boom()}
 if(pa<b.lp){for(let i=pa;i<b.lp;i++)b.fx.push({x:b.pp[i].x+10,y:b.pp[i].y+6,f});b.lp=pa;boom()}
 q.drawImage(BBG(),0,0);
-for(let i=0;i<30;i++){q.fillStyle=i%3?"#5a6bb0":"#cfd8ff";q.fillRect((i*37+f*(1+i%3))%191,(i*53)%95,1,1)}
+for(let i=0;i<30;i++){q.fillStyle=i%3?"#5a6bb0":"#cfd8ff";q.fillRect((i*37+f*(1+i%3))%(W-1),(i*53)%(H-1),1,1)}
 const E=SP["e"+b.t];
 for(let i=0;i<pa;i++)q.drawImage(SP[b.ps[i]],b.pp[i].x,b.pp[i].y+Math.round(Math.sin((f+i*3)/4)));
 for(let i=0;i<ea;i++)q.drawImage(E,b.ee[i].x,b.ee[i].y+Math.round(Math.sin((f+i*5)/4)));
@@ -1010,13 +1021,17 @@ q.fillStyle="#ff6b6b";q.fillRect(Math.round(tx+(rx-tx)*w),Math.round(ty+(ry-ty)*
 if(f%6===0&&pa&&ea)sfx("laser");
 b.fx=b.fx.filter(e=>f-e.f<8);b.fx.forEach(e=>{const g=f-e.f,s=3+g*2,cl=["#ffffff","#ffe066","#ff9a3c","#e0584a"];q.fillStyle=cl[Math.min(3,g>>1)];q.fillRect(e.x-(s>>1),e.y-(s>>1),s,s);q.fillStyle=cl[Math.min(3,(g>>1)+1)];q.fillRect(e.x-(s>>2),e.y-(s>>2),s>>1,s>>1)});
 if(f>=60)bend()}
-function bend(){const b=BT;if(b.done)return;b.done=1;clearInterval(b.iv);msg(b.msg);sfx(b.win?"win":"lose");$("#bcap").textContent=b.msg+" Ships lost: "+b.lost+".";$("#bskip").textContent="Close"}
+function bend(){const b=BT;if(b.done)return;b.done=1;clearInterval(b.iv);msg(b.msg);sfx(b.win?"win":"lose");
+const loot=b.win&&b.sys&&b.sys.r?Object.entries(b.sys.r).map(([k,v])=>"+"+v+" "+k).join(", "):"";
+const r=$("#bresult");r.hidden=false;
+r.innerHTML="<div class=\""+(b.win?"bwin":"blose")+"\">"+(b.win?"Victory!":"Defeat")+"</div><div>"+b.msg+"</div><div>Ships lost: "+b.lost+"."+(loot?" Loot: "+loot+".":"")+"</div>";
+$("#bskip").textContent="Close"}
 function recalc(){const b={},m={};for(const t in B){b[t]=0;m[t]=0}S.bl.forEach(x=>{b[x.t]+=x.l;m[x.t]=Math.max(m[x.t],x.l)});S.b=b;S.bx=m}
 function placeB(t,x,y){if(plotLocked(x,y)){msg("Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.");S.place=null;return}const c=newCost(t);if(cnt(t)<MAXC(t)&&S.bq.length<bqcap()&&can(c)){pay(c);const b={u:S.nu++,t,x,y,l:0};S.bl.push(b);S.bq.push({u:b.u,s:Date.now(),end:Date.now()+dur(0)*1000});S.bsel=b.u;msg(B[t].n+" construction started.")}S.place=null}
 function baseUI(now){
 if(!$("#binfo"))return; // v0.9.2: station info/build boxes removed — popups cover this now.
 const sel=S.bl.find(b=>b.u===S.bsel);
-$("#bq").textContent=S.bq.length?"Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builders busy: "+S.bq.length+"/"+bqcap()+".":"Builders idle (up to "+bqcap()+" jobs at once).";
+$("#bq").textContent=S.bq.length?"Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builder busy.":"Builder idle.";
 for(const t in B){const n=cnt(t),mx=MAXC(t),c=newCost(t),b=$("#bmb-"+t);$("#bmn-"+t).textContent=n+"/"+mx;
 $("#bmc-"+t).textContent=n>=mx?(t==="command"?"Only one allowed.":"Upgrade the Command Station for more copies."):"Cost: "+cstr(c)+". Time: "+left(dur(0)*1000);
 b.textContent=S.place===t?"Cancel":"Place";b.disabled=S.place===t?false:(n>=mx||S.bq.length>=bqcap()||!can(c))}
@@ -1127,7 +1142,7 @@ $("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'
 const rows=[{n:"You",sys:S.won.length,pw:dpower(),st:"—"}].concat(Object.keys(RV).map(id=>({n:RV[id].n,sys:heldCount(id),pw:rstr(id),st:relText(id)})));
 const best=rows.slice().sort((a,b)=>b.sys-a.sys||b.pw-a.pw)[0];
 const nx=nextFaction();
-const vicLine="Victory: hold 13 systems (you hold "+S.won.length+") or double the next faction (at least 5 systems) ("+(nx.id?RV[nx.id].n+" holds "+nx.n+" — you need "+Math.max(VICTORY_FLOOR,2*nx.n):"no rival holds any systems — you need 13")+").";
+const vicLine="Victory: hold 13 systems (you hold "+S.won.length+") or conquer the Dark Nexus.";
 const DIPLINE={truce:"They will not raid you until the truce ends.",pact:"Neither side raids the other.",ally:"They raid your enemies, never you.",war:"They have taken one of your systems.",peace:"No fighting — for now.",defeated:"No systems left — nothing to deal with."};
 const dipRows=Object.keys(RV).map(id=>{
   const rel=heldCount(id)?dipRel(id):"defeated";
@@ -1172,10 +1187,17 @@ function actJobs(){
   return jobs;
 }
 let actKeyCache="";
+// v3.2: Hobbit-style collapsible tray — one slim summary row
+// ("3 jobs · next done in 1m 8s", or the single job's name + time),
+// tap it to expand the full job list. Default is COLLAPSED: with
+// 5 jobs the old always-open tray ate ~300px of phone screen.
+// State persists in localStorage. The expanded list is capped at
+// ~2.5 rows and scrolls (see .traylist in style.css).
+let TRAYOPEN=false;try{TRAYOPEN=localStorage.getItem("pixelgalaxy-tray-open")==="1"}catch(e){}
 function activityUI(){
   const el=$("#activity");if(!el)return;
   const jobs=actJobs(),now=Date.now();
-  const key=jobs.map(j=>j.id+"@"+j.end).join("|");
+  const key=(TRAYOPEN?"1":"0")+"|"+jobs.map(j=>j.id+"@"+j.end).join("|");
   const wasHidden=el.hidden;
   el.hidden=jobs.length===0;
   // v3.1.5: the tray covered the map controls (-/+/Home/Fit/Sector) — both
@@ -1189,9 +1211,12 @@ function activityUI(){
   if(jobs.length===0){actKeyCache="";if(!wasHidden){measureUI();sizeCanvases()}return}
   if(key!==actKeyCache){
     actKeyCache=key;
-    el.innerHTML=jobs.map(j=>'<button class="actjob" data-act="'+j.act+'"><span class="actic">'+j.icon+'</span><span class="actname">'+j.name+'</span><span class="actbar"><i data-actfill="'+j.id+'"></i></span><span class="acttime" data-acttime="'+j.id+'"></span></button>').join("");
+    el.innerHTML='<button class="traysum" data-tray="1"><span class="traychev">'+(TRAYOPEN?"▼":"▲")+'</span><span data-traysumtxt></span></button>'
+      +'<div class="traylist"'+(TRAYOPEN?"":" hidden")+'>'+jobs.map(j=>'<button class="actjob" data-act="'+j.act+'"><span class="actic">'+j.icon+'</span><span class="actname">'+j.name+'</span><span class="actbar"><i data-actfill="'+j.id+'"></i></span><span class="acttime" data-acttime="'+j.id+'"></span></button>').join("")+'</div>';
     if(wasHidden){measureUI();sizeCanvases()}
   }
+  const sum=el.querySelector('[data-traysumtxt]');
+  if(sum){const next=jobs.reduce((a,b)=>a.end<b.end?a:b);sum.textContent=jobs.length===1?next.name+" · "+left(Math.max(0,next.end-now)):jobs.length+" jobs · next done in "+left(Math.max(0,next.end-now))}
   jobs.forEach(j=>{
     const p=Math.max(0,Math.min(1,j.end>j.s?(now-j.s)/(j.end-j.s):1));
     const fill=el.querySelector('[data-actfill="'+j.id+'"]');
