@@ -58,7 +58,7 @@ const SYS=[
 {n:"Titan's Rest",t:"armored",pw:1800,r:{credits:4500,metal:2000},x:82,y:132,l:[26,29,31],sec:1},
 {n:"Gilded Throne",t:"fortress",pw:2200,r:{credits:5000,crystal:2000},x:108,y:140,l:[27,30],sec:1}
 ];
-const DUR={fighter:3,cruiser:8,capital:20};
+const DUR={fighter:9,cruiser:24,capital:60}; // v3.2 pacing: ships take 3x longer
 const POS0={solar:[1,1],foundry:[2,1],mine:[3,1],hub:[4,1],hangar:[5,1],command:[3,2]};
 const Q=[
 {id:"q1",t:"Build a Crystal Mine",ok:()=>S.b.mine>=1,r:{metal:40}},
@@ -89,28 +89,28 @@ tam:{n:"Engineer Tamsin",t:"build",b:.04,c:300,d:"Chief builder. Faster building
 bolt:{n:"Chief Bolt",t:"build",b:.06,c:1200,d:"Legendary engineer. Much faster builds."}
 };
 const TECH=[
-{id:"w1",n:"Laser Cannons",d:"+15% fleet power",c:{credits:150,crystal:80},t:60,k:"pw",v:.15},
-{id:"w2",n:"Plasma Weapons",d:"+25% fleet power",c:{credits:600,crystal:300},t:180,req:"w1",k:"pw",v:.25},
-{id:"w3",n:"Antimatter Warheads",d:"+40% fleet power",c:{credits:2500,crystal:1200},t:600,req:"w2",k:"pw",v:.4},
-{id:"e1",n:"Efficient Reactors",d:"+20% production",c:{credits:200,metal:150},t:90,k:"eco",v:.2},
-{id:"e2",n:"Asteroid Mining",d:"+30% production",c:{credits:800,metal:500},t:300,req:"e1",k:"eco",v:.3},
-{id:"e3",n:"Dyson Swarm",d:"+50% production",c:{credits:3000,metal:1500},t:900,req:"e2",k:"eco",v:.5},
-{id:"h1",n:"Reinforced Hulls",d:"Fewer ships lost in battle",c:{credits:400,metal:200},t:120,k:"keep",v:.1},
-{id:"h2",n:"Repair Drones",d:"Even fewer ships lost",c:{credits:1500,metal:800},t:400,req:"h1",k:"keep",v:.1},
-{id:"l1",n:"Bigger Hangars",d:"+2 ship slots per Hangar level",c:{credits:500,crystal:200},t:150,k:"slot",v:2},
-{id:"l2",n:"Orbital Docks",d:"+3 more ship slots per Hangar level",c:{credits:2000,crystal:800},t:500,req:"l1",k:"slot",v:3},
-{id:"c1",n:"Advanced Command",d:"Command Station max level 7",c:{credits:1000,crystal:500},t:300,k:"cmax",v:2},
-{id:"c2",n:"Fleet Doctrine",d:"Command Station max level 10",c:{credits:3000,crystal:2000},t:1200,req:"c1",k:"cmax",v:3},
-{id:"w4",n:"Singularity Cannons",d:"+60% fleet power",c:{credits:5000,crystal:3000},t:1800,req:"w3",k:"pw",v:.6},
-{id:"w5",n:"Reality Splitters",d:"+80% fleet power",c:{credits:5000,crystal:4000},t:2400,req:"w4",k:"pw",v:.8},
-{id:"l3",n:"Megastructure Docks",d:"+4 more ship slots per Hangar level",c:{credits:4500,crystal:3500},t:1500,req:"l2",k:"slot",v:4},
-{id:"c3",n:"Galactic Doctrine",d:"Command Station max level 13",c:{credits:4000,crystal:2500},t:1800,req:"c2",k:"cmax",v:3},
+{id:"w1",n:"Laser Cannons",d:"+15% fleet power",c:{credits:150,crystal:80},t:180,k:"pw",v:.15},
+{id:"w2",n:"Plasma Weapons",d:"+25% fleet power",c:{credits:600,crystal:300},t:540,req:"w1",k:"pw",v:.25},
+{id:"w3",n:"Antimatter Warheads",d:"+40% fleet power",c:{credits:2500,crystal:1200},t:1800,req:"w2",k:"pw",v:.4},
+{id:"e1",n:"Efficient Reactors",d:"+20% production",c:{credits:200,metal:150},t:270,k:"eco",v:.2},
+{id:"e2",n:"Asteroid Mining",d:"+30% production",c:{credits:800,metal:500},t:900,req:"e1",k:"eco",v:.3},
+{id:"e3",n:"Dyson Swarm",d:"+50% production",c:{credits:3000,metal:1500},t:2700,req:"e2",k:"eco",v:.5},
+{id:"h1",n:"Reinforced Hulls",d:"Fewer ships lost in battle",c:{credits:400,metal:200},t:360,k:"keep",v:.1},
+{id:"h2",n:"Repair Drones",d:"Even fewer ships lost",c:{credits:1500,metal:800},t:1200,req:"h1",k:"keep",v:.1},
+{id:"l1",n:"Bigger Hangars",d:"+2 ship slots per Hangar level",c:{credits:500,crystal:200},t:450,k:"slot",v:2},
+{id:"l2",n:"Orbital Docks",d:"+3 more ship slots per Hangar level",c:{credits:2000,crystal:800},t:1500,req:"l1",k:"slot",v:3},
+{id:"c1",n:"Advanced Command",d:"Command Station max level 7",c:{credits:1000,crystal:500},t:900,k:"cmax",v:2},
+{id:"c2",n:"Fleet Doctrine",d:"Command Station max level 10",c:{credits:3000,crystal:2000},t:3600,req:"c1",k:"cmax",v:3},
+{id:"w4",n:"Singularity Cannons",d:"+60% fleet power",c:{credits:5000,crystal:3000},t:5400,req:"w3",k:"pw",v:.6},
+{id:"w5",n:"Reality Splitters",d:"+80% fleet power",c:{credits:5000,crystal:4000},t:7200,req:"w4",k:"pw",v:.8},
+{id:"l3",n:"Megastructure Docks",d:"+4 more ship slots per Hangar level",c:{credits:4500,crystal:3500},t:4500,req:"l2",k:"slot",v:4},
+{id:"c3",n:"Galactic Doctrine",d:"Command Station max level 13",c:{credits:4000,crystal:2500},t:5400,req:"c2",k:"cmax",v:3},
 // v2.5: Jump Drive — no prerequisite, mid-game reachable. Unlocks
 // ATTACKS and CLAIMS in Sector 2: without it the player cannot attack
 // or claim any Sector 2 system (see avail() in game.js) — but viewing
 // and scouting Sector 2 is free, no research needed. Factions get
 // their jump drives at S.min>=60 (see rivalCycle()).
-{id:"j1",n:"Jump Drive",d:"Unlocks attacks and claims in Sector 2 — you can already scout its map for free",c:{credits:1000,crystal:500},t:300,k:"jump",v:1}
+{id:"j1",n:"Jump Drive",d:"Unlocks attacks and claims in Sector 2 — you can already scout its map for free",c:{credits:1000,crystal:500},t:900,k:"jump",v:1}
 ];
 const RV={c:{n:"Crimson Pact",b:150,agg:0.9,exp:0.9,eco:1.0},v:{n:"Vael Collective",b:250,agg:0.5,exp:0.5,eco:1.3},k:{n:"Keth Dominion",b:200,agg:0.8,exp:1.0,eco:1.0},a:{n:"Aurelian Combine",b:180,agg:0.3,exp:0.4,eco:1.4},m:{n:"Vortex Marauders",b:120,agg:1.0,exp:0.4,eco:0.9}};
 // v2.4 faction personalities: agg = raid likelihood (raid chance per
