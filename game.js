@@ -692,9 +692,9 @@ battle(win,pre,s,p,need);
 else if(b.id==="snd"){S.mute=S.mute?0:1;sfx("ok")}
 else if(b.id==="reset"){$("#rbox").hidden=false}
 else if(d.rcancel){$("#rbox").hidden=true}
-else if(d.rgo){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.rgo){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
 else if(d.endkeep){hideEnd()}
-else if(d.endnew){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.endnew){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
 update();save();
 }
 // v1.4 popup touch: click path — ignore a click that is really the
