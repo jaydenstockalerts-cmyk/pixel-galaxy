@@ -111,7 +111,12 @@ function measureUI(){
     const t=$("#top");
     if(t&&t.offsetHeight) top=Math.round(t.offsetHeight*1.15);
     const hb=$("#top .hud");
-    if(hb&&hb.offsetHeight&&hb.offsetHeight!==_hudH){_hudH=hb.offsetHeight;document.documentElement.style.setProperty("--hud-h",_hudH+"px")}
+    // v3.2.1: --hud-h is measured from the .hud's offsetHeight, which is now
+    // its CONTENT height only (the min-height:var(--hud-h) feedback was
+    // removed from style.css — it grew the bar ~14px per 250ms tick until
+    // it covered the screen). The 200px cap is a safety net: a real HUD
+    // never exceeds it, and no future feedback loop may cover the screen.
+    if(hb&&hb.offsetHeight&&hb.offsetHeight!==_hudH){_hudH=Math.min(hb.offsetHeight,200);document.documentElement.style.setProperty("--hud-h",_hudH+"px")}
     const d=$("#tabs");
     if(d&&d.offsetHeight){bottom=Math.round(d.offsetHeight+20);
       if(d.offsetHeight!==_dockH){_dockH=d.offsetHeight;document.documentElement.style.setProperty("--dock-h",_dockH+"px")}}
@@ -554,6 +559,7 @@ $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
 $("#sq").textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
+const bqEl=$("#bq");if(bqEl)bqEl.textContent=S.bq.length?("Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builder busy."):"Builder idle."; // v3.2.1: moved here from dead baseUI() — this is the one-builder status line, updated every tick
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
 b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||usedQ()+U[k].sz>slots||S.sq.length>=qcap()||!can(U[k].c);$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled}
 const s=SYS[S.sel],a=$("#atk"),inf=$("#info");
@@ -1029,9 +1035,8 @@ $("#bskip").textContent="Close"}
 function recalc(){const b={},m={};for(const t in B){b[t]=0;m[t]=0}S.bl.forEach(x=>{b[x.t]+=x.l;m[x.t]=Math.max(m[x.t],x.l)});S.b=b;S.bx=m}
 function placeB(t,x,y){if(plotLocked(x,y)){msg("Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.");S.place=null;return}const c=newCost(t);if(cnt(t)<MAXC(t)&&S.bq.length<bqcap()&&can(c)){pay(c);const b={u:S.nu++,t,x,y,l:0};S.bl.push(b);S.bq.push({u:b.u,s:Date.now(),end:Date.now()+dur(0)*1000});S.bsel=b.u;msg(B[t].n+" construction started.")}S.place=null}
 function baseUI(now){
-if(!$("#binfo"))return; // v0.9.2: station info/build boxes removed — popups cover this now.
+if(!$("#binfo"))return; // v0.9.2: station info/build boxes removed — popups cover this now. (The #bq builder-status line used to live here; it moved to upd2 in v3.2.1 because this whole function is dead.)
 const sel=S.bl.find(b=>b.u===S.bsel);
-$("#bq").textContent=S.bq.length?"Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builder busy.":"Builder idle.";
 for(const t in B){const n=cnt(t),mx=MAXC(t),c=newCost(t),b=$("#bmb-"+t);$("#bmn-"+t).textContent=n+"/"+mx;
 $("#bmc-"+t).textContent=n>=mx?(t==="command"?"Only one allowed.":"Upgrade the Command Station for more copies."):"Cost: "+cstr(c)+". Time: "+left(dur(0)*1000);
 b.textContent=S.place===t?"Cancel":"Place";b.disabled=S.place===t?false:(n>=mx||S.bq.length>=bqcap()||!can(c))}
