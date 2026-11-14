@@ -103,7 +103,7 @@ let UIIN={top:64,bottom:88};
 // of padding, and feeding that back into .hud's min-height would
 // grow the bar 4px on every measure. Cached so the var is only
 // written when the height actually changes.
-let _hudH=0,_dockH=0;
+let _hudH=0,_dockH=0,_trayH=0;
 function measureUI(){
   if(UIHIDE){UIIN={top:0,bottom:0};return}
   let top=64,bottom=88;
@@ -1178,6 +1178,14 @@ function activityUI(){
   const key=jobs.map(j=>j.id+"@"+j.end).join("|");
   const wasHidden=el.hidden;
   el.hidden=jobs.length===0;
+  // v3.1.5: the tray covered the map controls (-/+/Home/Fit/Sector) — both
+  // were anchored at dock-h, and the tray paints over them whenever a job
+  // runs (Jayden, phone: a colony upgrade hid the bottom bar). Track the
+  // live tray height in --tray-h so .mapctl lifts above it; 0 when hidden
+  // (the ternary, not offsetHeight alone: a hidden tray still reports a
+  // height in some stubs, and the var must be exactly 0 when it is gone).
+  const th=el.hidden?0:(el.offsetHeight||0);
+  if(th!==_trayH){_trayH=th;document.documentElement.style.setProperty("--tray-h",th+"px")}
   if(jobs.length===0){actKeyCache="";if(!wasHidden){measureUI();sizeCanvases()}return}
   if(key!==actKeyCache){
     actKeyCache=key;
