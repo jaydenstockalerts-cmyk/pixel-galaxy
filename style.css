@@ -219,6 +219,15 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #tut.mini .tutcard{padding:10px 12px}
 #tut.mini #tut-body{font-size:14px;margin:6px 0}
 #tut.mini #tut-dots{margin:4px 0 6px}
+/* --- v3.1: while a game popup is open, the tutorial card collapses
+     to a slim bar (title + step + Skip). The popup (z 20) sits above
+     the card (z 18) and used to cover its top half (live v3.0,
+     steps 6/7). Shrinking the card can only reduce the overlap,
+     never cover a popup button; tutLayout() removes the class when
+     the popup closes and the card expands again. --- */
+#tut.pop-open #tut-body,#tut.pop-open #tut-dots,#tut.pop-open .tutbtns{display:none}
+#tut.pop-open .tutcard{padding:6px 12px}
+#tut.pop-open #tut-step{margin:0}
 /* --- v3.0 tutorial highlight: pulsing gold ring on the real UI
      element the step is about, so the eye goes there first. --- */
 .tut-hl{outline:3px solid #ffd84a!important;outline-offset:2px;border-radius:8px;box-shadow:0 0 0 6px rgba(255,216,74,.25),0 0 18px rgba(255,216,74,.6);animation:tutPulse 1.2s ease-in-out infinite}
