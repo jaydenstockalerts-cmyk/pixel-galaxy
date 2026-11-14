@@ -120,33 +120,96 @@ function setUIHidden(h){
   measureUI(); sizeCanvases(); update();
 }
 
-// v1.3 guided tutorial — quick, skippable, first load only.
-// Stored in its own key (pixelgalaxy-tutorial-done); the game save
-// (pixelgalaxy-v3) is never touched. Overlay card only: the map stays
-// visible behind it and Skip works from step 1.
+// v3.0 guided tutorial — an in-depth, in-game guide (replaces the
+// thin v1.3 5-step card). Madalynn, a brand-new player, read the old
+// one and still had no idea what to do — so this one GUIDES: it
+// switches to the right tab, highlights the real UI element, and
+// waits for the player to DO the action before moving on. Overlay
+// card only (map stays visible behind it); Skip is always visible;
+// first load only under pixelgalaxy-tutorial-done; the game save
+// (pixelgalaxy-v3) is never touched. Progress is saved per step
+// (pixelgalaxy-tutorial-step) so a reload resumes mid-tutorial;
+// Skipping marks the tutorial done. "How to play" reopens from step 1.
+//   step fields: t title, b body, ch chapter, tab (navigate on
+//   render), sec (galaxy sector to show), hl (selector to ring),
+//   act (action step: Next becomes "Skip this step", compact card),
+//   seen (popup steps: true once the target popup was opened),
+//   done (action steps: true when the game state shows it done).
+// A step whose done() is already true completes immediately on
+// entry (old saves skip ahead); Back sets TUT.manual so re-reading
+// a finished action step does not auto-advance it again.
+// NOTE (fresh-save economy): a second Solar Array is NOT the first
+// build — MAXC is 1 per building at Command Lv 1, so the first build
+// is a Crystal Mine (quest q1 pays for it) and the second Solar Array
+// (quest q5d) waits for Command Lv 2.
 const TUT_KEY="pixelgalaxy-tutorial-done";
+const TUT_STEP_KEY="pixelgalaxy-tutorial-step";
 const TUT_STEPS=[
-{t:"Welcome, Commander",b:"Pixel Galaxy is yours to build: grow your home station, train a fleet, and conquer systems all the way to The Dark Nexus."},
-{t:"Your station",b:"This is your home station. Tap a building to see it, or tap open land to build. A Solar Array is a good first build — it makes energy. Plots unlock as you upgrade the Command Station — the city grows outward from the keep."},
-{t:"Resources",b:"Energy, metal, crystal and credits live at the top. Each has a storage cap — upgrade the Command Station to store more. Buildings produce at full rate wherever they stand — spread them out."},
-{t:"The galaxy",b:"Switch to the Galaxy tab and tap a planet. Check the power it needs, then attack the Pirate Outpost when your fleet is ready. Fighters beat swarm fleets."},
-{t:"Fleet, Research, Quests",b:"Train ships in Fleet, research in Research, hire commanders in Crew, and claim rewards in Quests. Good luck, Commander."}
+{ch:"Welcome",t:"Welcome, Commander",tab:"map",b:"Your job: build up your home station, train a fleet, and conquer systems all the way to the Dark Nexus, the big boss at the far edge of the galaxy. This guide walks you through it, step by step. You can skip it any time, or tap Later to hide it and pick up where you left off."},
+{ch:"Resources",t:"Your resources",tab:"map",hl:"#res",b:"Energy, metal, crystal and credits live at the top. Buildings make them every second — a Solar Array makes energy, a Metal Foundry makes metal, a Crystal Mine digs crystal. Each one has a storage limit: upgrade the Command Station to store more. Tap the bar to see the details."},
+{ch:"Your station",t:"Your station",tab:"station",hl:'section[data-pg="station"] .mapwrap',b:"This is your home station. Tap a building to see what it does, or tap open land to build something new. Plots unlock as you upgrade the Command Station — the city grows outward from the keep in the middle."},
+{ch:"Building",t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 25 metal and 10 energy and takes a few seconds — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
+{ch:"Quests",t:"Quests pay you",tab:"quests",hl:"#quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",done:()=>S.q.length>TUT.baseQ||(S.q.length>0&&!Q.some(q=>!S.q.includes(q.id)&&q.ok()))},
+{ch:"Your station",t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 60 metal, 40 crystal and 20 credits, so you can't afford it yet — that's normal.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
+{ch:"The galaxy",t:"The galaxy",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Tap the Pirate Outpost. Every system shows the fleet power you need to take it, and which ship type counters it — fighters beat swarm fleets, so the Outpost is your first target.",seen:()=>POP&&POP.kind==="system"&&S.sel===1,done:()=>TUT.seen&&!POP},
+{ch:"Building",t:"Build a Hangar",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Fighters live in a Hangar, and a Hangar needs 30 crystal. Your mine digs about half a crystal every second — watch the crystal number at the top climb. When it hits 30, tap open land and build the Hangar.",done:()=>S.b.hangar>=1},
+{ch:"Your fleet",t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 10 energy and 5 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
+{ch:"Conquest",t:"Conquer the Pirate Outpost",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Go to the Galaxy tab, tap the Pirate Outpost, and tap Attack. With 4 Fighters you should win — and you'll loot metal and credits. If you lose, rebuild and try again. Claim the 80-credit quest reward afterwards: you'll need it for research.",done:()=>S.won.includes(1)},
+{ch:"Building",t:"Build a Trade Hub",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Credits are the slow resource. A Trade Hub earns half a credit every second, forever. Tap open land and build one — it costs 30 metal and 20 crystal.",done:()=>S.b.hub>=1},
+{ch:"Research",t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 17 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes a minute. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
+{ch:"Your crew",t:"Your crew",tab:"crew",hl:"#crew-panel",act:true,b:"Crew are workers — assign them and everything gets faster, +2% per crew. Tap + next to Mining. Your crew grows as your Command Station levels up and as you found colonies. Commanders, below, are officers who level up as you play.",done:()=>S.crew.mine>=1},
+{ch:"Your empire",t:"Your empire and your rivals",tab:"empire",hl:"#emp-rivals",b:"This is the Empire page — open it any time from the menu, top left. Five rival factions are expanding on their own clock. This board shows their systems, power, and whether you're at war. You win by holding 13 systems, or twice as many as the next faction. Rival raids start after about 10 minutes of play: a strong home fleet, plus garrisons on your systems, repels them."},
+{ch:"Your empire",t:"Colonies and garrisons",tab:"map",hl:'section[data-pg="map"] .mapwrap',b:"A system you conquer becomes a colony. Pick a focus — Mining, Forge or Trade — and it earns for you. It also adds defence. Station ships there as a garrison: tap a system you own to see its Garrison section. Garrisons defend at full strength, and half your home fleet rushes to help."},
+{ch:"The wider galaxy",t:"Diplomacy and the wider galaxy",tab:"map",sec:1,hl:'section[data-pg="map"] .mapwrap',b:"You don't have to fight everyone. On the Empire page you can pay tribute (300 credits) for a 30-minute truce, sign a pact (500), or ally (1000) — and rivals make deals with each other too. Beyond the jump gates lies Sector 2: you can scout it for free, but attacks there need Jump Drive research. Colonies connected to Home World also pay trade credits."},
+{ch:"Ready",t:"You're ready, Commander",tab:"map",b:"That's the whole loop: build, research, crew up, conquer, repeat — all the way to the Dark Nexus. If you ever forget something, 'How to play' in the menu brings this guide back. Good luck out there."}
 ];
-let TUT={i:0,open:false};
+let TUT={i:0,open:false,seen:false,manual:false,baseQ:0,doneAtEntry:false};
 function tutDone(){try{localStorage.setItem(TUT_KEY,"1")}catch(e){}}
 function tutIsDone(){try{return !!localStorage.getItem(TUT_KEY)}catch(e){return false}}
+function tutSaveStep(){try{localStorage.setItem(TUT_STEP_KEY,String(TUT.i))}catch(e){}}
+function tutLoadStep(){try{const n=parseInt(localStorage.getItem(TUT_STEP_KEY)||"0",10);return isFinite(n)?Math.max(0,Math.min(TUT_STEPS.length-1,n)):0}catch(e){return 0}}
+function tutClearHl(){try{document.querySelectorAll(".tut-hl").forEach(e=>e.classList.remove("tut-hl"))}catch(e){}}
+let tutLift=-1;
+function tutLayout(){if(!TUT.open)return;const a=$("#activity");const lift=(a&&!a.hidden)?Math.round(a.offsetHeight||0)+20:24;if(lift!==tutLift){tutLift=lift;const el=$("#tut");if(el)el.style.bottom="calc(var(--dock-h) + "+lift+"px)"}}
 function tutRender(){
   const el=$("#tut"); if(!el)return;
   const stp=TUT_STEPS[TUT.i];
-  const t=$("#tut-title"),b=$("#tut-body"),d=$("#tut-dots"),nx=$("#tut-next"),bk=$("#tut-back");
+  if(stp.tab==="empire"){PAGE={kind:"empire"}}
+  else if(stp.tab){S.tab=stp.tab;PAGE={kind:"tab"}}
+  if(stp.sec!==undefined){SEC=stp.sec;fitCam()}
+  showTab();
+  tutClearHl();
+  if(stp.hl){const h=$(stp.hl);if(h)h.classList.add("tut-hl")}
+  const t=$("#tut-title"),b=$("#tut-body"),s=$("#tut-step"),d=$("#tut-dots"),nx=$("#tut-next"),bk=$("#tut-back");
   if(t)t.textContent=stp.t; if(b)b.textContent=stp.b;
+  if(s)s.textContent="Step "+(TUT.i+1)+" of "+TUT_STEPS.length+" · "+stp.ch;
+  // doneAtEntry: was this step already complete when we arrived?
+  // Forward entry + already done => completes immediately (old saves
+  // skip ahead). Backward entry + already done => stay put (the
+  // player is re-reading; Next moves on). Backward entry + not done
+  // => still advances when the player does the thing.
+  TUT.doneAtEntry=false; if(stp.done){try{TUT.doneAtEntry=!!stp.done()}catch(e){TUT.doneAtEntry=false}}
   if(d)d.innerHTML=TUT_STEPS.map((_,k)=>'<span class="dot'+(k===TUT.i?" on":"")+'"></span>').join("");
-  if(nx)nx.textContent=TUT.i===TUT_STEPS.length-1?"Done":"Next ›";
+  if(nx)nx.textContent=TUT.i===TUT_STEPS.length-1?"Done":stp.act?"Skip this step":"Next ›";
   if(bk)bk.disabled=TUT.i===0;
+  el.classList.toggle("mini",!!stp.act);
+  tutSaveStep();
+  tutLift=-1; tutLayout();
 }
-function showTut(i){TUT={i:Math.max(0,Math.min(TUT_STEPS.length-1,i||0)),open:true};const el=$("#tut");if(el)el.hidden=false;tutRender()}
-function closeTut(done){TUT.open=false;const el=$("#tut");if(el)el.hidden=true;if(done)tutDone()}
-function maybeTut(){if(!tutIsDone())showTut(0)}
+function tutAdvance(){if(TUT.i>=TUT_STEPS.length-1){closeTut(true);return}TUT.i++;TUT.seen=false;TUT.manual=false;TUT.baseQ=S.q.length;tutRender()}
+function tutBack(){if(TUT.i>0){TUT.i--;TUT.seen=false;TUT.manual=true;TUT.baseQ=S.q.length;tutRender()}}
+function tutCheck(){
+  if(!TUT.open)return;
+  tutLayout();
+  const stp=TUT_STEPS[TUT.i];
+  if(!stp||!stp.done)return;
+  if(stp.seen&&!TUT.seen){try{if(stp.seen())TUT.seen=true}catch(e){}}
+  let d=false; try{d=!!stp.done()}catch(e){d=false}
+  if(d&&!(TUT.manual&&TUT.doneAtEntry))tutAdvance();
+}
+function showTut(i){TUT={i:Math.max(0,Math.min(TUT_STEPS.length-1,i||0)),open:true,seen:false,manual:false,baseQ:S.q.length,doneAtEntry:false};const el=$("#tut");if(el)el.hidden=false;tutRender()}
+function closeTut(done){TUT.open=false;TUT.seen=false;const el=$("#tut");if(el){el.hidden=true;el.classList.remove("mini");el.style.bottom=""}tutClearHl();tutLift=-1;if(done){tutDone();try{localStorage.removeItem(TUT_STEP_KEY)}catch(e){}}}
+function maybeTut(){if(!tutIsDone())showTut(tutLoadStep())}
 
 function openMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.hidden=false; requestAnimationFrame(()=>m.classList.add("open"));} if(b)b.hidden=false;}
 function closeMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.classList.remove("open"); setTimeout(()=>{if(!m.classList.contains("open"))m.hidden=true},230);} if(b)b.hidden=true;}
@@ -432,7 +495,7 @@ upd2();
 // condition or reward changes.
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok())),key=open.map(q=>q.id+(q.ok()?1:0)).join();
 if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — repel one with a stronger fleet. How raids work: see the Empire page.</small>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
-popupUI();empireUI();activityUI();progressBars();
+popupUI();empireUI();activityUI();progressBars();tutCheck();
 draw();
 }
 
@@ -513,9 +576,10 @@ else if(d.pclose){closePopup()}
 else if(d.menu){openMenu()}
 else if(d.mclose){closeMenu()}
 else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}}
-else if(d.tutnext){if(TUT.i>=TUT_STEPS.length-1)closeTut(true);else{TUT.i++;tutRender()}}
-else if(d.tutback){if(TUT.i>0){TUT.i--;tutRender()}}
+else if(d.tutnext){tutAdvance()}
+else if(d.tutback){tutBack()}
 else if(d.tutskip){closeTut(true)}
+else if(d.tutlater){closeTut(false)}
 else if(d.tutdone){closeTut(true)}
 else if(d.act){const a=d.act;
 if(a.startsWith("bld:")){const u=+a.slice(4);S.tab="station";PAGE={kind:"tab"};openBuilding(u)}
