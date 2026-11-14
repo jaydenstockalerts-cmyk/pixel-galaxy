@@ -188,7 +188,7 @@ const TUT_STEPS=[
 {t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 10 energy and 5 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
 {t:"Conquer the Pirate Outpost",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Go to the Galaxy tab, tap the Pirate Outpost, and tap Attack. With 4 Fighters you should win — and you'll loot metal and credits. If you lose, rebuild and try again. Claim the 80-credit quest reward afterwards: you'll need it for research.",done:()=>S.won.includes(1)},
 {t:"Build a Trade Hub",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Credits are the slow resource. A Trade Hub earns half a credit every second, forever. Tap open land and build one — it costs 30 metal and 20 crystal.",done:()=>S.b.hub>=1},
-{t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 17 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes three minutes. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
+{t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 18 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes three minutes. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
 {t:"Your crew",tab:"crew",hl:"#crew-panel",act:true,b:"Crew are workers — assign them and everything gets faster, +2% per crew. Tap + next to Mining. Your crew grows as your Command Station levels up and as you found colonies. Commanders, below, are officers who level up as you play.",done:()=>S.crew.mine>=1},
 {t:"Your empire and your rivals",tab:"empire",hl:"#emp-rivals",b:"This is the Empire page — open it any time from the menu, top left. Five rival factions are expanding on their own clock. This board shows their systems, power, and whether you're at war. You win by holding 13 systems, or by conquering the Dark Nexus, the big boss at the far edge of the galaxy. Rival raids start after about 10 minutes of play: a strong home fleet, plus garrisons on your systems, repels them."},
 {t:"Colonies and garrisons",tab:"map",hl:'section[data-pg="map"] .mapwrap',b:"A system you conquer becomes a colony. Pick a focus — Mining, Forge or Trade — and it earns for you. It also adds defence. Station ships there as a garrison: tap a system you own to see its Garrison section. Garrisons defend at full strength, and half your home fleet rushes to help."},
@@ -420,7 +420,7 @@ const effL=b=>b.l+S.bq.filter(j=>j.u===b.u).length;
 const cnt=t=>S.bl.filter(x=>x.t===t).length;
 const MAXC=t=>t==="command"?1:t==="hangar"?Math.min(4,1+Math.floor(S.b.command/3)):Math.min(6,1+Math.floor(S.b.command/2));
 // v3.2 pacing (Jayden, Hobbit-style): ONE builder — a single building job at a time, shared by construction, upgrades and colony upgrades.
-const bqcap=()=>1;
+const bqcap=()=>1+tsum("bld"); // v3.2.6: Construction Crews research (b1, k "bld", req c1) adds a second builder — building and colony upgrades share the queue, so two can now run in parallel
 const bAt=(x,y)=>S.bl.find(b=>b.x===x&&b.y===y);
 // v1.5 PLOT LOCKING (Jayden, approved mechanics change, Hobbit-style):
 // plots unlock by distance from the Command Station (the keep), nearest
@@ -571,7 +571,7 @@ $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
 $("#sq").textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
-const bqEl=$("#bq");if(bqEl)bqEl.textContent=S.bq.length?("Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builder busy."):"Builder idle."; // v3.2.1: moved here from dead baseUI() — this is the one-builder status line, updated every tick
+const bqEl=$("#bq");if(bqEl){const cap=bqcap(),nj=S.bq.length;bqEl.textContent=nj?("Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". "+(cap>1?"Builders busy ("+nj+"/"+cap+").":"Builder busy.")):(cap>1?"Builders idle.":"Builder idle.");} // v3.2.6: the chip names the builder count once Construction Crews (b1) is researched — with one builder the text is unchanged ("Builder idle." / "Builder busy.")
 const mvEl=$("#mvcancel");if(mvEl)mvEl.hidden=!(S.mv||S.place); // v3.2.2: Move/Place mode had no exit — show the Cancel chip while either is active
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
 b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||usedQ()+U[k].sz>slots||S.sq.length>=qcap()||!can(U[k].c);$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled}
@@ -1266,10 +1266,10 @@ function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
-// v2.9: ALL 17 tech rows always render — a locked row is visible but
+// v2.9: ALL 18 tech rows always render — a locked row is visible but
 // greyed, names its requirement, and its button is disabled; a done row
 // reads "Researched". (Hiding locked rows left a fresh save showing 6
-// rows under a "Completed 0 of 17" header.)
+// rows under a "Completed 0 of 18" header.)
 TECH.forEach(t=>{const dn=S.tech.includes(t.id),req=t.req?TECH.find(z=>z.id===t.req):null,av=!dn&&(!req||S.tech.includes(req.id)),row=$("#tr-"+t.id),tc=$("#tc-"+t.id),tb=$("#tb-"+t.id);row.style.display="";row.classList.toggle("locked",!dn&&!!req);row.classList.toggle("done",dn);const ct="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul()*crewResMul());if(dn){tc.textContent="Researched.";tb.textContent="Researched";tb.disabled=true}else if(req&&!S.tech.includes(req.id)){tc.textContent="Requires "+req.n+". "+ct;tb.textContent="Research";tb.disabled=true}else{tc.textContent=ct;tb.textContent="Research";tb.disabled=!!S.rq||!can(t.c)}});
 $("#rq").textContent=(S.rq?"Researching: "+TECH.find(z=>z.id===S.rq.id).n+" ("+left(S.rq.end-now)+"). ":"Lab idle. ")+"Completed "+S.tech.length+" of "+TECH.length+".";
 const sn=$("#sec-note");if(sn)sn.hidden=!(SEC===1&&!hasJump()); // v2.9: scouting Sector 2 is free — say so while the player is looking at it without Jump Drive
