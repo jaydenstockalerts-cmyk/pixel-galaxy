@@ -164,8 +164,8 @@ const TUT_STEPS=[
 {t:"Your resources",tab:"map",hl:"#res",b:"Energy, metal, crystal and credits live at the top. Buildings make them every second — a Solar Array makes energy, a Metal Foundry makes metal, a Crystal Mine digs crystal. Each one has a storage limit: upgrade the Command Station to store more. Tap the bar to see the details."},
 {t:"Your station",tab:"station",hl:'section[data-pg="station"] .mapwrap',b:"This is your home station. Tap a building to see what it does, or tap open land to build something new. Plots unlock as you upgrade the Command Station — the city grows outward from the keep in the middle."},
 {t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 25 metal and 10 energy and takes a few seconds — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
-{t:"Quests pay you",tab:"quests",hl:"#quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",done:()=>S.q.length>TUT.baseQ||(S.q.length>0&&!Q.some(q=>!S.q.includes(q.id)&&q.ok()))},
-{t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 84 metal, 56 crystal and 28 credits, so you can't afford it yet — that's normal.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
+{t:"Quests pay you",tab:"quests",hl:"#quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",bAlt:"Quests are jobs with rewards. Tap Claim on any quest you see to collect its reward — free resources are the fastest way to grow early on.",bAltWhen:()=>{const q=Q.find(z=>z.id==="q1");return !q||S.q.includes("q1")||!q.ok()},done:()=>S.q.length>TUT.baseQ||(S.q.length>0&&!Q.some(q=>!S.q.includes(q.id)&&q.ok()))},
+{t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 84 metal, 56 crystal and 28 credits. If that's more than you have right now, that's normal — keep building and come back to it.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
 {t:"The galaxy",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Tap the Pirate Outpost. Every system shows the fleet power you need to take it, and which ship type counters it — fighters beat swarm fleets, so the Outpost is your first target.",seen:()=>POP&&POP.kind==="system"&&S.sel===1,done:()=>TUT.seen&&!POP},
 {t:"Build a Hangar",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Fighters live in a Hangar, and a Hangar needs 30 crystal. Your mine digs about half a crystal every second — watch the crystal number at the top climb. When it hits 30, tap open land and build the Hangar.",done:()=>S.b.hangar>=1},
 {t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 10 energy and 5 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
@@ -229,16 +229,23 @@ function tutRender(){
   tutClearHl();
   if(stp.hl){const h=$(stp.hl);if(h)h.classList.add("tut-hl")}
   const t=$("#tut-title"),b=$("#tut-body"),s=$("#tut-step"),d=$("#tut-dots"),nx=$("#tut-next"),bk=$("#tut-back");
-  if(t)t.textContent=stp.t; if(b)b.textContent=stp.b;
+  if(t)t.textContent=stp.t; if(b)b.textContent=(stp.bAlt&&stp.bAltWhen&&stp.bAltWhen())?stp.bAlt:stp.b;
   if(s)s.textContent="Step "+(TUT.i+1)+" of "+TUT_STEPS.length+" · "+stp.t;
   // doneAtEntry: was this step already complete when we arrived?
   // Forward entry + already done => completes immediately (old saves
   // skip ahead). Backward entry + already done => stay put (the
   // player is re-reading; Next moves on). Backward entry + not done
   // => still advances when the player does the thing.
+  // v3.1.1: on a done-at-entry ACTION step the advance button reads
+  // "Next ›", not "Skip this step" — the player did nothing wrong
+  // and is not skipping anything (live v3.1: Back to step 13 with
+  // crew already assigned stalled; re-doing the action never
+  // advanced it, only "Skip this step" did). Tapping it advances
+  // normally (tutAdvance). Forward arrival still auto-skips via
+  // tutCheck, so the label is only ever seen on a re-read.
   TUT.doneAtEntry=false; if(stp.done){try{TUT.doneAtEntry=!!stp.done()}catch(e){TUT.doneAtEntry=false}}
   if(d)d.innerHTML=TUT_STEPS.map((_,k)=>'<span class="dot'+(k===TUT.i?" on":"")+'"></span>').join("");
-  if(nx)nx.textContent=TUT.i===TUT_STEPS.length-1?"Done":stp.act?"Skip this step":"Next ›";
+  if(nx)nx.textContent=TUT.i===TUT_STEPS.length-1?"Done":(stp.act&&!TUT.doneAtEntry)?"Skip this step":"Next ›";
   if(bk)bk.disabled=TUT.i===0;
   el.classList.toggle("mini",!!stp.act);
   tutSaveStep();
