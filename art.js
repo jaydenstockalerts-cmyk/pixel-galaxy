@@ -588,11 +588,30 @@ function drawBase(q,cam,opts){
   // gap and NO vertical clamp. A label may leave the top of the
   // screen if the player pans its building up there (that is normal);
   // a label floating above empty canvas space is not.
+  // v3.1.3 STAGGER (live v3.1.2, phone: "Solar Array" half-hidden
+  // behind "Metal Foundry" — neighbours' name plates collided).
+  // Labels are placed topmost first; a stack (name + shield) that
+  // overlaps one already placed is lifted in one jump so its bottom
+  // sits 2px above the hit stack's top, repeating until clear (max
+  // 12 jumps), so a cluster reads as a staircase instead of one
+  // smeared line. The shield moves with its name, keeping the
+  // fixed 22px gap between them.
+  const placed=[]; // stack rects already drawn: {x0,y0,x1,y1}
+  labels.sort((a,b)=>{const ta=a.ct!==undefined?a.ct:a.roofY-a.ss,tb=b.ct!==undefined?b.ct:b.roofY-b.ss;return ta-tb});
   labels.forEach(L=>{
     const spriteTop=L.ct!==undefined?L.ct:L.roofY-L.ss; // screen y of the VISIBLE sprite top (first drawn pixel row)
     const nameW=L.name.length*7+6;
     let shx=Math.max(nameW/2+4,Math.min(vw-nameW/2-4,L.roofX));
     let shy=spriteTop-20; // shield centre: fixed 20 screen px above the sprite
+    const stack=()=>({x0:shx-nameW/2-3,y0:shy-29.5,x1:shx+nameW/2+3,y1:shy+13});
+    let jumps=0;
+    for(;;){
+      const hit=placed.find(r=>{const s=stack();return s.x0<r.x1+2&&s.x1>r.x0-2&&s.y0<r.y1+2&&s.y1>r.y0-2});
+      if(!hit||jumps>=12)break;
+      shy=hit.y0-2-13;
+      jumps++;
+    }
+    placed.push(stack());
     q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-13);q.lineTo(shx+13,shy);q.lineTo(shx,shy+13);q.lineTo(shx-13,shy);q.closePath();q.fill();
     q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
     try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
