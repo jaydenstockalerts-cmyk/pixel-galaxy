@@ -638,6 +638,16 @@ const popEl=$("#pop");
 if(popEl){popEl.addEventListener("click",e=>{if(e.target===popEl)closePopup()});
 popEl.addEventListener("pointerup",e=>{if(e.target===popEl)closePopup()});} // v1.4: backdrop works on touch too
 document.addEventListener("keydown",e=>{if(e.key==="Escape"){const m=$("#menu");if(m&&!m.hidden&&m.classList.contains("open"))closeMenu();else if(POP)closePopup();else if(S.mv||S.place){S.mv=null;S.place=null;msg("Cancelled.");update()}else if(PAGE.kind!=="tab")goBack();}}); // v3.2.2: Escape also cancels Move/Place mode (it previously did nothing there, and the mode had no visible exit)
+// v3.2.4: LASTACT tracks the last real interaction (tap/click/key) so the
+// game knows when the player is actually present. It starts at 0, so a
+// freshly loaded game counts as unattended until the player first acts —
+// a tab left open overnight, or a game just opened in the morning, must
+// not be able to lose its Home World. (The old rule only protected the
+// page-closed case via offlineSim; a page left open kept running live
+// raids, and a player could go to bed and wake up defeated.)
+let LASTACT=0;
+document.addEventListener("pointerdown",()=>{LASTACT=Date.now()});
+document.addEventListener("keydown",()=>{LASTACT=Date.now()});
 const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{camFitted=false;const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
 function handleBodyClick(e){
 const b=e.target.closest("button");if(!b)return;
@@ -914,13 +924,16 @@ function rivalCycle(id,offline,lost){
   // YOU at all (rival-vs-rival raids still happen). An ally raids
   // only YOUR enemies (factions flagged in S.war) instead. A pacted
   // rival is never a raid target either (pair pact). Home World (0)
-  // joins the pool ONLY live (never offline) and ONLY if the faction
-  // owns a system adjacent to Home (1 or 2) — Home defence is the
-  // FULL home fleet (sysDef(0) = dpower()).
+  // joins the pool ONLY while the player is present — page visible AND
+  // a real interaction in the last 5 minutes — and ONLY if the faction
+  // owns a system adjacent to Home (1 or 2). Never offline, never while
+  // the tab sits open unattended, never in the first minutes after a
+  // load before the player has acted (LASTACT starts at 0). Home
+  // defence is the FULL home fleet (sysDef(0) = dpower()).
   let mine=[];
   if(rel!=="truce"&&rel!=="pact"&&rel!=="ally"){
     mine=S.won.filter(i=>i>0&&nb(id,i));
-    if(!offline&&S.won.includes(0)&&nb(id,0))mine.push(0);
+    if(!offline&&!document.hidden&&(Date.now()-LASTACT<5*60*1000)&&S.won.includes(0)&&nb(id,0))mine.push(0);
   }
   let theirs=[];for(const j in S.own)if(S.own[j]!==id&&nb(id,+j)&&pairRel(id,S.own[j])!=="pact")theirs.push(+j);
   if(rel==="ally")theirs=theirs.filter(j=>S.war&&S.war[S.own[j]]);
@@ -1263,6 +1276,17 @@ if(key===crewKeyCache)return;crewKeyCache=key;
 const desc={mine:"Boosts building and colony production.",ship:"Ships finish faster.",res:"Research finishes faster."};
 const row=(k,label,bonus)=>{const n=c[k]||0;return '<div class="row"><div><b>'+label+': '+n+' crew → +'+(n*2)+'% '+bonus+' (+'+Math.round(CREW_PCT*100)+'% per crew)</b><br><small>'+desc[k]+'</small></div><div class="bg"><button data-crew="'+k+':-1" '+(n<=0?"disabled":"")+'>−</button><button data-crew="'+k+':+1" '+(tot>=cap?"disabled":"")+'>+</button></div></div>'};
 el.innerHTML='<small>Assign your crew to mining, shipbuilding or research. Crew grows with your Command Station and colonies.</small><br><small><b>Crew: '+tot+' assigned / '+cap+' total ('+(cap-tot)+' idle)</b></small>'+row("mine","Mining","production")+row("ship","Shipbuilding","shipyard speed")+row("res","Research","research speed");}
+// v3.2.4: one-time repair for runs defeated under the old rule. Before
+// this version Home World could be raided while the page sat open
+// unattended (the offline protection only covered a closed page), so a
+// player could go to bed and wake up defeated. If this save is marked
+// defeated and predates the guard (no S.hwguard), restore Home World:
+// clear the defeat flag, give system 0 back, delete the rival's claim.
+// The rival keeps any other systems it took — that loss stands. Saves
+// made after the fix carry S.hwguard=1, so a genuine defeat while
+// actively playing stays terminal.
+function reviveHomeWorld(){if(S.end&&S.end.lost&&!S.hwguard){S.end.lost=0;if(!S.won.includes(0))S.won.push(0);if(S.own)delete S.own[0];msg("Your Home World was restored — a rival overran it while you were away, which shouldn't have been possible. That hole is now fixed: your Home World can only be attacked while you're actively playing.");return true}return false}
+reviveHomeWorld();S.hwguard=1;
 const away=Math.min((Date.now()-S.t)/1000,28800);
 if(away>60){step(away);done();offlineSim(away);msg("Welcome back! Your empire worked for "+Math.floor(away/60)+" minutes while you were away.")}
 let last=Date.now(),starve=0;
