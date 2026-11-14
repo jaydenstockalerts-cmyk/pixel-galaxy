@@ -560,6 +560,7 @@ const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
 $("#sq").textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
 const bqEl=$("#bq");if(bqEl)bqEl.textContent=S.bq.length?("Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". Builder busy."):"Builder idle."; // v3.2.1: moved here from dead baseUI() — this is the one-builder status line, updated every tick
+const mvEl=$("#mvcancel");if(mvEl)mvEl.hidden=!(S.mv||S.place); // v3.2.2: Move/Place mode had no exit — show the Cancel chip while either is active
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
 b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||usedQ()+U[k].sz>slots||S.sq.length>=qcap()||!can(U[k].c);$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled}
 const s=SYS[S.sel],a=$("#atk"),inf=$("#info");
@@ -636,7 +637,7 @@ cv.addEventListener("dblclick",e=>{const q=cv.getBoundingClientRect();setZoom(CA
 const popEl=$("#pop");
 if(popEl){popEl.addEventListener("click",e=>{if(e.target===popEl)closePopup()});
 popEl.addEventListener("pointerup",e=>{if(e.target===popEl)closePopup()});} // v1.4: backdrop works on touch too
-document.addEventListener("keydown",e=>{if(e.key==="Escape"){const m=$("#menu");if(m&&!m.hidden&&m.classList.contains("open"))closeMenu();else if(POP)closePopup();else if(PAGE.kind!=="tab")goBack();}});
+document.addEventListener("keydown",e=>{if(e.key==="Escape"){const m=$("#menu");if(m&&!m.hidden&&m.classList.contains("open"))closeMenu();else if(POP)closePopup();else if(S.mv||S.place){S.mv=null;S.place=null;msg("Cancelled.");update()}else if(PAGE.kind!=="tab")goBack();}}); // v3.2.2: Escape also cancels Move/Place mode (it previously did nothing there, and the mode had no visible exit)
 const mm=$("#mm");if(mm)mm.addEventListener("click",e=>{camFitted=false;const q=mm.getBoundingClientRect();CAM.cx=(e.clientX-q.left)/q.width*WORLD.w;CAM.cy=(e.clientY-q.top)/q.height*WORLD.h;clampCam();update()});
 function handleBodyClick(e){
 const b=e.target.closest("button");if(!b)return;
@@ -672,6 +673,7 @@ else if(a==="ship"){S.tab="fleet";PAGE={kind:"tab"};update()}}
 else if(d.hide){setUIHidden(true)}
 else if(d.showui){setUIHidden(false)}
 else if(d.tray){TRAYOPEN=!TRAYOPEN;try{localStorage.setItem("pixelgalaxy-tray-open",TRAYOPEN?"1":"0")}catch(e){}actKeyCache="";activityUI();measureUI();sizeCanvases()}
+else if(d.mcancel){S.mv=null;S.place=null;msg("Cancelled.");update()} // v3.2.2: exit Move/Place mode (the mode previously had no way out except a valid tap or a reload)
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
 else if(d.log){PAGE={kind:"log"};update()}
 else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b.t,l);if(l<lvlCap(b.t)&&S.bq.length<bqcap()&&can(c)){pay(c);{const s0=Math.max(Date.now(),...S.bq.filter(j=>j.u===b.u).map(j=>j.end));S.bq.push({u:b.u,s:s0,end:s0+dur(l)*1000})}msg(B[b.t].n+" upgrade started.")}}}
