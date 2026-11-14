@@ -126,15 +126,25 @@ function setUIHidden(h){
 // switches to the right tab, highlights the real UI element, and
 // waits for the player to DO the action before moving on. Overlay
 // card only (map stays visible behind it); Skip is always visible;
-// first load only under pixelgalaxy-tutorial-done; the game save
+// first load only under pixelgalaxy-tutorial-v3-done; the game save
 // (pixelgalaxy-v3) is never touched. Progress is saved per step
-// (pixelgalaxy-tutorial-step) so a reload resumes mid-tutorial;
+// (pixelgalaxy-tutorial-v3-step) so a reload resumes mid-tutorial;
 // Skipping marks the tutorial done. "How to play" reopens from step 1.
-//   step fields: t title, b body, ch chapter, tab (navigate on
-//   render), sec (galaxy sector to show), hl (selector to ring),
-//   act (action step: Next becomes "Skip this step", compact card),
+// v3.1: the v3 key is NEW on purpose — the v3.0 key was the old
+// pixelgalaxy-tutorial-done, already set for anyone who finished or
+// skipped the v1.3 tutorial, so the v3.0 tutorial never auto-showed
+// for them (live v3.0). The v3 key makes the new tutorial show once
+// to EVERYONE on first v3.1 load. Reset game clears both keys.
+//   step fields: t title, b body, tab (navigate on render), sec
+//   (galaxy sector to show), hl (selector to ring), act (action step:
+//   Next becomes "Skip this step", compact card), build (build step:
+//   the station camera centres on a free unlocked plot on entry),
 //   seen (popup steps: true once the target popup was opened),
 //   done (action steps: true when the game state shows it done).
+// The progress label uses the step TITLE (t), never a separate
+// chapter string, so it can never disagree with the heading (v3.1:
+// step 6's label said "Your station" under the heading
+// "The Command Station").
 // A step whose done() is already true completes immediately on
 // entry (old saves skip ahead); Back sets TUT.manual so re-reading
 // a finished action step does not auto-advance it again.
@@ -142,35 +152,72 @@ function setUIHidden(h){
 // build — MAXC is 1 per building at Command Lv 1, so the first build
 // is a Crystal Mine (quest q1 pays for it) and the second Solar Array
 // (quest q5d) waits for Command Lv 2.
-const TUT_KEY="pixelgalaxy-tutorial-done";
-const TUT_STEP_KEY="pixelgalaxy-tutorial-step";
+// NOTE (step 6 cost): the Command Station upgrade costs 84 metal,
+// 56 crystal, 28 credits — that is cost("command",1), the BASE cost
+// (60/40/20) x1.4 for Lv 1→2, exactly what the upgrade popup shows.
+// Do NOT "fix" the step-6 body back to the base cost (live v3.0);
+// if B.command.c ever changes, update the body to cost("command",1).
+const TUT_KEY="pixelgalaxy-tutorial-v3-done";
+const TUT_STEP_KEY="pixelgalaxy-tutorial-v3-step";
 const TUT_STEPS=[
-{ch:"Welcome",t:"Welcome, Commander",tab:"map",b:"Your job: build up your home station, train a fleet, and conquer systems all the way to the Dark Nexus, the big boss at the far edge of the galaxy. This guide walks you through it, step by step. You can skip it any time, or tap Later to hide it and pick up where you left off."},
-{ch:"Resources",t:"Your resources",tab:"map",hl:"#res",b:"Energy, metal, crystal and credits live at the top. Buildings make them every second — a Solar Array makes energy, a Metal Foundry makes metal, a Crystal Mine digs crystal. Each one has a storage limit: upgrade the Command Station to store more. Tap the bar to see the details."},
-{ch:"Your station",t:"Your station",tab:"station",hl:'section[data-pg="station"] .mapwrap',b:"This is your home station. Tap a building to see what it does, or tap open land to build something new. Plots unlock as you upgrade the Command Station — the city grows outward from the keep in the middle."},
-{ch:"Building",t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 25 metal and 10 energy and takes a few seconds — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
-{ch:"Quests",t:"Quests pay you",tab:"quests",hl:"#quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",done:()=>S.q.length>TUT.baseQ||(S.q.length>0&&!Q.some(q=>!S.q.includes(q.id)&&q.ok()))},
-{ch:"Your station",t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 60 metal, 40 crystal and 20 credits, so you can't afford it yet — that's normal.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
-{ch:"The galaxy",t:"The galaxy",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Tap the Pirate Outpost. Every system shows the fleet power you need to take it, and which ship type counters it — fighters beat swarm fleets, so the Outpost is your first target.",seen:()=>POP&&POP.kind==="system"&&S.sel===1,done:()=>TUT.seen&&!POP},
-{ch:"Building",t:"Build a Hangar",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Fighters live in a Hangar, and a Hangar needs 30 crystal. Your mine digs about half a crystal every second — watch the crystal number at the top climb. When it hits 30, tap open land and build the Hangar.",done:()=>S.b.hangar>=1},
-{ch:"Your fleet",t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 10 energy and 5 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
-{ch:"Conquest",t:"Conquer the Pirate Outpost",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Go to the Galaxy tab, tap the Pirate Outpost, and tap Attack. With 4 Fighters you should win — and you'll loot metal and credits. If you lose, rebuild and try again. Claim the 80-credit quest reward afterwards: you'll need it for research.",done:()=>S.won.includes(1)},
-{ch:"Building",t:"Build a Trade Hub",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Credits are the slow resource. A Trade Hub earns half a credit every second, forever. Tap open land and build one — it costs 30 metal and 20 crystal.",done:()=>S.b.hub>=1},
-{ch:"Research",t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 17 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes a minute. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
-{ch:"Your crew",t:"Your crew",tab:"crew",hl:"#crew-panel",act:true,b:"Crew are workers — assign them and everything gets faster, +2% per crew. Tap + next to Mining. Your crew grows as your Command Station levels up and as you found colonies. Commanders, below, are officers who level up as you play.",done:()=>S.crew.mine>=1},
-{ch:"Your empire",t:"Your empire and your rivals",tab:"empire",hl:"#emp-rivals",b:"This is the Empire page — open it any time from the menu, top left. Five rival factions are expanding on their own clock. This board shows their systems, power, and whether you're at war. You win by holding 13 systems, or twice as many as the next faction. Rival raids start after about 10 minutes of play: a strong home fleet, plus garrisons on your systems, repels them."},
-{ch:"Your empire",t:"Colonies and garrisons",tab:"map",hl:'section[data-pg="map"] .mapwrap',b:"A system you conquer becomes a colony. Pick a focus — Mining, Forge or Trade — and it earns for you. It also adds defence. Station ships there as a garrison: tap a system you own to see its Garrison section. Garrisons defend at full strength, and half your home fleet rushes to help."},
-{ch:"The wider galaxy",t:"Diplomacy and the wider galaxy",tab:"map",sec:1,hl:'section[data-pg="map"] .mapwrap',b:"You don't have to fight everyone. On the Empire page you can pay tribute (300 credits) for a 30-minute truce, sign a pact (500), or ally (1000) — and rivals make deals with each other too. Beyond the jump gates lies Sector 2: you can scout it for free, but attacks there need Jump Drive research. Colonies connected to Home World also pay trade credits."},
-{ch:"Ready",t:"You're ready, Commander",tab:"map",b:"That's the whole loop: build, research, crew up, conquer, repeat — all the way to the Dark Nexus. If you ever forget something, 'How to play' in the menu brings this guide back. Good luck out there."}
+{t:"Welcome, Commander",tab:"map",b:"Your job: build up your home station, train a fleet, and conquer systems all the way to the Dark Nexus, the big boss at the far edge of the galaxy. This guide walks you through it, step by step. You can skip it any time, or tap Later to hide it and pick up where you left off."},
+{t:"Your resources",tab:"map",hl:"#res",b:"Energy, metal, crystal and credits live at the top. Buildings make them every second — a Solar Array makes energy, a Metal Foundry makes metal, a Crystal Mine digs crystal. Each one has a storage limit: upgrade the Command Station to store more. Tap the bar to see the details."},
+{t:"Your station",tab:"station",hl:'section[data-pg="station"] .mapwrap',b:"This is your home station. Tap a building to see what it does, or tap open land to build something new. Plots unlock as you upgrade the Command Station — the city grows outward from the keep in the middle."},
+{t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 25 metal and 10 energy and takes a few seconds — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
+{t:"Quests pay you",tab:"quests",hl:"#quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",done:()=>S.q.length>TUT.baseQ||(S.q.length>0&&!Q.some(q=>!S.q.includes(q.id)&&q.ok()))},
+{t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 84 metal, 56 crystal and 28 credits, so you can't afford it yet — that's normal.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
+{t:"The galaxy",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Tap the Pirate Outpost. Every system shows the fleet power you need to take it, and which ship type counters it — fighters beat swarm fleets, so the Outpost is your first target.",seen:()=>POP&&POP.kind==="system"&&S.sel===1,done:()=>TUT.seen&&!POP},
+{t:"Build a Hangar",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Fighters live in a Hangar, and a Hangar needs 30 crystal. Your mine digs about half a crystal every second — watch the crystal number at the top climb. When it hits 30, tap open land and build the Hangar.",done:()=>S.b.hangar>=1},
+{t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 10 energy and 5 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
+{t:"Conquer the Pirate Outpost",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Go to the Galaxy tab, tap the Pirate Outpost, and tap Attack. With 4 Fighters you should win — and you'll loot metal and credits. If you lose, rebuild and try again. Claim the 80-credit quest reward afterwards: you'll need it for research.",done:()=>S.won.includes(1)},
+{t:"Build a Trade Hub",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Credits are the slow resource. A Trade Hub earns half a credit every second, forever. Tap open land and build one — it costs 30 metal and 20 crystal.",done:()=>S.b.hub>=1},
+{t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 17 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes a minute. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
+{t:"Your crew",tab:"crew",hl:"#crew-panel",act:true,b:"Crew are workers — assign them and everything gets faster, +2% per crew. Tap + next to Mining. Your crew grows as your Command Station levels up and as you found colonies. Commanders, below, are officers who level up as you play.",done:()=>S.crew.mine>=1},
+{t:"Your empire and your rivals",tab:"empire",hl:"#emp-rivals",b:"This is the Empire page — open it any time from the menu, top left. Five rival factions are expanding on their own clock. This board shows their systems, power, and whether you're at war. You win by holding 13 systems, or at least 5 systems and twice as many as the next faction. Rival raids start after about 10 minutes of play: a strong home fleet, plus garrisons on your systems, repels them."},
+{t:"Colonies and garrisons",tab:"map",hl:'section[data-pg="map"] .mapwrap',b:"A system you conquer becomes a colony. Pick a focus — Mining, Forge or Trade — and it earns for you. It also adds defence. Station ships there as a garrison: tap a system you own to see its Garrison section. Garrisons defend at full strength, and half your home fleet rushes to help."},
+{t:"Diplomacy and the wider galaxy",tab:"map",sec:1,hl:'section[data-pg="map"] .mapwrap',b:"You don't have to fight everyone. On the Empire page you can pay tribute (300 credits) for a 30-minute truce, sign a pact (500), or ally (1000) — and rivals make deals with each other too. Beyond the jump gates lies Sector 2: you can scout it for free, but attacks there need Jump Drive research. Colonies connected to Home World also pay trade credits."},
+{t:"You're ready, Commander",tab:"map",b:"That's the whole loop: build, research, crew up, conquer, repeat — all the way to the Dark Nexus. If you ever forget something, 'How to play' in the menu brings this guide back. Good luck out there."}
 ];
 let TUT={i:0,open:false,seen:false,manual:false,baseQ:0,doneAtEntry:false};
 function tutDone(){try{localStorage.setItem(TUT_KEY,"1")}catch(e){}}
 function tutIsDone(){try{return !!localStorage.getItem(TUT_KEY)}catch(e){return false}}
+// v3.1: Reset game clears the tutorial keys so a reset game re-shows
+// the tutorial on next load (a fresh game is a fresh player).
+function tutClearKeys(){try{localStorage.removeItem(TUT_KEY);localStorage.removeItem(TUT_STEP_KEY)}catch(e){}}
 function tutSaveStep(){try{localStorage.setItem(TUT_STEP_KEY,String(TUT.i))}catch(e){}}
 function tutLoadStep(){try{const n=parseInt(localStorage.getItem(TUT_STEP_KEY)||"0",10);return isFinite(n)?Math.max(0,Math.min(TUT_STEPS.length-1,n)):0}catch(e){return 0}}
 function tutClearHl(){try{document.querySelectorAll(".tut-hl").forEach(e=>e.classList.remove("tut-hl"))}catch(e){}}
 let tutLift=-1;
-function tutLayout(){if(!TUT.open)return;const a=$("#activity");const lift=(a&&!a.hidden)?Math.round(a.offsetHeight||0)+20:24;if(lift!==tutLift){tutLift=lift;const el=$("#tut");if(el)el.style.bottom="calc(var(--dock-h) + "+lift+"px)"}}
+function tutLayout(){if(!TUT.open)return;
+  // v3.1: while a game popup is open, collapse the tutorial card to a
+  // slim bar (title + step + Skip) — the popup (z 20) sits above the
+  // card (z 18) and used to cover its top half (live v3.0, steps 6/7).
+  // Shrinking the card can only reduce the overlap, never cover a
+  // popup button; the card expands again when the popup closes.
+  const tp=$("#tut");if(tp)tp.classList.toggle("pop-open",!!POP);
+  const a=$("#activity");const lift=(a&&!a.hidden)?Math.round(a.offsetHeight||0)+20:24;if(lift!==tutLift){tutLift=lift;const el=$("#tut");if(el)el.style.bottom="calc(var(--dock-h) + "+lift+"px)"}}
+// v3.1: build steps centre the station camera on a free unlocked
+// plot, so the player can always see somewhere to tap. Live v3.0
+// (step 11): at the default Home zoom every visible empty plot
+// showed a padlock and the only open plot sat under the tutorial
+// card, so the player had to pan before they could build. The plot
+// goes to the centre of the SAFE area (never under the card), at a
+// readable zoom; a resize will not yank it back (stCamFitted=false,
+// same convention as a deliberate pan/zoom). No free plot (a full
+// city) => leave the camera alone.
+function tutCentreBuildPlot(){
+  let best=null,bd=1e9;
+  const k=keepCell();
+  for(let x=0;x<12;x++)for(let y=0;y<12;y++){
+    if(bAt(x,y)||plotLocked(x,y))continue;
+    const d=k?Math.max(Math.abs(x-k.x),Math.abs(y-k.y)):0;
+    if(d<bd){bd=d;best={x,y}}
+  }
+  if(!best)return;
+  const c=isoC(best.x,best.y);
+  STCAM.cx=c.x;STCAM.cy=c.y;STCAM.zoom=Math.max(STCAM.zoom,1.6);
+  clampStCam();stCamFitted=false;stFitted=true;
+}
 function tutRender(){
   const el=$("#tut"); if(!el)return;
   const stp=TUT_STEPS[TUT.i];
@@ -178,11 +225,12 @@ function tutRender(){
   else if(stp.tab){S.tab=stp.tab;PAGE={kind:"tab"}}
   if(stp.sec!==undefined){SEC=stp.sec;fitCam()}
   showTab();
+  if(stp.build)tutCentreBuildPlot();
   tutClearHl();
   if(stp.hl){const h=$(stp.hl);if(h)h.classList.add("tut-hl")}
   const t=$("#tut-title"),b=$("#tut-body"),s=$("#tut-step"),d=$("#tut-dots"),nx=$("#tut-next"),bk=$("#tut-back");
   if(t)t.textContent=stp.t; if(b)b.textContent=stp.b;
-  if(s)s.textContent="Step "+(TUT.i+1)+" of "+TUT_STEPS.length+" · "+stp.ch;
+  if(s)s.textContent="Step "+(TUT.i+1)+" of "+TUT_STEPS.length+" · "+stp.t;
   // doneAtEntry: was this step already complete when we arrived?
   // Forward entry + already done => completes immediately (old saves
   // skip ahead). Backward entry + already done => stay put (the
@@ -637,9 +685,9 @@ battle(win,pre,s,p,need);
 else if(b.id==="snd"){S.mute=S.mute?0:1;sfx("ok")}
 else if(b.id==="reset"){$("#rbox").hidden=false}
 else if(d.rcancel){$("#rbox").hidden=true}
-else if(d.rgo){S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.rgo){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
 else if(d.endkeep){hideEnd()}
-else if(d.endnew){S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.endnew){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
 update();save();
 }
 // v1.4 popup touch: click path — ignore a click that is really the
@@ -739,23 +787,27 @@ function rivalDiplomacy(){
 // v2.7 VICTORY / DEFEAT — one checkEnd() after every ownership
 // change (attack win, raid resolution, cycle claims, offline sim, and
 // update() as a backstop). Victory: hold 13 systems (40% of 32) OR
-// twice the next faction's count. Each achievement shows its overlay
-// once (S.end.v13 / S.end.v2x); "Keep playing" continues. Defeat:
-// Home World falls (S.end.lost) — overlay with restart only.
+// twice the next faction's count — but only once you hold at least
+// VICTORY_FLOOR systems (v3.1: without the floor, 2 vs 1 fired the
+// full victory modal mid-tutorial on the very first conquest).
+// Each achievement shows its overlay once (S.end.v13 / S.end.v2x);
+// "Keep playing" continues. Defeat: Home World falls (S.end.lost) —
+// overlay with restart only.
 const VICTORY_SYSTEMS=13;
+const VICTORY_FLOOR=5;
 function nextFaction(){let best=null,bn=0;for(const id in RV){const n=heldCount(id);if(n>bn){bn=n;best=id}}return{id:best,n:bn}}
 function checkEnd(){
   if(!S.end||typeof S.end!=="object")S.end={};
   if(S.end.lost)return;
   if(!S.end.v13&&S.won.length>=VICTORY_SYSTEMS){S.end.v13=1;showEnd("win","13");return}
   const nx=nextFaction();
-  if(!S.end.v2x&&nx.id&&nx.n>=1&&S.won.length>=2*nx.n){S.end.v2x=1;showEnd("win","2x")}
+  if(!S.end.v2x&&nx.id&&nx.n>=1&&S.won.length>=VICTORY_FLOOR&&S.won.length>=2*nx.n){S.end.v2x=1;showEnd("win","2x")}
 }
 function endStats(){const nx=nextFaction();return "You hold "+S.won.length+" of "+SYS.length+" systems."+(nx.id?" The next strongest faction is the "+RV[nx.id].n+" with "+nx.n+".":" No rival holds any systems.")}
 function showEnd(kind,how){
   const t=$("#end-title"),s=$("#end-stats"),k=$("#end-keep"),box=$("#end");
   if(!t||!s||!box)return;
-  if(kind==="win"){t.textContent="Victory! The galaxy is yours.";s.textContent=(how==="13"?"You hold 13 systems — 40% of the galaxy. ":"You hold twice as many systems as the next faction. ")+endStats();if(k)k.hidden=false;msg("Victory! "+(how==="13"?"You hold 13 systems.":"You hold twice as many systems as the next faction."));sfx("win")}
+  if(kind==="win"){t.textContent="Victory! The galaxy is yours.";s.textContent=(how==="13"?"You hold 13 systems — 40% of the galaxy. ":"You hold at least 5 systems and twice as many as the next faction. ")+endStats();if(k)k.hidden=false;msg("Victory! "+(how==="13"?"You hold 13 systems.":"You hold at least 5 systems and twice as many as the next faction."));sfx("win")}
   else{t.textContent="Defeat — your Home World has fallen.";s.textContent="A rival fleet overran your Home World. Your empire is scattered. "+endStats();if(k)k.hidden=true;msg("Defeat — your Home World has fallen.");sfx("lose")}
   box.hidden=false;
 }
@@ -1047,7 +1099,7 @@ $("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'
 const rows=[{n:"You",sys:S.won.length,pw:dpower(),st:"—"}].concat(Object.keys(RV).map(id=>({n:RV[id].n,sys:heldCount(id),pw:rstr(id),st:relText(id)})));
 const best=rows.slice().sort((a,b)=>b.sys-a.sys||b.pw-a.pw)[0];
 const nx=nextFaction();
-const vicLine="Victory: hold 13 systems (you hold "+S.won.length+") or double the next faction ("+(nx.id?RV[nx.id].n+" holds "+nx.n+" — you need "+(2*nx.n):"no rival holds any systems — you need 13")+").";
+const vicLine="Victory: hold 13 systems (you hold "+S.won.length+") or double the next faction (at least 5 systems) ("+(nx.id?RV[nx.id].n+" holds "+nx.n+" — you need "+Math.max(VICTORY_FLOOR,2*nx.n):"no rival holds any systems — you need 13")+").";
 const DIPLINE={truce:"They will not raid you until the truce ends.",pact:"Neither side raids the other.",ally:"They raid your enemies, never you.",war:"They have taken one of your systems.",peace:"No fighting — for now.",defeated:"No systems left — nothing to deal with."};
 const dipRows=Object.keys(RV).map(id=>{
   const rel=heldCount(id)?dipRel(id):"defeated";
