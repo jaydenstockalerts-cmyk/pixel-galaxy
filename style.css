@@ -56,6 +56,7 @@ button:disabled{opacity:.35;cursor:default;transform:none}
 button:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
 button.secondary{background:none;color:var(--fg);border:2px solid var(--fg)}
 .row>button{flex-shrink:0;white-space:nowrap} /* v3.1.3: a long "Requires…" line used to squeeze the Research button to "Resear…" on narrow screens — the button keeps its width and the text wraps instead */
+.row>.bg{flex-shrink:0} /* v3.1.4: the Fleet ship-button grid is a nested flex child, so the v3.1.3 .row>button rule never reached it — the grid shrank under the long ship text and the one-word "Build"/"Scrap" buttons clipped to "Buil"/"Scra" (they can't wrap). The grid keeps its width now; the ship text wraps instead */
 
 /* --- progress bars --- */
 .pbar{height:10px;border:2px solid var(--fg);border-radius:5px;margin:6px 0;background:var(--hi);overflow:hidden}
