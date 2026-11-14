@@ -244,6 +244,7 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 .tuthead{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .tuthead h2{margin:0}
 #tut-skip{min-width:0;min-height:36px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#tut-col{min-width:0;min-height:36px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg);font-size:18px;line-height:1}
 #tut-body{margin:8px 0}
 #tut-dots{display:flex;gap:6px;justify-content:center;margin:6px 0 10px}
 #tut-dots .dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--fg);background:transparent}
@@ -260,9 +261,18 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
      steps 6/7). Shrinking the card can only reduce the overlap,
      never cover a popup button; tutLayout() removes the class when
      the popup closes and the card expands again. --- */
-#tut.pop-open #tut-body,#tut.pop-open #tut-dots,#tut.pop-open .tutbtns{display:none}
-#tut.pop-open .tutcard{padding:6px 12px}
-#tut.pop-open #tut-step{margin:0}
+#tut.pop-open #tut-body,#tut.pop-open #tut-dots,#tut.pop-open .tutbtns,#tut.collapsed #tut-body,#tut.collapsed #tut-dots,#tut.collapsed .tutbtns{display:none}
+#tut.pop-open .tutcard,#tut.collapsed .tutcard{padding:6px 12px}
+#tut.pop-open #tut-step,#tut.collapsed #tut-step{margin:0}
+/* --- v3.2.5: the tutorial card is collapsible (Jayden, phone, step 10:
+     the full card covered most of the Galaxy map, so he could not see
+     or tap the Pirate Outpost while following the step). The chevron
+     in the title row toggles .collapsed: slim bar (title + step +
+     Skip + expand chevron) with the body, dots and buttons hidden, so
+     the map stays visible while the player acts. The choice persists
+     in localStorage; on a narrow screen (<=560px) a step starts
+     collapsed unless the player already chose expanded. --- */
+@media (max-width:560px){#tut .tutcard{padding:12px}#tut-body{max-height:26vh;overflow-y:auto}}
 /* --- v3.0 tutorial highlight: pulsing gold ring on the real UI
      element the step is about, so the eye goes there first. --- */
 .tut-hl{outline:3px solid #ffd84a!important;outline-offset:2px;border-radius:8px;box-shadow:0 0 0 6px rgba(255,216,74,.25),0 0 18px rgba(255,216,74,.6);animation:tutPulse 1.2s ease-in-out infinite}
