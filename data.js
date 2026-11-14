@@ -100,6 +100,10 @@ const TECH=[
 {id:"l1",n:"Bigger Hangars",d:"+2 ship slots per Hangar level",c:{credits:500,crystal:200},t:450,k:"slot",v:2},
 {id:"l2",n:"Orbital Docks",d:"+3 more ship slots per Hangar level",c:{credits:2000,crystal:800},t:1500,req:"l1",k:"slot",v:3},
 {id:"c1",n:"Advanced Command",d:"Command Station max level 7",c:{credits:1000,crystal:500},t:900,k:"cmax",v:2},
+// v3.2.6: Construction Crews — a second builder. Requires Advanced
+// Command (the Command Station must be advanced enough to coordinate
+// two crews). k "bld" feeds bqcap(): 1 + tsum("bld") = 2 once researched.
+{id:"b1",n:"Construction Crews",d:"+1 builder (build 2 things at once)",c:{credits:800,crystal:400},t:900,req:"c1",k:"bld",v:1},
 {id:"c2",n:"Fleet Doctrine",d:"Command Station max level 10",c:{credits:3000,crystal:2000},t:3600,req:"c1",k:"cmax",v:3},
 {id:"w4",n:"Singularity Cannons",d:"+60% fleet power",c:{credits:5000,crystal:3000},t:5400,req:"w3",k:"pw",v:.6},
 {id:"w5",n:"Reality Splitters",d:"+80% fleet power",c:{credits:5000,crystal:4000},t:7200,req:"w4",k:"pw",v:.8},
