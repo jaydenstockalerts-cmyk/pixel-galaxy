@@ -95,14 +95,26 @@ let POP=null; // null | {kind:"system",i} | {kind:"building",u} | {kind:"plot",x
 // above the dock). UIHIDE hides all chrome for a clean full-screen map.
 let UIHIDE=false;
 let UIIN={top:64,bottom:88};
+// v3.1.4: --hud-h/--dock-h were fixed 56px/64px, but the real HUD is
+// ~85px on narrow (v3.1.3 wrapped pills) — the hint, minimap and
+// capchip sit at var(--hud-h)+16px, so their first line slid under
+// the bar and clipped (Jayden, phone). measureUI now tracks the real
+// heights. The var is set from .hud itself, not #top: #top adds 4px
+// of padding, and feeding that back into .hud's min-height would
+// grow the bar 4px on every measure. Cached so the var is only
+// written when the height actually changes.
+let _hudH=0,_dockH=0;
 function measureUI(){
   if(UIHIDE){UIIN={top:0,bottom:0};return}
   let top=64,bottom=88;
   try{
     const t=$("#top");
     if(t&&t.offsetHeight) top=Math.round(t.offsetHeight*1.15);
+    const hb=$("#top .hud");
+    if(hb&&hb.offsetHeight&&hb.offsetHeight!==_hudH){_hudH=hb.offsetHeight;document.documentElement.style.setProperty("--hud-h",_hudH+"px")}
     const d=$("#tabs");
-    if(d&&d.offsetHeight) bottom=Math.round(d.offsetHeight+20);
+    if(d&&d.offsetHeight){bottom=Math.round(d.offsetHeight+20);
+      if(d.offsetHeight!==_dockH){_dockH=d.offsetHeight;document.documentElement.style.setProperty("--dock-h",_dockH+"px")}}
     // v1.5 activity tray: when it is showing, map content must also
     // stay above it — it counts toward the bottom safe-area inset.
     const a=$("#activity");
@@ -406,6 +418,15 @@ const keepCell=()=>S.bl.find(b=>b.t==="command");
 const plotDist=(x,y)=>{const k=keepCell();if(!k)return 0;return Math.max(Math.abs(x-k.x),Math.abs(y-k.y))};
 const plotReqLv=(x,y)=>Math.min(13,Math.max(1,plotDist(x,y)));
 const plotLocked=(x,y)=>!bAt(x,y)&&S.b.command<plotReqLv(x,y);
+// v3.1.4 KEEP-MOVE GUARD (Jayden, phone: moving the Command Station
+// re-centred the unlocked area and left buildings standing on plots
+// that would normally be locked). A keep move is refused when any
+// other building would sit on a plot locked from the NEW keep
+// position (same rule as plotReqLv, measured from the candidate
+// spot). Occupied plots stay grandfathered, so an existing save
+// keeps its buildings and they keep producing — the keep just can't
+// move away from them until they are moved closer or it levels up.
+const keepMoveStranded=(nx,ny)=>S.bl.find(z=>z.t!=="command"&&S.b.command<Math.min(13,Math.max(1,Math.max(Math.abs(z.x-nx),Math.abs(z.y-ny)))));
 const unlockedCount=()=>{let n=0;for(let i=0;i<12;i++)for(let j=0;j<12;j++)if(!plotLocked(i,j))n++;return n};
 const newCost=t=>{const c=cost(t,0),f=Math.pow(1.5,cnt(t)),o={};for(const r in c)o[r]=Math.ceil(c[r]*f);return o};
 const cost=(id,l)=>{const o={};for(const r in B[id].c)o[r]=Math.ceil(B[id].c[r]*Math.pow(1.4,l));return o};
@@ -589,7 +610,7 @@ const stEnd=e=>{stPointers.delete(e.pointerId);if(stPointers.size<2)stPinch=0;if
  let hit=null;
  [...S.bl].sort((a,b)=>(b.x+b.y)-(a.x+a.y)).some(b=>{if(isoBuildingHit(w.x,w.y,b,stScale())){hit=b;return true}return false});
  if(hit){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(hit.u)}
- else{const cell=isoCellFromPoint(w.x,w.y),bx=cell.i,by=cell.j;if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){if(plotLocked(bx,by)){msg("Locked — upgrade the Command Station to Lv "+plotReqLv(bx,by)+" to unlock this plot.")}else{b.x=bx;b.y=by;S.mv=null;msg("Building moved.")}}else S.mv=null}else openPlot(bx,by)}}
+ else{const cell=isoCellFromPoint(w.x,w.y),bx=cell.i,by=cell.j;if(bx>=0&&by>=0&&bx<12&&by<12){const at=bAt(bx,by);if(at){if(S.place||S.mv)msg("That spot is taken.");else openBuilding(at.u)}else if(S.place)placeB(S.place,bx,by);else if(S.mv){const b=S.bl.find(z=>z.u===S.mv);if(b){let no=null;if(plotLocked(bx,by))no="Locked — upgrade the Command Station to Lv "+plotReqLv(bx,by)+" to unlock this plot.";else if(b.t==="command"){const st=keepMoveStranded(bx,by);if(st)no="Can't move the Command Station there — your "+B[st.t].n+" would be outside the unlocked area. Move it closer first, or upgrade the Command Station."}if(no)msg(no);else{b.x=bx;b.y=by;S.mv=null;msg("Building moved.")}}else S.mv=null}else openPlot(bx,by)}}
  update();save()}stStart=null;stDrag=false};
 st.addEventListener("pointerup",stEnd);st.addEventListener("pointercancel",stEnd);
 st.addEventListener("wheel",e=>{if(e.preventDefault)e.preventDefault();const q=st.getBoundingClientRect();setStZoom(STCAM.zoom*(e.deltaY<0?1.15:1/1.15),(e.clientX-q.left)/q.width*st.width,(e.clientY-q.top)/q.height*st.height);update()},{passive:false});
