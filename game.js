@@ -235,6 +235,12 @@ function tutCentreBuildPlot(){
   STCAM.cx=c.x;STCAM.cy=c.y;STCAM.zoom=Math.max(STCAM.zoom,1.6);
   clampStCam();stCamFitted=false;stFitted=true;
 }
+// v3.2.5: tutorial collapse — narrow screen = the full card covers
+// the map, so the card starts collapsed there (slim bar) and the
+// player expands it to read. The choice persists in localStorage.
+const TUT_COL_KEY="pixelgalaxy-tut-collapsed";
+function tutNarrow(){try{return (window.innerWidth||999)<=560}catch(e){return false}}
+function tutSetCollapsed(c){const el=$("#tut");if(el)el.classList.toggle("collapsed",!!c);const b=$("#tut-col");if(b)b.textContent=c?"⌃":"⌄";try{localStorage.setItem(TUT_COL_KEY,c?"1":"0")}catch(e){}}
 function tutRender(){
   const el=$("#tut"); if(!el)return;
   const stp=TUT_STEPS[TUT.i];
@@ -265,6 +271,12 @@ function tutRender(){
   if(nx)nx.textContent=TUT.i===TUT_STEPS.length-1?"Done":(stp.act&&!TUT.doneAtEntry)?"Skip this step":"Next ›";
   if(bk)bk.disabled=TUT.i===0;
   el.classList.toggle("mini",!!stp.act);
+  // v3.2.5: collapsed state — the player's saved choice wins; with no
+  // saved choice a narrow screen starts collapsed (the full card
+  // covers the map there), a wide screen starts expanded. Chevron:
+  // collapsed shows ⌃ (tap to expand upward), expanded shows ⌄.
+  let col;try{const p=localStorage.getItem(TUT_COL_KEY);col=p==="1"?true:p==="0"?false:tutNarrow()}catch(e){col=tutNarrow()}
+  el.classList.toggle("collapsed",col);const cb=$("#tut-col");if(cb)cb.textContent=col?"⌃":"⌄";
   tutSaveStep();
   tutLift=-1; tutLayout();
 }
@@ -674,6 +686,7 @@ else if(d.tutnext){tutAdvance()}
 else if(d.tutback){tutBack()}
 else if(d.tutskip){closeTut(true)}
 else if(d.tutlater){closeTut(false)}
+else if(d.tutcol){const el=$("#tut");tutSetCollapsed(!(el&&el.classList.contains("collapsed")))}
 else if(d.tutdone){closeTut(true)}
 else if(d.act){const a=d.act;
 if(a.startsWith("bld:")){const u=+a.slice(4);S.tab="station";PAGE={kind:"tab"};openBuilding(u)}
