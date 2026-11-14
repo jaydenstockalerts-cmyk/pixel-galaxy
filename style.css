@@ -55,6 +55,7 @@ button:active{transform:scale(.96)}
 button:disabled{opacity:.35;cursor:default;transform:none}
 button:focus-visible{outline:3px solid var(--mid);outline-offset:2px}
 button.secondary{background:none;color:var(--fg);border:2px solid var(--fg)}
+.row>button{flex-shrink:0;white-space:nowrap} /* v3.1.3: a long "Requires…" line used to squeeze the Research button to "Resear…" on narrow screens — the button keeps its width and the text wraps instead */
 
 /* --- progress bars --- */
 .pbar{height:10px;border:2px solid var(--fg);border-radius:5px;margin:6px 0;background:var(--hi);overflow:hidden}
@@ -73,6 +74,23 @@ button.secondary{background:none;color:var(--fg);border:2px solid var(--fg)}
 #top .hudbtns button{min-width:44px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
 #snd{min-height:36px}
 @media (max-width:520px){#top .brand{display:none}}
+/* v3.1.3 narrow HUD (live v3.1.2, phone): Hide + Sound ate ~140px of
+   the bar, squeezing the four pills to ~40px — names truncated to
+   EN…/ME…/CR…/CR… and amounts/rates clipped off. Both buttons
+   already live in the hamburger menu, so they leave the HUD here;
+   the pills then get ~73px each at 390px and the rate wraps under
+   the amount instead of clipping. The storage chip also collided
+   with the "Drag to pan" hint at this width ("…upgrade the
+   Command…" bleeding through) — it hides here; storage lives in
+   the HUD pills, tap the strip for details. */
+@media (max-width:560px){
+  #top .hudbtns{display:none}
+  .res{gap:3px}
+  .res .pill{padding:2px 3px 3px}
+  .res .pill .pline{flex-wrap:wrap}
+  .res .pill .rate{font-size:10px}
+  .mapchip.capchip{display:none}
+}
 
 /* Resource chips: icon + amount + rate on ONE line, storage as a
    thin bar underneath. Tap the strip to expand storage detail. */
