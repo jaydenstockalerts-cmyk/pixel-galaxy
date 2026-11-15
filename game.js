@@ -289,8 +289,9 @@ function tutCheck(){
   if(!stp||!stp.done)return;
   if(stp.seen&&!TUT.seen){try{if(stp.seen())TUT.seen=true}catch(e){}}
   let d=false; try{d=!!stp.done()}catch(e){d=false}
-  if(d&&!(TUT.manual&&TUT.doneAtEntry))tutAdvance();
+  if(d&&!(TUT.manual&&TUT.doneAtEntry)){if(Date.now()-TUTSKIPMSG>4000){TUTSKIPMSG=Date.now();msg("Tutorial skipped ahead — those steps were already done.")}tutAdvance();}
 }
+let TUTSKIPMSG=0; // v3.3: throttle for the auto-skip notice above (at most once per 4s)
 function showTut(i){TUT={i:Math.max(0,Math.min(TUT_STEPS.length-1,i||0)),open:true,seen:false,manual:false,baseQ:S.q.length,doneAtEntry:false};const el=$("#tut");if(el)el.hidden=false;tutRender()}
 function closeTut(done){TUT.open=false;TUT.seen=false;const el=$("#tut");if(el){el.hidden=true;el.classList.remove("mini");el.style.bottom=""}tutClearHl();tutLift=-1;if(done){tutDone();try{localStorage.removeItem(TUT_STEP_KEY)}catch(e){}}}
 function maybeTut(){if(!tutIsDone())showTut(tutLoadStep())}
@@ -414,7 +415,7 @@ const cb=t=>{const id=S.slot[t==="fleet"?"fleet":"station"];return id&&CM[id].t=
 const tmul=()=>1-Math.min(.5,cb("build"));
 const scap=()=>(5+tsum("slot"))*S.b.hangar;
 const qcap=()=>5+2*S.b.hangar;
-function gain(s,n){const id=S.slot[s];if(id)S.cx[id]=(S.cx[id]||0)+n}
+function gain(s,n){const id=S.slot[s];if(!id)return;const b=lv(id);S.cx[id]=(S.cx[id]||0)+n;const a=lv(id);if(a>b){const m=CM[id].n+" reached Lv "+a+"!";if(HOLD)setTimeout(()=>msg(m),400);else msg(m)}} // v3.3: officers announce their level-ups — the fleet commander used to go up silently
 const cap=()=>100+500*S.b.command;
 const lvlCap=id=>id==="command"?5+tsum("cmax"):Math.min(15,S.b.command); // v3.2 pacing: a building can never exceed the Command Station's level (Hobbit Keep rule) — at Lv1 you build, you don't upgrade
 const effL=b=>b.l+S.bq.filter(j=>j.u===b.u).length;
@@ -536,6 +537,12 @@ function rates(){const o={energy:0,metal:0,crystal:0,credits:0};S.bl.forEach(b=>
 for(const i of S.won){const c=colAt(i);if(c&&c.spec)o[COLSPEC[c.spec]]+=COL_INC*c.l*crewMineMult()}
 o.credits+=tradeTotal();
 o.energy-=.05*used();return o}
+// v3.3: income breakdown (same math as rates(), split by source) — shown under the resource bar when it's expanded
+function incomeParts(k){const parts=[];const by={};S.bl.forEach(b=>{if(b.l>0&&B[b.t].p[k])by[b.t]=(by[b.t]||0)+B[b.t].p[k]*b.l*mult(b)*(1+tsum("eco"))*(1+cb("econ"))*crewMineMult()});for(const t in by)parts.push({label:B[t].n+" ×"+cnt(t),v:by[t]});
+if(k==="credits"){if(S.won.length>1)parts.push({label:"Systems",v:.3*(S.won.length-1)});const tr=tradeTotal();if(tr>0)parts.push({label:"Trade routes",v:tr})}
+for(const i of S.won){const c=colAt(i);if(c&&c.spec&&COLSPEC[c.spec]===k)parts.push({label:"Colony "+SYS[i].n+" Lv"+c.l,v:COL_INC*c.l*crewMineMult()})}
+if(k==="energy"){const u=used();if(u>0)parts.push({label:"Ship upkeep",v:-.05*u})}
+return parts.filter(p=>Math.abs(p.v)>=0.05)}
 function step(dt){S.min+=dt/60;const r=rates();R.forEach(k=>{S.res[k]=Math.min(cap(),Math.max(0,S.res[k]+r[k]*dt))})}
 function done(){const n=Date.now();
 S.bq=S.bq.filter(j=>{if(j.end>n)return true;
@@ -548,34 +555,40 @@ while(S.sq.length&&S.sq[0].end<=n){const k=S.sq.shift().k;S.ships[k]++;msg(U[k].
 if(S.rq&&S.rq.end<=n){const t=TECH.find(z=>z.id===S.rq.id);S.tech.push(t.id);S.rq=null;gain("station",1);msg("Research complete: "+t.n);sfx("claim")}}
 let HOLD=false,HELD="";
 function toast(t){const c=$("#toasts"),el=document.createElement("div");el.className="toast";el.textContent=t;c.appendChild(el);while(c.children.length>3)c.removeChild(c.firstChild);setTimeout(()=>el.remove(),5000)}
-const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(t);if(S.feed.length>30)S.feed.shift();toast(t)};
+const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(fmtClock(Date.now())+" — "+t);if(S.feed.length>30)S.feed.shift();toast(t)}; // v3.3: feed entries carry a clock time so the Event log shows when things happened (the toast still shows the plain message)
+const fmtClock=ts=>{const d=new Date(ts);let h=d.getHours(),m=d.getMinutes(),ap=h>=12?"PM":"AM";h=h%12||12;return h+":"+(m<10?"0":"")+m+" "+ap};
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
 
 const RICON={energy:"⚡",metal:"▣",crystal:"◆",credits:"●"};
-$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="rlabel">${r[0].toUpperCase()+r.slice(1)}</span><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b><span class="rate" id="r-${r}"></span></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("");
+$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="rlabel">${r[0].toUpperCase()+r.slice(1)}</span><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b><span class="rate" id="r-${r}"></span></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("")+"<div id=\"inc\"></div>"; // v3.3: #inc holds the income breakdown, shown when the bar is expanded
 const resEl=$("#res");
 if(resEl)resEl.addEventListener("click",()=>{resEl.classList.toggle("expanded")});
 const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
-$("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}</small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
+$("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}<br><span id="sr-${k}"></span></small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
 
 $("#tech").innerHTML=TECH.map(t=>`<div class="row" id="tr-${t.id}"><div><b>${t.n}</b><br><small>${t.d}<br><span id="tc-${t.id}"></span></small></div><button data-tech="${t.id}" id="tb-${t.id}">Research</button></div>`).join("");
 $("#cmds").innerHTML=Object.keys(CM).map(id=>`<div class="row"><div><b>${CM[id].n}</b> <span id="cl-${id}"></span><br><small>${CM[id].d}<br><span id="cc-${id}"></span></small></div><button data-cmd="${id}" id="cb-${id}"></button></div>`).join("");
 let qKey="";
+let LASTCREWCAP=0,CAPFULL=false; // v3.3: crew-growth + storage-full one-time notices (checked in update())
 function update(){
 done();
 checkEnd(); // v2.7: victory is a state, not just an event — re-check every tick so no ownership change can slip past
 const r=rates(),now=Date.now();
 R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap());const sb=$("#sb-"+k);if(sb)sb.style.width=Math.round(Math.max(0,Math.min(1,S.res[k]/cap()))*100)+"%";});
+const incEl=$("#inc");if(incEl)incEl.innerHTML=R.map(k=>{const ps=incomeParts(k);return ps.length?("<b>"+k[0].toUpperCase()+k.slice(1)+":</b> "+ps.map(p=>p.label+" "+(p.v>=0?"+":"")+p.v.toFixed(1)+"/s").join(" · ")):""}).filter(Boolean).join("<br>")||"No income yet — build a production building."; // v3.3: income breakdown under the expanded resource bar
+const cc=crewCap();if(!LASTCREWCAP)LASTCREWCAP=cc;else if(cc>LASTCREWCAP){msg("Your crew has grown — "+(cc-LASTCREWCAP)+" new crew available to assign.");LASTCREWCAP=cc}else if(cc<LASTCREWCAP)LASTCREWCAP=cc; // v3.3: crew cap used to grow silently on Command upgrades and new colonies
+const full=R.every(k=>S.res[k]>=cap()-0.01);if(full&&!CAPFULL){CAPFULL=true;msg("Storage is full — upgrade the Command Station to hold more.");}else if(!full)CAPFULL=false; // v3.3: a full store now points at the next goal instead of silently capping
 const fe=$("#fleet-empty"); if(fe) fe.hidden=!(total()===0&&S.sq.length===0);
 syncMenuSound();
 $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command Station to store more.";
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
-$("#sq").textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
+const sqEl=$("#sq");if(sqEl)sqEl.textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
+const garEl=$("#gar");if(garEl){const g=[];for(const i in S.gar||{}){const gg=S.gar[i];if(!gg)continue;const parts=Object.keys(U).filter(k=>gg[k]>0).map(k=>gg[k]+"× "+U[k].n);if(parts.length)g.push(parts.join(", ")+" at "+SYS[i].n)}garEl.textContent=g.length?("Garrisoned: "+g.join("; ")+"."):"";} // v3.3: garrisoned ships are listed here — they used to vanish from the Fleet tab entirely
 const bqEl=$("#bq");if(bqEl){const cap=bqcap(),nj=S.bq.length;bqEl.textContent=nj?("Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". "+(cap>1?"Builders busy ("+nj+"/"+cap+").":"Builder busy.")):(cap>1?"Builders idle.":"Builder idle.");} // v3.2.6: the chip names the builder count once Construction Crews (b1) is researched — with one builder the text is unchanged ("Builder idle." / "Builder busy.")
 const mvEl=$("#mvcancel");if(mvEl)mvEl.hidden=!(S.mv||S.place); // v3.2.2: Move/Place mode had no exit — show the Cancel chip while either is active
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
-b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||usedQ()+U[k].sz>slots||S.sq.length>=qcap()||!can(U[k].c);$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled}
+const rsn=!ok?"":usedQ()+U[k].sz>slots?"Slots full — a "+U[k].n+" needs "+U[k].sz+" slot"+(U[k].sz>1?"s":"")+", "+(slots-usedQ())+" free.":S.sq.length>=qcap()?"Shipyard queue full.":!can(U[k].c)?"Can't afford yet.":"";const sr=$("#sr-"+k);if(sr)sr.textContent=rsn;b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||!!rsn;$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled} // v3.3: a greyed-out Build button now says why (slots / queue / cost) — the Hangar-level case already named itself
 const s=SYS[S.sel],a=$("#atk"),inf=$("#info");
 if(a||inf){
 if(S.sel===0){if(inf)inf.innerHTML="<b>Home World</b><br><small>Your base. Build your station and fleet here.</small>";if(a){a.disabled=true;a.textContent="Home"}}
@@ -591,7 +604,7 @@ upd2();
 // Launch your first ship were listed). Display only — no quest
 // condition or reward changes.
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok())),key=open.map(q=>q.id+(q.ok()?1:0)).join();
-if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — repel one with a stronger fleet. How raids work: see the Empire page.</small>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
+if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — a rival raids one of your systems next to their territory. Repel one with a stronger fleet.</small> <button data-empire="1" class="mini">Empire ›</button>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
 popupUI();empireUI();activityUI();progressBars();tutCheck();
 draw();
 }
@@ -700,6 +713,7 @@ else if(d.tray){TRAYOPEN=!TRAYOPEN;try{localStorage.setItem("pixelgalaxy-tray-op
 else if(d.mcancel){S.mv=null;S.place=null;msg("Cancelled.");update()} // v3.2.2: exit Move/Place mode (the mode previously had no way out except a valid tap or a reload)
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
 else if(d.log){PAGE={kind:"log"};update()}
+else if(d.empire){openEmpire()} // v3.3: the raid quest's "Empire ›" button opens the Empire page directly
 else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b.t,l);if(l<lvlCap(b.t)&&S.bq.length<bqcap()&&can(c)){pay(c);{const s0=Math.max(Date.now(),...S.bq.filter(j=>j.u===b.u).map(j=>j.end));S.bq.push({u:b.u,s:s0,end:s0+dur(l)*1000})}msg(B[b.t].n+" upgrade started.")}}}
 else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
@@ -749,7 +763,7 @@ else if(b.id==="reset"){$("#rbox").hidden=false}
 else if(d.rcancel){$("#rbox").hidden=true}
 else if(d.rgo){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
 else if(d.endkeep){hideEnd()}
-else if(d.endnew){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.endnew){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.");maybeTut()} // v3.3: a fresh empire gets the tutorial right away — it used to stay hidden until the next reload
 update();save();
 }
 // v1.4 popup touch: click path — ignore a click that is really the
@@ -966,7 +980,7 @@ function rivalCycle(id,offline,lost){
     // ("garrison 528 + colony 75 + home fleet 3"); with no colony it
     // reads exactly as v2.4 did ("garrison 0 + home fleet 3").
     // v2.7: at Home the split is just the full home fleet.
-    const split=t.i===0?"home fleet "+Math.round(dpower())+" (your full fleet)":"garrison "+gar+(col>0?" + colony "+col:"")+" + home fleet "+home;
+    const split=t.i===0?"home fleet "+Math.round(dpower())+" (fleet "+Math.round(fpt())+" ×1.2 home defence)":"garrison "+gar+(col>0?" + colony "+col:"")+" + home fleet "+home; // v3.3: same ×1.2 note as the Home World card
     if(rp>def){
       S.won.splice(S.won.indexOf(t.i),1);S.own[t.i]=id;delete S.gar[t.i];
       // v2.6: a lost system loses its colony too — re-conquering
@@ -1108,7 +1122,7 @@ if(i===0){const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></d
 body.innerHTML="<small>Your base. Build your station and fleet here.</small>"
 +stat("Systems owned",S.won.length+" of "+SYS.length)
 +stat("Fleet power",Number.isFinite(fpt())?String(Math.round(fpt())):"0")
-+stat("Home defence",Math.round(sysDef(0))+" (your full fleet)");
++stat("Home defence",Math.round(sysDef(0))+" (fleet "+Math.round(fpt())+" ×1.2 home defence)"); // v3.3: the ×1.2 home bonus is now stated — the Fleet tab's lower number was confusing
 acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
 else{const need=spw(i),fp=fpower(i),loot=s.r?cstr(s.r):"";
 const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
@@ -1163,7 +1177,7 @@ const x=POP.x,y=POP.y,lk=plotLocked(x,y),un=unlockedCount();
 title.textContent=lk?"Locked land ("+(x+1)+", "+(y+1)+")":"Open land ("+(x+1)+", "+(y+1)+")";const _kp=S.bl.find(b=>b.t==="command");const _dn=_kp?(x<_kp.x-1?"West — near the Military quarter":x>_kp.x+1?"East — near the Industrial quarter":y<_kp.y-1?"North — near the Power fields":"South — near the Trade quarter"):"Open land";
 if(hq){hq.fillStyle=lk?"#6b7590":"#c98a5a";hq.fillRect(0,0,96,96)}
 if(lk){body.innerHTML="<small>🔒 Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.</small><br><small>"+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". The city grows outward from the keep.</small>";acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
-else{body.innerHTML="<small>"+_dn+". "+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand.</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");acts.innerHTML="";}
+else{body.innerHTML="<small>"+_dn+". "+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand. Build limits rise with your Command Station: most buildings max at 1 + half your Command level (Hangar: 1 + a third).</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");acts.innerHTML="";} // v3.3: the build-limit rule is now stated — the caps used to sit at 2 with no explanation of when they rise
 }}
 function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of "+SYS.length+" systems. Each owned system pays +0.3 credits/s."+(tradeTotal()>0?" Trade routes pay +"+tradeTotal().toFixed(1)+" credits/s.":"");
 $("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World · defence "+Math.round(sysDef(0))+" (your full fleet)":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r)+" · Defence "+Math.round(sysDef(i)))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
