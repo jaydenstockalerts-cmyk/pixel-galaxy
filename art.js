@@ -670,9 +670,9 @@ if(o)glyph2(q,RGLYPH[o]||RGLYPH.c,Math.round(cx-3),Math.round(cy-3),2);
 if(i===S.sel){q.fillStyle=F&1?"#ffe066":"#ffffff";const z=r+8,bs=Math.max(3,Math.round(2*cam2.zoom));[[-1,-1],[1,-1],[-1,1],[1,1]].forEach(d=>{q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?bs*2:0)),Math.round(cy+d[1]*z-(d[1]>0?1:0)),bs*2+1,bs);q.fillRect(Math.round(cx+d[0]*z-(d[0]>0?1:0)),Math.round(cy+d[1]*z-(d[1]>0?bs*2:0)),bs,bs*2+1)})}
 // v1.6: name threshold was 0.55 — the extra galaxy bottom margin
 // lowers the fit zoom on narrow screens, and names must still show.
-if(cam2.zoom>=0.4)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o?RCOL[o]||"#aab4c9":avail(i)?"#ffe066":"#aab4c9",fs});
+if(cam2.zoom>=0.4)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,py:cy+zh/2,color:own?"#6ee7f5":o?RCOL[o]||"#aab4c9":avail(i)?"#ffe066":"#aab4c9",fs}); // v3.3: py = the planet's bottom edge, for the leader line below
 if(cam2.zoom>=0.4&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});}); // v3.2.7: PWR now shows at the same zoom as names (was 1.2) — at Fit you could not compare systems without zooming in first
-labels.forEach(l=>drawLabel(q,l.text,l.cx,l.cy,l.color,l.fs));}
+labels.forEach(l=>{if(l.py!==undefined){q.strokeStyle="rgba(255,255,255,0.35)";q.lineWidth=1;q.beginPath();q.moveTo(Math.round(l.cx),Math.round(l.py));q.lineTo(Math.round(l.cx),Math.round(l.cy));q.stroke()}drawLabel(q,l.text,l.cx,l.cy,l.color,l.fs)});} // v3.3: a thin leader line ties each name label to its planet — labels used to float with no clear owner
 // UI OVERHAUL v0.9: sprite helpers for the full System / Building pages.
 // They reuse the exact sprites drawGalaxy / drawBase already draw.
 function planetSprite(i){const own=S.won.includes(i),o=S.own[i],st=own?"p":o||(avail(i)?"a":"l");return psp(i,st)}
