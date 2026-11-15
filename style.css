@@ -135,6 +135,15 @@ body.ui-hidden #uishow{display:block}
 /* --- toasts --- */
 #toasts{position:fixed;left:0;right:0;bottom:calc(84px + env(safe-area-inset-bottom,0px));z-index:15;display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none}
 .toast{background:var(--fg);color:var(--bg);padding:8px 12px;max-width:min(92vw,520px);border:2px solid var(--mid);border-radius:var(--radius-sm);font-weight:bold;animation:toastIn .18s ease}
+/* v3.4 RAID WARNING — a red banner under the HUD, visible on every
+   tab while a raid is incoming. It is NOT a popup, so the player can
+   still tap through to reinforce the garrison. */
+#raidwarn{position:fixed;top:calc(var(--hud-h) + 10px + env(safe-area-inset-top,0px));left:8px;right:8px;z-index:14;background:#7a1f1f;color:#fff;border:3px solid #ff6a5e;border-radius:var(--radius-sm);padding:8px 10px;font-size:13px;line-height:1.5;box-shadow:var(--shadow-sm)}
+#raidwarn button{margin-left:6px;background:#ff6a5e;color:#fff;border-color:#fff}
+#raidwarn button:disabled{opacity:.45}
+/* v3.4 SAVE EXPORT/IMPORT — the save text is long, so the textareas
+   span the modal and use a small monospace font. */
+#savetxt,#imptxt{width:100%;box-sizing:border-box;font-family:monospace;font-size:11px;min-height:90px;margin:6px 0;background:var(--bg);color:var(--fg);border:2px solid var(--fg);border-radius:var(--radius-sm);padding:6px}
 @keyframes toastIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* --- v1.5 activity tray: every timed job, visible on every screen ---
@@ -229,6 +238,11 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .mapchip.hint{top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));left:8px;max-width:60vw}
 .mapchip.capchip{top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px}
 .mapchip.bqchip{left:8px;bottom:calc(var(--dock-h) + var(--tray-h,0px) + 70px + env(safe-area-inset-bottom,0px));max-width:60vw} /* v3.2.1: the one-builder status line — baseUI() is dead (v0.9.2 removed #binfo), so this chip is the line's home; it lifts with the tray like the map controls */
+/* v3.4 NEXT STEP — one line naming the current bottleneck. On the
+   Station tab it sits above the builder chip; on the Galaxy tab it
+   sits under the hint. Same text, both tabs. */
+.mapchip.nextchip{left:8px;bottom:calc(var(--dock-h) + var(--tray-h,0px) + 102px + env(safe-area-inset-bottom,0px));max-width:60vw;background:#1a2a4a;color:#cfe0ff;border-color:#6a8fd0}
+#nextstep-g{top:calc(var(--hud-h) + 52px + env(safe-area-inset-top,0px));bottom:auto;max-width:60vw}
 .mapchip.mvcancel{right:8px;bottom:calc(var(--dock-h) + var(--tray-h,0px) + 70px + env(safe-area-inset-bottom,0px));cursor:pointer;font:inherit} /* v3.2.2: Cancel for Move/Place mode — the mode had no exit (no button, Escape ignored it) and persisted until reload; shown only while S.mv or S.place is set */ /* v3.2.3: this selector was misspelled in v3.2.2 (one wrong letter), so the chip got no positioning and never rendered bottom-right — the class name must match index.html exactly */
 #sec-note{left:6px;bottom:calc(var(--dock-h) + 70px + env(safe-area-inset-bottom,0px));max-width:72vw} /* v2.9: sits just above the map controls, only while viewing Sector 2 without Jump Drive */
 #tech .row.locked,#tech .row.done{opacity:.55} /* v2.9: locked/done tech rows stay visible but greyed */
@@ -280,3 +294,16 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
      element the step is about, so the eye goes there first. --- */
 .tut-hl{outline:3px solid #ffd84a!important;outline-offset:2px;border-radius:8px;box-shadow:0 0 0 6px rgba(255,216,74,.25),0 0 18px rgba(255,216,74,.6);animation:tutPulse 1.2s ease-in-out infinite}
 @keyframes tutPulse{50%{box-shadow:0 0 0 10px rgba(255,216,74,.12),0 0 26px rgba(255,216,74,.85)}}
+
+/* v3.4 TAB GRAPHICS — Fleet ship sprites, commander portraits, crew
+   and tech icons, quest icons. These make the four tabs read at a
+   glance instead of as bare text rows. */
+.shipimg{image-rendering:pixelated;vertical-align:middle;margin-right:6px;background:#0a0e2a;border:2px solid var(--mid);border-radius:4px}
+.cmdav{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;font-weight:bold;font-size:16px;color:#fff;margin-right:8px;vertical-align:middle;border:2px solid var(--fg)}
+.cmdav-fleet{background:#a33}
+.cmdav-econ{background:#3a7}
+.cmdav-build{background:#36a}
+.crewic{font-size:18px;margin-right:6px;vertical-align:middle}
+.techic{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:var(--mid);font-size:15px;margin-right:8px;vertical-align:middle}
+.questic{font-size:18px;margin-right:6px;vertical-align:middle}
+.row.claimable{border-color:#ffb02e;box-shadow:0 0 0 2px rgba(255,176,46,.35)}
