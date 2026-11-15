@@ -299,6 +299,11 @@ function maybeTut(){if(!tutIsDone())showTut(tutLoadStep())}
 function openMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.hidden=false; requestAnimationFrame(()=>m.classList.add("open"));} if(b)b.hidden=false;}
 function closeMenu(){const m=$("#menu"),b=$("#menubk"); if(m){m.classList.remove("open"); setTimeout(()=>{if(!m.classList.contains("open"))m.hidden=true},230);} if(b)b.hidden=true;}
 function syncMenuSound(){const el=$("#m-sound"); if(el) el.textContent=S.mute?"off":"on";}
+// v3.4.2: Next step hints can be turned off (menu toggle). The preference
+// lives in localStorage under pixelgalaxy-nextstep ("0" = hidden, anything
+// else/absent = shown, the default). nsOff() is the single reader.
+function nsOff(){try{return localStorage.getItem("pixelgalaxy-nextstep")==="0"}catch(e){return false}}
+function syncMenuNextStep(){const el=$("#m-nextstep"); if(el) el.textContent=nsOff()?"off":"on";}
 
 // v1.2 ISOMETRIC station camera — VIEW-ONLY like the galaxy camera,
 // never saved. The logical plots are still 12x12 (S.bl {u,t,x,y,l});
@@ -616,7 +621,7 @@ const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Ma
 const RICON={energy:"⚡",metal:"▣",crystal:"◆",credits:"●"};
 $("#res").innerHTML=R.map(r=>`<div class="pill"><span class="rlabel">${r[0].toUpperCase()+r.slice(1)}</span><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b><span class="rate" id="r-${r}"></span></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("")+"<div id=\"inc\"></div>"; // v3.3: #inc holds the income breakdown, shown when the bar is expanded
 const resEl=$("#res");
-if(resEl)resEl.addEventListener("click",()=>{resEl.classList.toggle("expanded")});
+if(resEl)resEl.addEventListener("click",()=>{if(Date.now()<popClickGuard)return; /* v3.4.2: the resource bar's click listener ignored popClickGuard, so tapping a popup's X (which sits over the ribbon on a phone) closed the popup on pointerup and the synthetic click that followed landed on the newly-exposed ribbon and opened the resource details. The guard swallows that ghost click. */resEl.classList.toggle("expanded")});
 const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
 // v3.4 TAB GRAPHICS — the Fleet tab shows each ship's actual sprite
 // (2x, crisp pixels) instead of a bare text row. SHIPIMG is the
@@ -656,9 +661,9 @@ const incEl=$("#inc");if(incEl)incEl.innerHTML=R.map(k=>{const ps=incomeParts(k)
 const cc=crewCap();if(!LASTCREWCAP)LASTCREWCAP=cc;else if(cc>LASTCREWCAP){msg("Your crew has grown — "+(cc-LASTCREWCAP)+" new crew available to assign.");LASTCREWCAP=cc}else if(cc<LASTCREWCAP)LASTCREWCAP=cc; // v3.3: crew cap used to grow silently on Command upgrades and new colonies
 const full=R.every(k=>S.res[k]>=cap()-0.01);if(full&&!CAPFULL){CAPFULL=true;msg("Storage is full — upgrade the Command Station to hold more.");}else if(!full)CAPFULL=false; // v3.3: a full store now points at the next goal instead of silently capping
 const fe=$("#fleet-empty"); if(fe) fe.hidden=!(total()===0&&S.sq.length===0);
-syncMenuSound();
+syncMenuSound();syncMenuNextStep(); // v3.4.2: keep the Next step toggle label in sync too
 $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command Station to store more.";
-const ns=nextStep();const nsEl=$("#nextstep");if(nsEl)nsEl.textContent="Next step: "+ns;const nsG=$("#nextstep-g");if(nsG)nsG.textContent="Next step: "+ns; // v3.4: one line naming the current bottleneck — a new player always knows what to do next
+const ns=nextStep();const nsEl=$("#nextstep");if(nsEl){nsEl.hidden=nsOff();if(!nsOff())nsEl.textContent="Next step: "+ns}const nsG=$("#nextstep-g");if(nsG){nsG.hidden=nsOff();if(!nsOff())nsG.textContent="Next step: "+ns} // v3.4: one line naming the current bottleneck — a new player always knows what to do next. v3.4.2: hidden entirely when the player opts out (menu toggle).
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
 const sqEl=$("#sq");if(sqEl)sqEl.textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
@@ -762,18 +767,14 @@ else if(d.back){goBack()}
 else if(d.fly){const i=+d.fly;S.sel=i;PAGE={kind:"tab"};S.tab="map";flyTo(i)}
 else if(d.zin){setZoom(CAM.zoom*1.25)}
 else if(d.zout){setZoom(CAM.zoom/1.25)}
-else if(d.zhome){homeCam()}
-else if(d.zfit){fitCam()}
 else if(d.sec){SEC=+d.sec;fitCam()}
 else if(d.szin){setStZoom(STCAM.zoom*1.25)}
 else if(d.szout){setStZoom(STCAM.zoom/1.25)}
-else if(d.shome){homeStCam()}
-else if(d.sfit){fitStCam()}
 else if(d.place){const t=d.place;if(POP&&POP.kind==="plot"){placeB(t,POP.x,POP.y);closePopup()}}
 else if(d.pclose){closePopup()}
 else if(d.menu){openMenu()}
 else if(d.mclose){closeMenu()}
-else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}else if(m==="export"){const t=$("#savetxt");if(t){try{t.value=localStorage.getItem(KEY)||""}catch(e){t.value=""}}$("#savebox").hidden=false}else if(m==="import"){const t=$("#imptxt");if(t)t.value="";$("#impbox").hidden=false}}
+else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="nextstep"){try{localStorage.setItem("pixelgalaxy-nextstep",nsOff()?"1":"0")}catch(e){}update()} /* v3.4.2: toggle the Next step hints on/off (persisted) */else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}else if(m==="export"){const t=$("#savetxt");if(t){try{t.value=localStorage.getItem(KEY)||""}catch(e){t.value=""}}$("#savebox").hidden=false}else if(m==="import"){const t=$("#imptxt");if(t)t.value="";$("#impbox").hidden=false}}
 else if(d.scopy){const t=$("#savetxt");if(t){if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t.value).then(()=>msg("Save copied.")).catch(()=>{t.select();msg("Copy didn't work — select the text and copy it yourself.")});else{t.select();msg("Select the text and copy it yourself.")}}} // v3.4: export copies the save JSON to the clipboard (falls back to selecting the text)
 else if(d.sclose){$("#savebox").hidden=true}
 else if(d.impgo){const t=$("#imptxt");let ok=false;if(t&&t.value){try{const j=JSON.parse(t.value);if(j&&j.res&&j.b&&j.ships&&j.res.energy!==undefined){localStorage.setItem(KEY,JSON.stringify(j));ok=true}}catch(e){}}if(ok){$("#impbox").hidden=true;location.reload()}else msg("That doesn't look like a save — paste the text you exported and try again.")} // v3.4: import validates the JSON (needs res/b/ships) before replacing the save
