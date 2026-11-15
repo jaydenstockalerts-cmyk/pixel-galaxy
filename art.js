@@ -671,7 +671,7 @@ if(i===S.sel){q.fillStyle=F&1?"#ffe066":"#ffffff";const z=r+8,bs=Math.max(3,Math
 // v1.6: name threshold was 0.55 — the extra galaxy bottom margin
 // lowers the fit zoom on narrow screens, and names must still show.
 if(cam2.zoom>=0.4)labels.push({text:s.n,cx,cy:cy+zh/2+12+fs/2,color:own?"#6ee7f5":o?RCOL[o]||"#aab4c9":avail(i)?"#ffe066":"#aab4c9",fs});
-if(cam2.zoom>=1.2&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});});
+if(cam2.zoom>=0.4&&s.pw!==undefined)labels.push({text:"PWR "+spw(i),cx,cy:cy+zh/2+30+fs,color:"#ffffff",fs});}); // v3.2.7: PWR now shows at the same zoom as names (was 1.2) — at Fit you could not compare systems without zooming in first
 labels.forEach(l=>drawLabel(q,l.text,l.cx,l.cy,l.color,l.fs));}
 // UI OVERHAUL v0.9: sprite helpers for the full System / Building pages.
 // They reuse the exact sprites drawGalaxy / drawBase already draw.
