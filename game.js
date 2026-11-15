@@ -330,7 +330,7 @@ function clampStCam(){// v1.2: the keep sits near the top of the iso diamond (is
 // (with half a view of margin), and centres the world when the whole
 // diamond fits in view.
 const sc=stScale(),hw=(st.width||384)/(2*sc),hh=stSafeH()/(2*sc);if(hw>=384)STCAM.cx=0;else STCAM.cx=Math.max(-384+hw/2,Math.min(384-hw/2,STCAM.cx));if(hh>=192)STCAM.cy=Math.max(192-hh,Math.min(192+hh,STCAM.cy));else STCAM.cy=Math.max(-48+hh/2,Math.min(432-hh/2,STCAM.cy))}
-function setStZoom(z,px,py){stCamFitted=false;const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(1,Math.min(5,z)); /* v1.9: max station zoom is 5 (was 2.5) — at 2.5 the keep was only ~200-250px tall on a 1920px screen and the player could not get a proper close look (live v1.8, #14). */if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
+function setStZoom(z,px,py){stCamFitted=false;const s0=stScale(),w=px===undefined?null:{x:STCAM.cx+(px-(st.width||384)/2)/s0,y:STCAM.cy+(py-safeCySt())/s0};STCAM.zoom=Math.max(.4,Math.min(5,z)); /* v3.4.1: floor was 1 — but the fit zoom for a spread-out base is ~0.4, so pinch-out could never return to the whole-base view. Floor now matches fitStCam's .4. */if(w){const s1=stScale();STCAM.cx=w.x-(px-(st.width||384)/2)/s1;STCAM.cy=w.y-(py-safeCySt())/s1}clampStCam()}
 // v1.3: station cameras fit the OCCUPIED building cluster, not the
 // whole 12x12 diamond (live bug: the map was ~80% empty in both Home
 // and Fit, and the default view centred the clump in the upper third).
@@ -377,13 +377,13 @@ const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:(cv.width||384)/2+(wx
 const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-(cv.width||384)/2)/sc,y:CAM.cy+(sy-safeCyCv())/sc}};
 const GAL_PAN_PAD=40; // v3.2.7: system labels extend past the world edge, so the camera may pan 40 world units beyond it — otherwise, when zoomed in, the bottom row's labels can sit under the dock/tray with no way to reveal them
 function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=galSafeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw-GAL_PAN_PAD,Math.min(WORLD.w-hw+GAL_PAN_PAD,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh-GAL_PAN_PAD,Math.min(WORLD.h-hh+GAL_PAN_PAD,CAM.cy))}
-function setZoom(z,px,py){camFitted=false;const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-safeCyCv())/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-safeCyCv())/s1}clampCam()}
+function setZoom(z,px,py){camFitted=false;const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-safeCyCv())/s0};CAM.zoom=Math.max(.3,Math.min(2.5,z)); /* v3.4.1: floor was 1 — but the fit zoom on a phone is ~0.5, so pinch-out could never return to the fit view (it stopped at 1, still zoomed in). Floor now matches fitCam's .3. */if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-safeCyCv())/s1}clampCam()}
 function flyTo(i){camFitted=false;SEC=secOf(i);const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
 function fitCam(){const vh=galSafeH(),vw=cv.width||384,ch=cv.height||480;
   const sc=Math.min(vw/WORLD.w,vh/WORLD.h); // world must fit the SAFE area
   CAM={cx:320,cy:400,zoom:Math.max(.3,Math.min(2.5,sc*WORLD.h/ch))};clampCam();camFitted=true}
 function homeCam(){flyTo(0)}
-function openSystem(i){S.sel=i;POP={kind:"system",i};flyTo(i);showPopup();update();save()}
+function openSystem(i){S.sel=i;POP={kind:"system",i};SEC=secOf(i);showPopup();update();save()} // v3.4.1: no longer flyTo(i) — tapping a planet used to centre the camera on it AND zoom to >=1.8, and the camera stayed zoomed in after the popup closed. The camera now stays exactly where it was; the sector still switches so the map behind the popup is the right one. (Empire "Go to" still flies — it calls flyTo directly.)
 function openBuilding(u){S.bsel=u;POP={kind:"building",u};showPopup();update();save()}
 function openEmpire(){PAGE={kind:"empire"};update()}
 function goBack(){PAGE={kind:"tab"};update()}
