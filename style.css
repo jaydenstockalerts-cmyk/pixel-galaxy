@@ -229,7 +229,7 @@ canvas{image-rendering:pixelated;image-rendering:crisp-edges}
 .mapchip.mvcancel{right:8px;bottom:calc(var(--dock-h) + var(--tray-h,0px) + 70px + env(safe-area-inset-bottom,0px));cursor:pointer;font:inherit} /* v3.2.2: Cancel for Move/Place mode — the mode had no exit (no button, Escape ignored it) and persisted until reload; shown only while S.mv or S.place is set */ /* v3.2.3: this selector was misspelled in v3.2.2 (one wrong letter), so the chip got no positioning and never rendered bottom-right — the class name must match index.html exactly */
 #sec-note{left:6px;bottom:calc(var(--dock-h) + 70px + env(safe-area-inset-bottom,0px));max-width:72vw} /* v2.9: sits just above the map controls, only while viewing Sector 2 without Jump Drive */
 #tech .row.locked,#tech .row.done{opacity:.55} /* v2.9: locked/done tech rows stay visible but greyed */
-#pagefoot{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px) 12px calc(var(--dock-h) + 24px)}
+#pagefoot{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px) 12px calc(var(--dock-h) + var(--tray-h,0px) + 24px)} /* v3.2.7: bottom padding now includes --tray-h — without it, the fixed jobs tray covered the last row of scrollable lists (Research/Crew/Empire) until the player scrolled */
 body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-pg="station"]:not([hidden])) #pagefoot{display:none}
 #log{min-height:2.8em;margin:0 0 12px}
 #reset{background:none;color:var(--fg);border:2px solid var(--fg);min-height:36px;font-weight:normal}
