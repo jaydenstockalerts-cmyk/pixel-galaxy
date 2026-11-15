@@ -370,11 +370,12 @@ const safeH=()=>Math.max(1,(cv.height||480)-UIIN.top-UIIN.bottom);
 // even at full size it sat only ~25px above it. fitCam/clampCam now
 // work against a safe height 120 canvas px shorter, so the world
 // bottom (and its labels) sit ~60px above the dock instead of on it.
-const GAL_BOT_PAD=140; // ~60px+ above the dock at full size (see below)
+const GAL_BOT_PAD=200; // v3.2.7: was 140 — the bottom row's labels sit below their markers and were ending up under the dock/tray at Fit on wide screens; the extra margin keeps them in the safe area (see below)
 const galSafeH=()=>Math.max(1,safeH()-GAL_BOT_PAD);
 const worldToScreen=(wx,wy)=>{const sc=camScale();return{x:(cv.width||384)/2+(wx-CAM.cx)*sc,y:safeCyCv()+(wy-CAM.cy)*sc}};
 const screenToWorld=(sx,sy)=>{const sc=camScale();return{x:CAM.cx+(sx-(cv.width||384)/2)/sc,y:CAM.cy+(sy-safeCyCv())/sc}};
-function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=galSafeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw,Math.min(WORLD.w-hw,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh,Math.min(WORLD.h-hh,CAM.cy))}
+const GAL_PAN_PAD=40; // v3.2.7: system labels extend past the world edge, so the camera may pan 40 world units beyond it — otherwise, when zoomed in, the bottom row's labels can sit under the dock/tray with no way to reveal them
+function clampCam(){const sc=camScale(),hw=(cv.width||384)/(2*sc),hh=galSafeH()/(2*sc);if(hw>=WORLD.w/2)CAM.cx=WORLD.w/2;else CAM.cx=Math.max(hw-GAL_PAN_PAD,Math.min(WORLD.w-hw+GAL_PAN_PAD,CAM.cx));if(hh>=WORLD.h/2)CAM.cy=WORLD.h/2;else CAM.cy=Math.max(hh-GAL_PAN_PAD,Math.min(WORLD.h-hh+GAL_PAN_PAD,CAM.cy))}
 function setZoom(z,px,py){camFitted=false;const s0=camScale(),w=px===undefined?null:{x:CAM.cx+(px-(cv.width||384)/2)/s0,y:CAM.cy+(py-safeCyCv())/s0};CAM.zoom=Math.max(1,Math.min(2.5,z));if(w){const s1=camScale();CAM.cx=w.x-(px-(cv.width||384)/2)/s1;CAM.cy=w.y-(py-safeCyCv())/s1}clampCam()}
 function flyTo(i){camFitted=false;SEC=secOf(i);const s=SYS[i];CAM.cx=s.x*WORLD.px;CAM.cy=s.y*WORLD.px;CAM.zoom=Math.max(CAM.zoom,1.8);clampCam()}
 function fitCam(){const vh=galSafeH(),vw=cv.width||384,ch=cv.height||480;
@@ -519,7 +520,7 @@ const spw=i=>Math.round(SYS[i].pw*(S.own[i]?1.4:1));
 // every Sector 2 system is out of reach, however adjacent it is.
 // The systems stay VISIBLE (greyed/locked) so the player can see
 // what is coming; the popup says so in one plain line.
-const avail=i=>!S.won.includes(i)&&S.won.some(j=>adj(i,j))&&(secOf(i)===0||hasJump());
+const avail=i=>!S.won.includes(i)&&(S.won.some(j=>adj(i,j))||(S.won.length===0&&adj(i,0)))&&(secOf(i)===0||hasJump()); // v3.2.7: if you own no systems at all, systems adjacent to Home World (1, 2) are attackable — without this, losing your last system was a permanent soft-lock (nothing adjacent to anything you own, so nothing attackable, including Home World itself)
 // v1.4: adjacency bonus REMOVED at Jayden's request (approved mechanics
 // change). Production is base rate only (plus tech/commander effects),
 // so spaced-out buildings produce at full rate — that is what makes
@@ -580,7 +581,7 @@ if(a||inf){
 if(S.sel===0){if(inf)inf.innerHTML="<b>Home World</b><br><small>Your base. Build your station and fleet here.</small>";if(a){a.disabled=true;a.textContent="Home"}}
 else{
 const own=S.won.includes(S.sel),av=avail(S.sel);
-if(inf)inf.innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring ${WEAK[s.t]}s (+50%). Needs ${spw(S.sel)} power.${S.own[S.sel]?" Held by "+RV[S.own[S.sel]].n+".":""} Your fleet: ${fpower(S.sel).toFixed(1)}.<br>Loot: ${cstr(s.r)}<br>${own?"You own this system.":av?"Ready to attack.":secOf(S.sel)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":"Out of reach. Claim a neighboring system first."}</small>`;
+if(inf)inf.innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring ${WEAK[s.t]}s (+50%). Needs ${spw(S.sel)} power.${S.own[S.sel]?" Held by "+RV[S.own[S.sel]].n+".":""} Your fleet: ${fpower(S.sel).toFixed(1)}.<br>Loot: ${cstr(s.r)}<br>${own?"You own this system.":av?"Ready to attack.":secOf(S.sel)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":S.won.length===0?"Out of reach. You own no systems — attack a system next to Home World to regain a foothold.":"Out of reach. You can only attack systems next to one you own."}</small>`;
 if(a){a.disabled=own||!av||total()<1;a.textContent=own?"Owned":"Attack"}}}
 baseUI(now);
 upd2();
@@ -703,7 +704,7 @@ else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b
 else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
 else if(d.build){const k=d.build,u=U[k],n=+d.n||1;let ok=0;for(let j=0;j<n;j++){if(S.bx.hangar>=u.h&&usedQ()+u.sz<=scap()&&S.sq.length<qcap()&&can(u.c)){pay(u.c);const s0=Math.max(Date.now(),S.sq.length?S.sq[S.sq.length-1].end:0);S.sq.push({k,end:s0+DUR[k]*1000*tmul()*crewShipMul()});ok++}else break}if(ok)msg(ok+"x "+u.n+" construction started.")}
-else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);for(const k in q.r)S.res[k]=Math.min(cap(),S.res[k]+q.r[k]);msg("Quest complete: "+q.t);sfx("claim")}}
+else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);const lost=[];for(const k in q.r){const add=q.r[k],nw=Math.min(cap(),S.res[k]+add);if(S.res[k]+add>nw)lost.push(fmt(S.res[k]+add-nw)+" "+k);S.res[k]=nw}msg("Quest complete: "+q.t+(lost.length?" (Storage full — "+lost.join(", ")+" lost.)":""));sfx("claim")}} // v3.2.7: quest rewards that exceed the storage cap are no longer silently lost — the claim message says what was lost
 else if(d.tech){const t=TECH.find(z=>z.id===d.tech);if(t&&!S.rq&&!S.tech.includes(t.id)&&(!t.req||S.tech.includes(t.req))&&can(t.c)){pay(t.c);S.rq={id:t.id,end:Date.now()+t.t*1000*tmul()*crewResMul()};msg("Research started: "+t.n)}}
 else if(d.cmd){const id=d.cmd,c=CM[id],sl=c.t==="fleet"?"fleet":"station";if(!S.cmds.includes(id)){if(S.res.credits>=c.c){S.res.credits-=c.c;S.cmds.push(id);S.slot[sl]=id;msg(c.n+" joins your command.")}}else S.slot[sl]=S.slot[sl]===id?null:id}
 else if(d.crew){const parts=d.crew.split(":"),k=parts[0],delta=+parts[1];const c=crewAt();if(["mine","ship","res"].includes(k)){if(delta>0&&crewTotal()<crewCap())c[k]=(c[k]||0)+1;else if(delta<0&&(c[k]||0)>0)c[k]--;}}
@@ -1113,7 +1114,7 @@ else{const need=spw(i),fp=fpower(i),loot=s.r?cstr(s.r):"";
 const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
 // v2.5: a Sector 2 system without Jump Drive says so in one plain
 // line; a jump gate names the system it links to.
-body.innerHTML="<small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.":av?"Ready to attack.":secOf(i)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":"Out of reach. Claim a neighboring system first.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+(GATE[i]!==undefined?" Jump gate — links to "+SYS[GATE[i]].n+" (Sector "+(secOf(GATE[i])+1)+").":"")+"</small>"
+body.innerHTML="<small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.":av?"Ready to attack.":secOf(i)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":S.won.length===0?"Out of reach. You own no systems — attack a system next to Home World to regain a foothold.":"Out of reach. You can only attack systems next to one you own.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+(GATE[i]!==undefined?" Jump gate — links to "+SYS[GATE[i]].n+" (Sector "+(secOf(GATE[i])+1)+").":"")+"</small>"
 +stat("Needs",Number.isFinite(need)?need+" power":"—")
 +stat("Your fleet vs "+s.t,Number.isFinite(fp)?fp.toFixed(1):"0.0")
 +(loot?stat("Loot",loot):"")
@@ -1249,7 +1250,8 @@ function activityUI(){
     if(wasHidden){measureUI();sizeCanvases()}
   }
   const sum=el.querySelector('[data-traysumtxt]');
-  if(sum){const next=jobs.reduce((a,b)=>a.end<b.end?a:b);sum.textContent=jobs.length===1?next.name+" · "+left(Math.max(0,next.end-now)):jobs.length+" jobs · next done in "+left(Math.max(0,next.end-now))}
+  // v3.2.7: when the tray is open, the summary is just a header ("Jobs (2)") — the job rows below already show every job, so repeating the aggregate here read as the same job listed twice.
+  if(sum){const next=jobs.reduce((a,b)=>a.end<b.end?a:b);sum.textContent=TRAYOPEN?("Jobs ("+jobs.length+")"):jobs.length===1?next.name+" · "+left(Math.max(0,next.end-now)):jobs.length+" jobs · next done in "+left(Math.max(0,next.end-now))}
   jobs.forEach(j=>{
     const p=Math.max(0,Math.min(1,j.end>j.s?(now-j.s)/(j.end-j.s):1));
     const fill=el.querySelector('[data-actfill="'+j.id+'"]');
@@ -1265,12 +1267,14 @@ const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()*crewShi
 function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);const MMCOL={c:"#e0584a",v:"#b07cf0",k:"#ffb02e",a:"#4fc3f7",m:"#ff7ad9"};SYS.forEach((s,i)=>{if(secOf(i)!==SEC)return;const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o?MMCOL[o]||"#7c849c":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=cv.width/sc/WORLD.w*96,vh=safeH()/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
+// v3.2.7: show where the power comes from — the totals above were correct but unexplained (base x Command x research x officer). Only nonzero bonuses are listed.
+const _fpwSub=$("#fpw-sub");if(_fpwSub){let _base=0;for(const k in U)_base+=S.ships[k]*U[k].pw;const _parts=["Base "+_base],_cb0=.2*(S.b.command-1),_pw0=tsum("pw"),_fl0=cb("fleet");if(_cb0>0)_parts.push("Command +"+Math.round(_cb0*100)+"%");if(_pw0>0)_parts.push("Research +"+Math.round(_pw0*100)+"%");if(_fl0>0)_parts.push("Officer +"+Math.round(_fl0*100)+"%");_fpwSub.textContent=_parts.join(" · ")}
 const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
 // v2.9: ALL 18 tech rows always render — a locked row is visible but
 // greyed, names its requirement, and its button is disabled; a done row
 // reads "Researched". (Hiding locked rows left a fresh save showing 6
 // rows under a "Completed 0 of 18" header.)
-TECH.forEach(t=>{const dn=S.tech.includes(t.id),req=t.req?TECH.find(z=>z.id===t.req):null,av=!dn&&(!req||S.tech.includes(req.id)),row=$("#tr-"+t.id),tc=$("#tc-"+t.id),tb=$("#tb-"+t.id);row.style.display="";row.classList.toggle("locked",!dn&&!!req);row.classList.toggle("done",dn);const ct="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul()*crewResMul());if(dn){tc.textContent="Researched.";tb.textContent="Researched";tb.disabled=true}else if(req&&!S.tech.includes(req.id)){tc.textContent="Requires "+req.n+". "+ct;tb.textContent="Research";tb.disabled=true}else{tc.textContent=ct;tb.textContent="Research";tb.disabled=!!S.rq||!can(t.c)}});
+TECH.forEach(t=>{const dn=S.tech.includes(t.id),req=t.req?TECH.find(z=>z.id===t.req):null,av=!dn&&(!req||S.tech.includes(req.id)),row=$("#tr-"+t.id),tc=$("#tc-"+t.id),tb=$("#tb-"+t.id);row.style.display="";row.classList.toggle("locked",!dn&&!!req);row.classList.toggle("done",dn);const ct="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul()*crewResMul());if(dn){tc.textContent="Researched.";tb.textContent="Researched";tb.disabled=true}else if(req&&!S.tech.includes(req.id)){tc.textContent="Requires "+req.n+". "+ct;tb.textContent="Research";tb.disabled=true}else{tc.textContent=ct+(!can(t.c)?" Can't afford yet.":"");tb.textContent="Research";tb.disabled=!!S.rq||!can(t.c)}}); // v3.2.7: a disabled Research button now says why (unaffordable) instead of leaving the player to compare numbers
 $("#rq").textContent=(S.rq?"Researching: "+TECH.find(z=>z.id===S.rq.id).n+" ("+left(S.rq.end-now)+"). ":"Lab idle. ")+"Completed "+S.tech.length+" of "+TECH.length+".";
 const sn=$("#sec-note");if(sn)sn.hidden=!(SEC===1&&!hasJump()); // v2.9: scouting Sector 2 is free — say so while the player is looking at it without Jump Drive
 crewUI();
@@ -1300,6 +1304,12 @@ el.innerHTML='<small>Assign your crew to mining, shipbuilding or research. Crew 
 // actively playing stays terminal.
 function reviveHomeWorld(){if(S.end&&S.end.lost&&!S.hwguard){S.end.lost=0;if(!S.won.includes(0))S.won.push(0);if(S.own)delete S.own[0];msg("Your Home World was restored — a rival overran it while you were away, which shouldn't have been possible. That hole is now fixed: your Home World can only be attacked while you're actively playing.");return true}return false}
 reviveHomeWorld();S.hwguard=1;
+// v3.2.7: a genuinely defeated save (lost=1, hwguard already set so the
+// revive above refused) must show the game-over screen again on load.
+// The #end overlay is DOM state, not saved, so without this a reload
+// after a defeat left the game running in a zombie state (0 systems,
+// nothing attackable, no way out except Reset).
+if(S.end&&S.end.lost)showEnd("lose");
 const away=Math.min((Date.now()-S.t)/1000,28800);
 if(away>60){step(away);done();offlineSim(away);msg("Welcome back! Your empire worked for "+Math.floor(away/60)+" minutes while you were away.")}
 let last=Date.now(),starve=0;
