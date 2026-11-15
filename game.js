@@ -632,7 +632,28 @@ function drawShipImgs(){try{document.querySelectorAll(".shipimg").forEach(cv=>{c
 drawShipImgs();
 
 const TECHICON={pw:"⚔",eco:"⚙",keep:"🛡",slot:"▲",cmax:"👑",bld:"🔨",jump:"🌀"}; // v3.4: each tech shows its category icon so the tree reads at a glance
-$("#tech").innerHTML=TECH.map(t=>`<div class="row" id="tr-${t.id}"><div><span class="techic">${TECHICON[t.k]||"✦"}</span><b>${t.n}</b><br><small>${t.d}<br><span id="tc-${t.id}"></span></small></div><button data-tech="${t.id}" id="tb-${t.id}">Research</button></div>`).join("");
+// v3.5 RESEARCH TREE — the 18 techs as a tree, not a flat list. Lanes
+// by family (Weapons / Economy / Command / Builders / Docks / Hull /
+// Jump Drive), laid out on a CSS grid by lane (column) and depth (row:
+// a tech sits one row below its prerequisite). SVG connectors join each
+// tech to its prerequisite; a link turns gold once its parent is
+// researched. Nodes keep the same #tr- / #tc- / #tb- ids, so update()
+// keeps working unchanged. Construction Crews (b1) is the one
+// cross-lane link: it branches off Advanced Command (c1).
+const TECHLANES=[{k:"pw",n:"Weapons"},{k:"eco",n:"Economy"},{k:"cmax",n:"Command"},{k:"bld",n:"Builders"},{k:"slot",n:"Docks"},{k:"keep",n:"Hull"},{k:"jump",n:"Jump Drive"}];
+const tdepth={};const tdep=id=>{if(tdepth[id])return tdepth[id];const t=TECH.find(z=>z.id===id);return tdepth[id]=t&&t.req?tdep(t.req)+1:1};
+TECH.forEach(t=>tdep(t.id));
+$("#tech").innerHTML=`<div class="techtree" id="techtree"><svg id="techsvg" aria-hidden="true"></svg>`+
+ TECHLANES.map((L,li)=>`<div class="techlane" style="grid-column:${li+1};grid-row:1"><span class="techic">${TECHICON[L.k]||"✦"}</span>${L.n}</div>`).join("")+
+ TECH.map(t=>{const lane=TECHLANES.findIndex(L=>L.k===t.k)+1;return `<div class="row treenode" id="tr-${t.id}" style="grid-column:${lane};grid-row:${tdepth[t.id]+1}"><div class="tn-head"><span class="techic">${TECHICON[t.k]||"✦"}</span><b>${t.n}</b></div><small>${t.d}</small><small><span id="tc-${t.id}"></span></small><button data-tech="${t.id}" id="tb-${t.id}">Research</button></div>`}).join("")+
+ `</div>`;
+// v3.5: draw the tree's connector lines. Runs when the Research tab is
+// shown, and when the researched set changes (a link turns gold once its
+// parent is done). Guarded so it never throws in a headless/harness DOM
+// (no offsetLeft there) — the tree itself is plain HTML and reads fine
+// without the lines.
+let TECHSIG="";
+function drawTechTree(){try{const tree=$("#techtree"),svg=$("#techsvg");if(!tree||!svg)return;const W=tree.offsetWidth,H=tree.offsetHeight;if(!W||!H)return;if(svg.setAttribute){svg.setAttribute("width",W);svg.setAttribute("height",H)} /* v3.5: the harness DOM stub has no setAttribute — skip sizing there; the paths still draw and the check counts them */let paths="";TECH.forEach(t=>{if(!t.req)return;const p=$("#tr-"+t.req),c=$("#tr-"+t.id);if(!p||!c)return;if(typeof p.offsetLeft!=="number"||typeof c.offsetLeft!=="number")return;const px=p.offsetLeft+p.offsetWidth/2,py=p.offsetTop+p.offsetHeight,cx=c.offsetLeft+c.offsetWidth/2,cy=c.offsetTop,my=(py+cy)/2;paths+=`<path class="techlink${S.tech.includes(t.req)?" done":""}" d="M ${px} ${py} V ${my} H ${cx} V ${cy}"/>`});svg.innerHTML=paths;}catch(e){}}
 $("#cmds").innerHTML=Object.keys(CM).map(id=>`<div class="row"><div><span class="cmdav cmdav-${CM[id].t}">${CM[id].n.split(" ").pop()[0]}</span><b>${CM[id].n}</b> <span id="cl-${id}"></span><br><small>${CM[id].d}<br><span id="cc-${id}"></span></small></div><button data-cmd="${id}" id="cb-${id}"></button></div>`).join("");
 // v3.4 TAB GRAPHICS — quest icons by what the quest asks for, and a
 // claimable quest gets a gold border so it stands out at a glance.
@@ -1191,7 +1212,7 @@ else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
 $("#bi-up").hidden=false;$("#bi-mv").hidden=false;$("#bi-up").disabled=max||S.bq.length>=bqcap()||!can(c);$("#bi-mv").textContent=S.mv===sel.u?"Cancel move":"Move"}}
-function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();if(pg==="tab"&&t==="station"&&!stFitted)homeStCam(); /* v1.5: first visit to the Station tab fits the cluster; user pan/zoom after that is preserved */ document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));document.querySelectorAll("[data-sec]").forEach(b=>b.classList.toggle("on",+b.dataset.sec===SEC)); /* v2.5: sector toggle shows the active sector */if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on")}
+function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("[data-pg]").forEach(e=>{e.hidden=pg==="tab"?e.dataset.pg!==t:e.dataset.pg!==pg});sizeCanvases();if(pg==="tab"&&t==="station"&&!stFitted)homeStCam(); /* v1.5: first visit to the Station tab fits the cluster; user pan/zoom after that is preserved */ document.querySelectorAll("#tabs button").forEach(b=>b.classList.toggle("on",pg==="tab"&&b.dataset.tab===t));document.querySelectorAll("[data-sec]").forEach(b=>b.classList.toggle("on",+b.dataset.sec===SEC)); /* v2.5: sector toggle shows the active sector */if(pg==="log"){const h=$("#hlog");if(h)h.innerHTML=S.feed.slice().reverse().map(x=>"<div class=\"row\">"+x+"</div>").join("")||"<small class=\"empty\">No events yet.</small>";}const n=Q.filter(q=>!S.q.includes(q.id)&&q.ok()).length;const bd=$("#tq-badge");if(bd){bd.hidden=!n;bd.textContent=n||""}else{const tq=$("#tq");if(tq)tq.textContent=n?"Quests ("+n+")":"Quests"}$("#snd").textContent="Sound: "+(S.mute?"off":"on");if(pg==="tab"&&t==="research")drawTechTree()} /* v3.5: the research tree's connector lines are drawn once the tab is visible (offsets are 0 while hidden) */
 // Render key: popup identity + every value shown in it. If the key is
 // unchanged, the popup's DOM nodes are left exactly as they are —
 // the 250ms tick must never rebuild a button under a finger.
@@ -1389,6 +1410,7 @@ const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Obj
 // reads "Researched". (Hiding locked rows left a fresh save showing 6
 // rows under a "Completed 0 of 18" header.)
 TECH.forEach(t=>{const dn=S.tech.includes(t.id),req=t.req?TECH.find(z=>z.id===t.req):null,av=!dn&&(!req||S.tech.includes(req.id)),row=$("#tr-"+t.id),tc=$("#tc-"+t.id),tb=$("#tb-"+t.id);row.style.display="";row.classList.toggle("locked",!dn&&!!req);row.classList.toggle("done",dn);const ct="Cost: "+cstr(t.c)+". Time: "+left(t.t*1000*tmul()*crewResMul());if(dn){tc.textContent="Researched.";tb.textContent="Researched";tb.disabled=true}else if(req&&!S.tech.includes(req.id)){tc.textContent="Requires "+req.n+". "+ct;tb.textContent="Research";tb.disabled=true}else{tc.textContent=ct+(!can(t.c)?" Can't afford yet.":"");tb.textContent="Research";tb.disabled=!!S.rq||!can(t.c)}}); // v3.2.7: a disabled Research button now says why (unaffordable) instead of leaving the player to compare numbers
+const tsig=S.tech.join(",")+"|"+(S.rq?S.rq.id:"");if(tsig!==TECHSIG){TECHSIG=tsig;drawTechTree()} /* v3.5: a researched tech turns its tree link gold — redraw only when the set changes, and drawTechTree() no-ops while the tab is hidden */
 $("#rq").textContent=(S.rq?"Researching: "+TECH.find(z=>z.id===S.rq.id).n+" ("+left(S.rq.end-now)+"). ":"Lab idle. ")+"Completed "+S.tech.length+" of "+TECH.length+".";
 const sn=$("#sec-note");if(sn)sn.hidden=!(SEC===1&&!hasJump()); // v2.9: scouting Sector 2 is free — say so while the player is looking at it without Jump Drive
 crewUI();
