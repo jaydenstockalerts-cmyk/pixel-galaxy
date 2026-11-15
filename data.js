@@ -70,7 +70,7 @@ const Q=[
 {id:"q5b",t:"Research your first technology",ok:()=>S.tech.length>=1,r:{credits:80,crystal:40}},
 {id:"q5c",t:"Hire a commander",ok:()=>S.cmds.length>=1,r:{credits:100}},
 {id:"q7",t:"Build a Cruiser",ok:()=>shipCount("cruiser")>=1,r:{credits:100,crystal:60}},
-{id:"q8",t:"Own 4 systems",ok:()=>S.won.length>=5,r:{credits:300,metal:200}},
+{id:"q8",t:"Own 4 systems",ok:()=>S.won.length>=4,r:{credits:300,metal:200}},
 {id:"q9",t:"Build a Capital Ship",ok:()=>shipCount("capital")>=1,r:{credits:300,crystal:150}},
 {id:"q10",t:"Conquer the Alien Hive Core",ok:()=>S.won.includes(7),r:{credits:1000}},
 {id:"q14",t:"Repel a rival raid",ok:()=>S.rep>=1,r:{credits:600,metal:300}},
