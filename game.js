@@ -4,7 +4,7 @@ function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)
 function tone(f,d,ty,v,t0,f2){const a=ac();if(!a||S.mute)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+(t0||0);o.type=ty||"square";o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v||.04,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+.02)}
 function boom(){const a=ac();if(!a||S.mute)return;const n=Math.floor(a.sampleRate*.3),b=a.createBuffer(1,n,a.sampleRate),c=b.getChannelData(0);for(let i=0;i<n;i++)c[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),g=a.createGain();s.buffer=b;g.gain.value=.08;s.connect(g);g.connect(a.destination);s.start()}
 function sfx(k){const m={click:()=>tone(520,.04),ok:()=>{tone(660,.08);tone(880,.12,"square",.04,.08)},laser:()=>tone(900,.12,"sawtooth",.025,0,200),boom:boom,win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.15,"square",.045,i*.12)),lose:()=>[392,330,262,196].forEach((f,i)=>tone(f,.2,"triangle",.06,i*.15)),alert:()=>{tone(880,.1);tone(660,.1,"square",.05,.15);tone(880,.1,"square",.05,.3)},claim:()=>[784,988,1319].forEach((f,i)=>tone(f,.12,"square",.045,i*.09))};if(m[k])m[k]()}
-const fresh=()=>({res:{energy:40,metal:40,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:{fleet:null,station:null},crew:{mine:0,ship:0,res:0},own:{},rv:{c:{cy:Date.now()},v:{cy:Date.now()},k:{cy:Date.now()},a:{cy:Date.now()},m:{cy:Date.now()}},gar:{},col:{},war:{},dip:{},pair:{},end:{},stab:{},pairCy:Date.now(),stabCy:Date.now(),min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now()});
+const fresh=()=>({res:{energy:40,metal:40,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:{fleet:null,station:null},crew:{mine:0,ship:0,res:0},own:{},rv:{c:{cy:Date.now()},v:{cy:Date.now()},k:{cy:Date.now()},a:{cy:Date.now()},m:{cy:Date.now()}},gar:{},col:{},war:{},dip:{},pair:{},end:{},stab:{},pairCy:Date.now(),stabCy:Date.now(),min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now(),stance:"balanced",transit:null,raidWarn:null});
 // v2.4: S.gar maps system id -> {fighter,cruiser,capital} stationed
 // there; S.war maps faction id -> 1 once it has taken one of your
 // systems (drives the standings board's "At war" status). S.rv clocks
@@ -529,6 +529,22 @@ const avail=i=>!S.won.includes(i)&&(S.won.some(j=>adj(i,j))||(S.won.length===0&&
 // so rates() and the popups need no other change.
 const mult=b=>1;
 function fpower(i){return fpt(SYS[i].t)}
+// v3.4 BATTLES AS A DECISION — stance: how the fleet fights. All-out
+// hits harder but loses more ships; Cautious hits softer but keeps
+// more. Balanced is unchanged. The power multiplier applies BEFORE
+// the battle's hidden random factor, and the keep modifier shifts
+// both the win and defeat survival rates.
+const STANCE={allout:{pw:1.15,keep:-.1,n:"All-out",d:"More power, heavier losses."},balanced:{pw:1,keep:0,n:"Balanced",d:"No change."},cautious:{pw:.85,keep:.1,n:"Cautious",d:"Less power, lighter losses."}};
+// v3.4: qualitative odds — the win chance is computed from the power
+// ratio (so the label is honest) but shown only as a word, never a
+// number: an exact % would let a player reverse-engineer the hidden
+// ±15% battle factor, which stays mysterious by Jayden's call.
+const oddsLabel=(fp,need)=>{if(!fp||fp<=0)return "Hopeless";const ch=Math.max(0,Math.min(1,(1.15-need/fp)/.3));return ch>=.9?"Overwhelming":ch>=.65?"Favorable":ch>=.35?"Even odds":ch>=.1?"Risky":ch>0?"Desperate":"Hopeless"};
+// v3.4: travel time — jumps from Home World to the target (BFS over
+// the system links). Attacks launch from Home, so a far system takes
+// longer to reach than a neighbour.
+const jumpsTo=i=>{if(i===0)return 0;const seen=new Set([0]),q=[[0,0]];while(q.length){const [c,d]=q.shift();for(const j of SYS[c].l){if(j===i)return d+1;if(!seen.has(j)){seen.add(j);q.push([j,d+1])}}}return 99};
+const travelMs=i=>Math.min(60000,(10+5*jumpsTo(i))*1000);
 function fpt(t){const w=WEAK[t];let p=0;for(const k in U)p+=S.ships[k]*U[k].pw*(k===w?1.5:1);return p*(1+.2*(S.b.command-1))*(1+tsum("pw"))*(1+cb("fleet"))}
 function rates(){const o={energy:0,metal:0,crystal:0,credits:0};S.bl.forEach(b=>{if(b.l>0)for(const r in B[b.t].p)o[r]+=B[b.t].p[r]*b.l*mult(b)*(1+tsum("eco"))*(1+cb("econ"))*crewMineMult()});o.credits+=.3*(S.won.length-1);
 // v2.6: colonies earn through rates() so the HUD +/s, offline
@@ -552,9 +568,47 @@ S.bq=S.bq.filter(j=>{if(j.end>n)return true;
 if(j.col!==undefined){const c=colAt(j.col);if(c){c.l=Math.min(COL_MAX,c.l+1);gain("station",1);msg("Colony on "+SYS[j.col].n+" reaches level "+c.l+".");sfx("ok")}return false}
 const b=S.bl.find(z=>z.u===j.u);if(b){b.l++;gain("station",1);msg(B[b.t].n+" reaches level "+b.l+".");sfx("ok")}return false});recalc();
 while(S.sq.length&&S.sq[0].end<=n){const k=S.sq.shift().k;S.ships[k]++;msg(U[k].n+" launched.");sfx("ok")}
-if(S.rq&&S.rq.end<=n){const t=TECH.find(z=>z.id===S.rq.id);S.tech.push(t.id);S.rq=null;gain("station",1);msg("Research complete: "+t.n);sfx("claim")}}
+if(S.rq&&S.rq.end<=n){const t=TECH.find(z=>z.id===S.rq.id);S.tech.push(t.id);S.rq=null;gain("station",1);msg("Research complete: "+t.n);sfx("claim")}
+if(S.transit&&S.transit.end<=n){const tr=S.transit;S.transit=null;resolveAttack(tr)}}
+// v3.4 TRAVEL TIME — the fleet arrives and the battle resolves. The
+// power is the departure snapshot (ships built during transit do not
+// join), the defence is re-read at arrival (it may have changed), and
+// losses apply to the snapshot — ships built during transit are kept
+// whole. The stance chosen at departure shapes power and losses.
+function resolveAttack(tr){
+const i=tr.sys,s=SYS[i],st=STANCE[tr.stance||"balanced"];
+const need=spw(i),holder=S.own[i],pre=tr.pre;
+const p=tr.fp*st.pw*(.85+Math.random()*.3),win=p>=need;HOLD=true;
+if(win){
+for(const k in U)S.ships[k]=Math.ceil(pre[k]*Math.min(.95,.7+st.keep+tsum("keep")))+Math.max(0,(S.ships[k]||0)-pre[k]);
+if(S.own[i]){S.cap++;delete S.own[i]}delete S.gar[i];S.won.push(i);
+if(i>0){if(!S.col)S.col={};S.col[i]={l:1,spec:null};if(!S.stab)S.stab={};S.stab[i]=100}
+checkEnd();
+for(const k in s.r)S.res[k]=Math.min(cap(),S.res[k]+s.r[k]);
+gain("fleet",2);msg(i===15?"You conquered the Dark Nexus. The galaxy is yours!":i===7?"The Hive Core falls, but the galaxy is bigger than you thought.":"Victory! "+s.n+" is yours and now pays you credits.");
+}else{
+for(const k in U)S.ships[k]=Math.floor(pre[k]*(.4+st.keep+tsum("keep")))+Math.max(0,(S.ships[k]||0)-pre[k]);
+msg("Defeat. Your fleet retreats with heavy losses. Build the ship type this enemy is weak to, or upgrade the Command Station.");
+}
+battle(win,pre,s,p,need,holder);
+}
 let HOLD=false,HELD="";
 function toast(t){const c=$("#toasts"),el=document.createElement("div");el.className="toast";el.textContent=t;c.appendChild(el);while(c.children.length>3)c.removeChild(c.firstChild);setTimeout(()=>el.remove(),5000)}
+// v3.4 NEXT BEST STEP — one line that names the current bottleneck,
+// so a new player always knows what to do next. Priority: a
+// claimable quest, a full store, a full Hangar, no mine, no ships,
+// no Hangar, a Command upgrade, else expand.
+function nextStep(){
+if(Q.some(q=>!S.q.includes(q.id)&&q.ok()))return "A quest is ready to claim — check the Quests tab.";
+if(R.every(k=>S.res[k]>=cap()-0.01))return "Storage is full — upgrade the Command Station to hold more.";
+if(total()>0&&usedQ()>=scap())return "Your Hangar is full — upgrade the Hangar for more ship slots.";
+if(!S.b.mine)return "Build a Crystal Mine to start earning crystal.";
+if(!S.b.hangar)return "Build a Hangar to start building ships.";
+if(total()===0&&S.sq.length===0)return "Build a Fighter in the Fleet tab to start your fleet.";
+if(S.b.command<lvlCap("command")&&can(cost("command",S.b.command)))return "Upgrade your Command Station to unlock more plots and storage.";
+if(S.won.length<13)return "Conquer a nearby system to expand your empire.";
+return "Conquer the Dark Nexus to win the galaxy.";
+}
 const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(fmtClock(Date.now())+" — "+t);if(S.feed.length>30)S.feed.shift();toast(t)}; // v3.3: feed entries carry a clock time so the Event log shows when things happened (the toast still shows the plain message)
 const fmtClock=ts=>{const d=new Date(ts);let h=d.getHours(),m=d.getMinutes(),ap=h>=12?"PM":"AM";h=h%12||12;return h+":"+(m<10?"0":"")+m+" "+ap};
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
@@ -564,15 +618,38 @@ $("#res").innerHTML=R.map(r=>`<div class="pill"><span class="rlabel">${r[0].toUp
 const resEl=$("#res");
 if(resEl)resEl.addEventListener("click",()=>{resEl.classList.toggle("expanded")});
 const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
-$("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}<br><span id="sr-${k}"></span></small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
+// v3.4 TAB GRAPHICS — the Fleet tab shows each ship's actual sprite
+// (2x, crisp pixels) instead of a bare text row. SHIPIMG is the
+// canvas size per ship (the sprite's natural size x2).
+const SHIPIMG={fighter:[36,18],cruiser:[60,28],capital:[92,44]};
+$("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><canvas class="shipimg" data-ship="${k}" width="${SHIPIMG[k][0]}" height="${SHIPIMG[k][1]}"></canvas><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}<br><span id="sr-${k}"></span></small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
+function drawShipImgs(){try{document.querySelectorAll(".shipimg").forEach(cv=>{const sp=SPR()[cv.dataset.ship];if(!sp)return;const q=cv.getContext("2d");if(!q||!q.drawImage)return;q.imageSmoothingEnabled=false;q.clearRect(0,0,cv.width,cv.height);q.drawImage(sp,0,0,cv.width,cv.height)})}catch(e){}}
+drawShipImgs();
 
-$("#tech").innerHTML=TECH.map(t=>`<div class="row" id="tr-${t.id}"><div><b>${t.n}</b><br><small>${t.d}<br><span id="tc-${t.id}"></span></small></div><button data-tech="${t.id}" id="tb-${t.id}">Research</button></div>`).join("");
-$("#cmds").innerHTML=Object.keys(CM).map(id=>`<div class="row"><div><b>${CM[id].n}</b> <span id="cl-${id}"></span><br><small>${CM[id].d}<br><span id="cc-${id}"></span></small></div><button data-cmd="${id}" id="cb-${id}"></button></div>`).join("");
+const TECHICON={pw:"⚔",eco:"⚙",keep:"🛡",slot:"▲",cmax:"👑",bld:"🔨",jump:"🌀"}; // v3.4: each tech shows its category icon so the tree reads at a glance
+$("#tech").innerHTML=TECH.map(t=>`<div class="row" id="tr-${t.id}"><div><span class="techic">${TECHICON[t.k]||"✦"}</span><b>${t.n}</b><br><small>${t.d}<br><span id="tc-${t.id}"></span></small></div><button data-tech="${t.id}" id="tb-${t.id}">Research</button></div>`).join("");
+$("#cmds").innerHTML=Object.keys(CM).map(id=>`<div class="row"><div><span class="cmdav cmdav-${CM[id].t}">${CM[id].n.split(" ").pop()[0]}</span><b>${CM[id].n}</b> <span id="cl-${id}"></span><br><small>${CM[id].d}<br><span id="cc-${id}"></span></small></div><button data-cmd="${id}" id="cb-${id}"></button></div>`).join("");
+// v3.4 TAB GRAPHICS — quest icons by what the quest asks for, and a
+// claimable quest gets a gold border so it stands out at a glance.
+const questIcon=t=>/Build/.test(t)?"🏗":/Launch|Capital Ship|Cruiser/.test(t)?"🚀":/Conquer|Own|Capture/.test(t)?"⚔":/Repel/.test(t)?"🛡":/Research|technolog/.test(t)?"⚙":/Hire|commander/.test(t)?"👤":/Upgrade/.test(t)?"⬆":"✦";
 let qKey="";
 let LASTCREWCAP=0,CAPFULL=false; // v3.3: crew-growth + storage-full one-time notices (checked in update())
 function update(){
 done();
 checkEnd(); // v2.7: victory is a state, not just an event — re-check every tick so no ownership change can slip past
+// v3.4: a pending raid warning resolves when its window closes — the
+// defence is read at that moment, so ships sent to the garrison
+// during the warning count.
+if(S.raidWarn&&Date.now()>=S.raidWarn.exp){const w=S.raidWarn;S.raidWarn=null;resolveRaid(w.rival,w.sys,w.rp,false,null)}
+// v3.4: the raid warning banner — live countdown, live defence, and
+// the two responses (pay tribute, or go reinforce the system).
+const rw=$("#raidwarn");
+if(rw){
+if(S.raidWarn){const w=S.raidWarn,f=RV[w.rival],def=Math.round(sysDef(w.sys));
+rw.hidden=false;
+rw.innerHTML='<b>⚠ '+f.n+' is raiding '+SYS[w.sys].n+'!</b> Raid power '+Math.round(w.rp)+' vs your defence '+def+'. <b>'+left(Math.max(0,w.exp-Date.now()))+' left.</b> <button data-rtrib="1" '+(S.res.credits<DIP.tribute?"disabled":"")+'>Pay tribute ('+DIP.tribute+' credits)</button> <button data-rview="1">View system</button>';
+}else rw.hidden=true;
+}
 const r=rates(),now=Date.now();
 R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap());const sb=$("#sb-"+k);if(sb)sb.style.width=Math.round(Math.max(0,Math.min(1,S.res[k]/cap()))*100)+"%";});
 const incEl=$("#inc");if(incEl)incEl.innerHTML=R.map(k=>{const ps=incomeParts(k);return ps.length?("<b>"+k[0].toUpperCase()+k.slice(1)+":</b> "+ps.map(p=>p.label+" "+(p.v>=0?"+":"")+p.v.toFixed(1)+"/s").join(" · ")):""}).filter(Boolean).join("<br>")||"No income yet — build a production building."; // v3.3: income breakdown under the expanded resource bar
@@ -581,6 +658,7 @@ const full=R.every(k=>S.res[k]>=cap()-0.01);if(full&&!CAPFULL){CAPFULL=true;msg(
 const fe=$("#fleet-empty"); if(fe) fe.hidden=!(total()===0&&S.sq.length===0);
 syncMenuSound();
 $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command Station to store more.";
+const ns=nextStep();const nsEl=$("#nextstep");if(nsEl)nsEl.textContent="Next step: "+ns;const nsG=$("#nextstep-g");if(nsG)nsG.textContent="Next step: "+ns; // v3.4: one line naming the current bottleneck — a new player always knows what to do next
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
 const sqEl=$("#sq");if(sqEl)sqEl.textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
@@ -595,7 +673,7 @@ if(S.sel===0){if(inf)inf.innerHTML="<b>Home World</b><br><small>Your base. Build
 else{
 const own=S.won.includes(S.sel),av=avail(S.sel);
 if(inf)inf.innerHTML=`<b>${s.n}</b><br><small>${s.t.toUpperCase()} fleet. Bring ${WEAK[s.t]}s (+50%). Needs ${spw(S.sel)} power.${S.own[S.sel]?" Held by "+RV[S.own[S.sel]].n+".":""} Your fleet: ${fpower(S.sel).toFixed(1)}.<br>Loot: ${cstr(s.r)}<br>${own?"You own this system.":av?"Ready to attack.":secOf(S.sel)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":S.won.length===0?"Out of reach. You own no systems — attack a system next to Home World to regain a foothold.":"Out of reach. You can only attack systems next to one you own."}</small>`;
-if(a){a.disabled=own||!av||total()<1;a.textContent=own?"Owned":"Attack"}}}
+if(a){a.disabled=own||!av||total()<1||!!S.transit;a.textContent=own?"Owned":S.transit?"En route":"Attack"}}}
 baseUI(now);
 upd2();
 // v1.6: show ALL quests. Live v1.5: only completed + the first 3
@@ -604,7 +682,7 @@ upd2();
 // Launch your first ship were listed). Display only — no quest
 // condition or reward changes.
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok())),key=open.map(q=>q.id+(q.ok()?1:0)).join();
-if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row"><div>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — a rival raids one of your systems next to their territory. Repel one with a stronger fleet.</small> <button data-empire="1" class="mini">Empire ›</button>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
+if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row${q.ok()?" claimable":""}"><div><span class="questic">${questIcon(q.t)}</span>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — a rival raids one of your systems next to their territory. Repel one with a stronger fleet.</small> <button data-empire="1" class="mini">Empire ›</button>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
 popupUI();empireUI();activityUI();progressBars();tutCheck();
 draw();
 }
@@ -695,7 +773,11 @@ else if(d.place){const t=d.place;if(POP&&POP.kind==="plot"){placeB(t,POP.x,POP.y
 else if(d.pclose){closePopup()}
 else if(d.menu){openMenu()}
 else if(d.mclose){closeMenu()}
-else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}}
+else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}else if(m==="export"){const t=$("#savetxt");if(t){try{t.value=localStorage.getItem(KEY)||""}catch(e){t.value=""}}$("#savebox").hidden=false}else if(m==="import"){const t=$("#imptxt");if(t)t.value="";$("#impbox").hidden=false}}
+else if(d.scopy){const t=$("#savetxt");if(t){if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t.value).then(()=>msg("Save copied.")).catch(()=>{t.select();msg("Copy didn't work — select the text and copy it yourself.")});else{t.select();msg("Select the text and copy it yourself.")}}} // v3.4: export copies the save JSON to the clipboard (falls back to selecting the text)
+else if(d.sclose){$("#savebox").hidden=true}
+else if(d.impgo){const t=$("#imptxt");let ok=false;if(t&&t.value){try{const j=JSON.parse(t.value);if(j&&j.res&&j.b&&j.ships&&j.res.energy!==undefined){localStorage.setItem(KEY,JSON.stringify(j));ok=true}}catch(e){}}if(ok){$("#impbox").hidden=true;location.reload()}else msg("That doesn't look like a save — paste the text you exported and try again.")} // v3.4: import validates the JSON (needs res/b/ships) before replacing the save
+else if(d.impclose){$("#impbox").hidden=true}
 else if(d.tutnext){tutAdvance()}
 else if(d.tutback){tutBack()}
 else if(d.tutskip){closeTut(true)}
@@ -705,6 +787,7 @@ else if(d.tutdone){closeTut(true)}
 else if(d.act){const a=d.act;
 if(a.startsWith("bld:")){const u=+a.slice(4);S.tab="station";PAGE={kind:"tab"};openBuilding(u)}
 else if(a.startsWith("col:")){const i=+a.slice(4);S.tab="map";PAGE={kind:"tab"};openSystem(i)} // v2.6: tap a colony upgrade job to jump to that system's popup
+else if(a.startsWith("sys:")){const i=+a.slice(4);S.tab="map";PAGE={kind:"tab"};openSystem(i)} // v3.4: tap a fleet-in-transit job to jump to its target system
 else if(a==="res"){S.tab="research";PAGE={kind:"tab"};update()}
 else if(a==="ship"){S.tab="fleet";PAGE={kind:"tab"};update()}}
 else if(d.hide){setUIHidden(true)}
@@ -714,6 +797,8 @@ else if(d.mcancel){S.mv=null;S.place=null;msg("Cancelled.");update()} // v3.2.2:
 else if(d.skip){if(BT&&!BT.done){BT.f=59;bframe()}else $("#bbox").hidden=true}
 else if(d.log){PAGE={kind:"log"};update()}
 else if(d.empire){openEmpire()} // v3.3: the raid quest's "Empire ›" button opens the Empire page directly
+else if(d.rtrib){const w=S.raidWarn;if(w&&S.res.credits>=DIP.tribute){S.res.credits-=DIP.tribute;if(!S.dip[w.rival])S.dip[w.rival]={};S.dip[w.rival].truceUntil=Date.now()+DIP.TRUCE_MS;S.raidWarn=null;msg("You paid tribute to the "+RV[w.rival].n+" — a 30-minute truce. The raid is called off.");sfx("ok")}} // v3.4: pay tribute from the raid warning — buys a truce and cancels this raid
+else if(d.rview){const w=S.raidWarn;if(w){S.sel=w.sys;S.tab="map";PAGE={kind:"tab"};openSystem(w.sys)}} // v3.4: jump to the threatened system to reinforce its garrison
 else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b.t,l);if(l<lvlCap(b.t)&&S.bq.length<bqcap()&&can(c)){pay(c);{const s0=Math.max(Date.now(),...S.bq.filter(j=>j.u===b.u).map(j=>j.end));S.bq.push({u:b.u,s:s0,end:s0+dur(l)*1000})}msg(B[b.t].n+" upgrade started.")}}}
 else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
@@ -739,24 +824,21 @@ if(kind==="pact"){S.dip[id].pact=1;delete S.dip[id].truceUntil;msg("You signed a
 if(kind==="ally"){S.dip[id].ally=1;delete S.dip[id].pact;delete S.dip[id].truceUntil;msg("The "+RV[id].n+" is now your ally — they will never raid you, and will raid your enemies instead.");}
 sfx("ok")}
 else if(d.gsend||d.grecall){const i=S.sel,k=d.gsend||d.grecall;if(i>0&&S.won.includes(i)){if(!S.gar)S.gar={};const g=S.gar[i]||(S.gar[i]={fighter:0,cruiser:0,capital:0});if(d.gsend){if(S.ships[k]>0){S.ships[k]--;g[k]=(g[k]||0)+1;msg("1 "+U[k].n+" sent to "+SYS[i].n+".")}}else if(g[k]>0){g[k]--;S.ships[k]++;msg("1 "+U[k].n+" recalled from "+SYS[i].n+" to your home fleet.")}}}
+else if(d.stance){if(STANCE[d.stance]){S.stance=d.stance;}} // v3.4: stance pick in the system card — the popup re-renders via popKey (stance is part of the key), so the odds label updates with it
 else if(d.atk){
-const i=S.sel,s=SYS[i];if(!avail(i)||total()<1)return;
+const i=S.sel,s=SYS[i];if(!avail(i)||total()<1||S.transit)return;
+// v3.4: an attack is a decision, not an instant roll — the fleet
+// launches now and the battle resolves when it arrives (travel time
+// from Home World). One fleet, one mission: no second launch while
+// a transit is in flight.
+const holder=S.own[i];
 // v2.7: attacking a faction's system breaks any truce, pact or
 // alliance with that faction instantly — the popup warns first.
-const holder=S.own[i];
 if(holder){const rel=dipRel(holder);if(rel==="truce"||rel==="pact"||rel==="ally"){const dd=dipAt(holder);delete dd.pact;delete dd.ally;delete dd.truceUntil;msg("You broke the "+(rel==="ally"?"alliance":rel)+" with the "+RV[holder].n+" by attacking "+s.n+"!")}}
-const p=fpower(i)*(.85+Math.random()*.3),pre={...S.ships},need=spw(i),win=p>=need;HOLD=true;
-if(win){for(const k in U)S.ships[k]=Math.ceil(S.ships[k]*Math.min(.95,.7+tsum("keep")));if(S.own[i]){S.cap++;delete S.own[i]}delete S.gar[i];S.won.push(i);
-// v2.6: conquering founds a colony — level 1, no focus chosen yet.
-// (A re-conquered system gets a FRESH one: the raid-loss path
-// deletes the old colony, so this never resurrects a lost level.)
-if(i>0){if(!S.col)S.col={};S.col[i]={l:1,spec:null};if(!S.stab)S.stab={};S.stab[i]=100}
-checkEnd();
-for(const k in s.r)S.res[k]=Math.min(cap(),S.res[k]+s.r[k]);
-gain("fleet",2);msg(i===15?"You conquered the Dark Nexus. The galaxy is yours!":i===7?"The Hive Core falls, but the galaxy is bigger than you thought.":"Victory! "+s.n+" is yours and now pays you credits.")}
-else{for(const k in U)S.ships[k]=Math.floor(S.ships[k]*(.4+tsum("keep")));msg("Defeat. Your fleet retreats with heavy losses. Build the ship type this enemy is weak to, or upgrade the Command Station.")}
+const tm=travelMs(i);
+S.transit={sys:i,pre:{...S.ships},fp:fpower(i),need:spw(i),holder,stance:S.stance||"balanced",s:Date.now(),end:Date.now()+tm};
+msg("Fleet en route to "+s.n+" — arrives in "+left(tm)+".");
 closePopup();
-battle(win,pre,s,p,need,holder);
 }
 else if(b.id==="snd"){S.mute=S.mute?0:1;sfx("ok")}
 else if(b.id==="reset"){$("#rbox").hidden=false}
@@ -915,6 +997,26 @@ function stabTick(){
     }
   }
 }
+// v3.4 RAIDS AS A DECISION — a live raid on YOUR system warns first
+// instead of resolving instantly. The warning gives a 60-second
+// window: reinforce the garrison (defence is re-read at resolution,
+// so ships sent now count) or pay tribute (300 credits, a 30-minute
+// truce, the raid is called off). Rival-vs-rival and offline raids
+// still resolve instantly — the player is not there to decide.
+const RAID_WARN_MS=60000;
+function resolveRaid(id,i,rp,offline,lost){
+const f=RV[id];
+const def=sysDef(i),gar=Math.round(garPow(i)*garMult()),col=Math.round(colDef(i)),home=Math.round(.5*dpower());
+const split=i===0?"home fleet "+Math.round(dpower())+" (fleet "+Math.round(fpt())+" ×1.2 home defence)":"garrison "+gar+(col>0?" + colony "+col:"")+" + home fleet "+home;
+if(rp>def){
+S.won.splice(S.won.indexOf(i),1);S.own[i]=id;delete S.gar[i];
+if(S.col)delete S.col[i];
+if(S.stab)delete S.stab[i];
+S.war[id]=1;if(offline&&lost)lost[id]=1;
+if(i===0){if(!S.end||typeof S.end!=="object")S.end={};S.end.lost=1;msg(f.n+" overran your Home World (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+")!");showEnd("lose");sfx("lose")}
+else{msg(f.n+" raided "+SYS[i].n+" (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+") and took it!");sfx("alert")}
+}else{S.rep++;gain("fleet",1);msg("Your fleet repelled "+f.n+" at "+SYS[i].n+" (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+").");sfx("ok")}
+}
 function rivalCycle(id,offline,lost){
   // One 5-minute cycle for one faction. offline=true when called from
   // offlineSim(); lost is the per-return loss counter (at most ONE of
@@ -975,23 +1077,16 @@ function rivalCycle(id,offline,lost){
   if(t.who==="you"&&offline&&lost&&lost[id]){checkEnd();return}
   const rp=rstr(id)*(.85+Math.random()*.3);
   if(t.who==="you"){
-    const def=sysDef(t.i),gar=Math.round(garPow(t.i)*garMult()),col=Math.round(colDef(t.i)),home=Math.round(.5*dpower());
-    // v2.6: the split names the colony term when a colony stands
-    // ("garrison 528 + colony 75 + home fleet 3"); with no colony it
-    // reads exactly as v2.4 did ("garrison 0 + home fleet 3").
-    // v2.7: at Home the split is just the full home fleet.
-    const split=t.i===0?"home fleet "+Math.round(dpower())+" (fleet "+Math.round(fpt())+" ×1.2 home defence)":"garrison "+gar+(col>0?" + colony "+col:"")+" + home fleet "+home; // v3.3: same ×1.2 note as the Home World card
-    if(rp>def){
-      S.won.splice(S.won.indexOf(t.i),1);S.own[t.i]=id;delete S.gar[t.i];
-      // v2.6: a lost system loses its colony too — re-conquering
-      // later founds a fresh level-1 colony with no focus chosen.
-      if(S.col)delete S.col[t.i];
-      if(S.stab)delete S.stab[t.i];
-      S.war[id]=1;if(offline&&lost)lost[id]=1;
-      // v2.7: losing Home World is DEFEAT — overlay with restart.
-      if(t.i===0){if(!S.end||typeof S.end!=="object")S.end={};S.end.lost=1;msg(f.n+" overran your Home World (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+")!");showEnd("lose");sfx("lose")}
-      else{msg(f.n+" raided "+SYS[t.i].n+" (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+") and took it!");sfx("alert")}
-    }else{S.rep++;gain("fleet",1);msg("Your fleet repelled "+f.n+" at "+SYS[t.i].n+" (raid "+Math.round(rp)+" vs your defence "+Math.round(def)+" — "+split+").");sfx("ok")}
+    if(!offline){
+      // v3.4: live raid — warn first, resolve when the window closes.
+      // One warning at a time; a second raid rolled while one is
+      // pending is skipped (the faction's attempt is spent).
+      if(S.raidWarn){checkEnd();return}
+      S.raidWarn={sys:t.i,rival:id,rp:rp,exp:Date.now()+RAID_WARN_MS};
+      msg("⚠ "+f.n+" is raiding "+SYS[t.i].n+"! Raid power "+Math.round(rp)+" vs your defence "+Math.round(sysDef(t.i))+" — reinforce the garrison or pay tribute within "+(RAID_WARN_MS/1000)+"s.");
+      sfx("alert");checkEnd();return;
+    }
+    resolveRaid(id,t.i,rp,true,lost);
   }else{
     // Rival-vs-rival: rival systems have no garrisons in v2.4 (that is
     // a v2.6 colony concern) — the defender fights at rstr x 0.6.
@@ -1101,7 +1196,7 @@ function showTab(){const t=S.tab||"map",pg=PAGE.kind;document.querySelectorAll("
 // the 250ms tick must never rebuild a button under a finger.
 function popKey(){
 if(!POP)return "";
-if(POP.kind==="system"){const i=S.sel,own=S.won.includes(i),g=garAt(i),col=colAt(i);return "sys|"+i+"|"+(own?1:0)+"|"+(avail(i)?1:0)+"|"+S.ships.fighter+"|"+S.ships.cruiser+"|"+S.ships.capital+"|"+g.fighter+"|"+g.cruiser+"|"+g.capital+"|"+Math.round(sysDef(i))+"|"+spw(i)+"|"+fpower(i).toFixed(1)+"|"+S.won.length+"|col:"+(col?col.l+":"+(col.spec||"-"):"-")+"|"+(col&&col.l<COL_MAX&&S.bq.some(j=>j.col===i)?1:0)+"|"+(col&&col.l<COL_MAX?can(colUpCost(col.l))?1:0:0)+"|"+S.bq.length+"|rel:"+(S.own[i]?dipRel(S.own[i]):"-")+"|tru:"+(S.own[i]?(dipAt(S.own[i]).truceUntil||0):0)+"|stab:"+(S.stab?S.stab[i]||"":"")}
+if(POP.kind==="system"){const i=S.sel,own=S.won.includes(i),g=garAt(i),col=colAt(i);return "sys|"+i+"|"+(own?1:0)+"|"+(avail(i)?1:0)+"|"+S.ships.fighter+"|"+S.ships.cruiser+"|"+S.ships.capital+"|"+g.fighter+"|"+g.cruiser+"|"+g.capital+"|"+Math.round(sysDef(i))+"|"+spw(i)+"|"+fpower(i).toFixed(1)+"|"+S.won.length+"|col:"+(col?col.l+":"+(col.spec||"-"):"-")+"|"+(col&&col.l<COL_MAX&&S.bq.some(j=>j.col===i)?1:0)+"|"+(col&&col.l<COL_MAX?can(colUpCost(col.l))?1:0:0)+"|"+S.bq.length+"|rel:"+(S.own[i]?dipRel(S.own[i]):"-")+"|tru:"+(S.own[i]?(dipAt(S.own[i]).truceUntil||0):0)+"|stab:"+(S.stab?S.stab[i]||"":"")+"|stance:"+(S.stance||"balanced")+"|tr:"+(S.transit?S.transit.sys:"-")}
 if(POP.kind==="building"){const b=S.bl.find(z=>z.u===POP.u);if(!b)return "gone";const e=effL(b),c=cost(b.t,e);return "bld|"+b.u+"|"+b.l+"|"+e+"|"+(e>=lvlCap(b.t)?1:0)+"|"+cstr(c)+"|"+S.bq.length+"|"+(can(c)?1:0)+"|"+(S.mv===b.u?1:0)}
 if(POP.kind==="plot"){return "plot|"+POP.x+"|"+POP.y+"|"+(plotLocked(POP.x,POP.y)?1:0)+"|"+plotReqLv(POP.x,POP.y)+"|"+S.b.command+"|"+unlockedCount()+"|"+S.bq.length+"|"+Object.keys(B).map(t=>cnt(t)+"/"+MAXC(t)+"/"+(can(newCost(t))?1:0)).join(",")}
 return "?"}
@@ -1132,7 +1227,8 @@ body.innerHTML="<small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.
 +stat("Needs",Number.isFinite(need)?need+" power":"—")
 +stat("Your fleet vs "+s.t,Number.isFinite(fp)?fp.toFixed(1):"0.0")
 +(loot?stat("Loot",loot):"")
-+stat("Counter","Bring "+WEAK[s.t]+"s (+50%)");
++stat("Counter","Bring "+WEAK[s.t]+"s (+50%)")
++(av&&!own?stat("Odds",oddsLabel(fp*(STANCE[S.stance||"balanced"].pw),need))+"<small><b>Stance</b> — "+STANCE[S.stance||"balanced"].d+"</small><div>"+Object.keys(STANCE).map(k=>'<button data-stance="'+k+'" class="mini'+((S.stance||"balanced")===k?" on":"")+'">'+STANCE[k].n+'</button>').join(" ")+"</div><small>Travel time: "+left(travelMs(i))+" from Home World.</small>":"");
 // v2.7: attacking a faction you have a deal with breaks the deal —
 // warn in the popup before the player taps Attack.
 const relW=S.own[i]?dipRel(S.own[i]):"peace";
@@ -1158,7 +1254,7 @@ if(c.l>=COL_MAX){body.innerHTML+="<small>Max level.</small>";}
 else{const cc=colUpCost(c.l),upg=S.bq.some(j=>j.col===i);
 body.innerHTML+=upg?"<small>Upgrading to Lv "+(c.l+1)+" — watch the activity tray above the dock.</small>":"<small>Upgrade to Lv "+(c.l+1)+": "+cstr(cc)+". Time: "+left(colDur(c.l)*1000)+". A higher level earns more and adds +"+COL_DEF+" defence power per level.</small>";
 body.innerHTML+='<div class="row"><div><b>Upgrade colony</b><br><small>Cost: '+cstr(cc)+' · '+left(colDur(c.l)*1000)+'</small></div><button data-cup="1" '+((upg||S.bq.length>=bqcap()||!can(cc))?"disabled":"")+'>Upgrade</button></div>';}}}}
-acts.innerHTML='<button data-atk="1" class="grow" '+(own||!av||total()<1?"disabled":"")+'>'+(own?"Owned":"Attack")+'</button><button data-pclose="1" class="grow">Close</button>';}
+acts.innerHTML='<button data-atk="1" class="grow" '+(own||!av||total()<1||S.transit?"disabled":"")+'>'+(own?"Owned":S.transit?"En route":"Attack")+'</button><button data-pclose="1" class="grow">Close</button>';}
 }else if(POP.kind==="building"){
 const b=S.bl.find(z=>z.u===POP.u);
 if(!b){closePopup();return}
@@ -1232,6 +1328,9 @@ function actJobs(){
     const list=byShip[k].slice().sort((a,b)=>a.end-b.end);
     jobs.push({id:"s"+k,icon:"▲",name:U[k].n+(list.length>1?" ×"+list.length:""),act:"ship",s:list[0].end-DUR[k]*1000*tmul()*crewShipMul(),end:list[list.length-1].end});
   });
+  // v3.4: a fleet in transit shows in the tray like any other timed
+  // job — tap it to jump to the target system.
+  if(S.transit)jobs.push({id:"tr"+S.transit.sys,icon:"🚀",name:"Fleet en route — "+SYS[S.transit.sys].n,act:"sys:"+S.transit.sys,s:S.transit.s,end:S.transit.end});
   return jobs;
 }
 let actKeyCache="";
@@ -1305,7 +1404,8 @@ function crewUI(){const el=$("#crew-panel");if(!el)return;const c=crewAt(),cap=c
 const key=[cap,tot,c.mine,c.ship,c.res,S.b.command,Object.values(S.col||{}).map(x=>x.l).join(",")].join("|");
 if(key===crewKeyCache)return;crewKeyCache=key;
 const desc={mine:"Boosts building and colony production.",ship:"Ships finish faster.",res:"Research finishes faster."};
-const row=(k,label,bonus)=>{const n=c[k]||0;return '<div class="row"><div><b>'+label+': '+n+' crew → +'+(n*2)+'% '+bonus+' (+'+Math.round(CREW_PCT*100)+'% per crew)</b><br><small>'+desc[k]+'</small></div><div class="bg"><button data-crew="'+k+':-1" '+(n<=0?"disabled":"")+'>−</button><button data-crew="'+k+':+1" '+(tot>=cap?"disabled":"")+'>+</button></div></div>'};
+const crewIcon={mine:"⛏",ship:"🚀",res:"⚙"}; // v3.4: crew rows get an icon so each job reads at a glance
+const row=(k,label,bonus)=>{const n=c[k]||0;return '<div class="row"><div><span class="crewic">'+crewIcon[k]+'</span><b>'+label+': '+n+' crew → +'+(n*2)+'% '+bonus+' (+'+Math.round(CREW_PCT*100)+'% per crew)</b><br><small>'+desc[k]+'</small></div><div class="bg"><button data-crew="'+k+':-1" '+(n<=0?"disabled":"")+'>−</button><button data-crew="'+k+':+1" '+(tot>=cap?"disabled":"")+'>+</button></div></div>'};
 el.innerHTML='<small>Assign your crew to mining, shipbuilding or research. Crew grows with your Command Station and colonies.</small><br><small><b>Crew: '+tot+' assigned / '+cap+' total ('+(cap-tot)+' idle)</b></small>'+row("mine","Mining","production")+row("ship","Shipbuilding","shipyard speed")+row("res","Research","research speed");}
 // v3.2.4: one-time repair for runs defeated under the old rule. Before
 // this version Home World could be raided while the page sat open
