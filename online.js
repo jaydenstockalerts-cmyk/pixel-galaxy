@@ -93,7 +93,7 @@ let onCam = { cx: 0, cy: 0, zoom: 1 };
 const FAC_COL = { c: "#e0584a", v: "#b07cf0", k: "#ffb02e", a: "#4fc3f7", m: "#ff7ad9" };
 const FAC_NAME = { c: "Crimson Pact", v: "Vael Collective", k: "Keth Dominion", a: "Aurelian Combine", m: "Vortex Marauders" };
 
-function $(s) { return document.querySelector(s); }
+function onq(s) { return document.querySelector(s); }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
 
 function onOwnedIds() {
@@ -107,7 +107,7 @@ function onIsAdjacent(sys) {
 }
 
 function onToast(msg) {
-  const el = $("#o-toast");
+  const el = onq("#o-toast");
   if (!el) return;
   el.textContent = msg;
   el.hidden = false;
@@ -169,7 +169,7 @@ async function onRefresh() {
 }
 
 // ---------- galaxy canvas ----------
-function onCv() { return $("#ocv"); }
+function onCv() { return onq("#ocv"); }
 
 function onSizeCanvas() {
   const cv = onCv();
@@ -232,26 +232,37 @@ function onDrawGalaxy() {
     else if (s.ring >= 14) { col = "#4ade80"; r = 2.4; }
     q.fillStyle = col;
     q.beginPath();
-    q.arc(p.x, p.y, Math.max(1.5, r * Math.min(1.6, onCam.zoom)), 0, Math.PI * 2);
+    q.arc(p.x, p.y, Math.max(1.5, r * Math.min(3, onCam.zoom)), 0, Math.PI * 2);
     q.fill();
     if (s.id === onSelected) {
       q.strokeStyle = "#ffffff";
       q.lineWidth = 2;
       q.beginPath();
-      q.arc(p.x, p.y, Math.max(1.5, r * Math.min(1.6, onCam.zoom)) + 5, 0, Math.PI * 2);
+      q.arc(p.x, p.y, Math.max(1.5, r * Math.min(3, onCam.zoom)) + 5, 0, Math.PI * 2);
+      q.stroke();
+    }
+    // v3.9.3: gold ring around systems you can claim right now (neutral +
+    // adjacent to your empire) so the next move is obvious at a glance.
+    if (onSpawned && !mine && !isNexus && !s.ownerType && onIsAdjacent(s)) {
+      q.strokeStyle = "#ffd84a";
+      q.lineWidth = 2;
+      q.beginPath();
+      q.arc(p.x, p.y, Math.max(1.5, r * Math.min(3, onCam.zoom)) + 7, 0, Math.PI * 2);
       q.stroke();
     }
   });
   // Labels: Dark Nexus + your systems + selected system.
-  const fs = Math.max(11, Math.round(11 * Math.min(1.6, onCam.zoom)));
+  const fs = Math.max(11, Math.round(11 * Math.min(3, onCam.zoom)));
   q.font = "bold " + fs + "px sans-serif";
   q.textAlign = "center";
   onSystems.forEach(s => {
     const mine = owned.has(s.id);
-    if (s.id !== 0 && !mine && s.id !== onSelected) return;
+    // v3.9.3: zoomed in (zoom >= 3), also label systems you can claim now.
+    const claimable = onSpawned && !mine && s.id !== 0 && !s.ownerType && onIsAdjacent(s);
+    if (s.id !== 0 && !mine && s.id !== onSelected && !(onCam.zoom >= 3 && claimable)) return;
     const p = onWorldToScreen(s.x, s.y);
     if (p.x < -40 || p.x > w + 40 || p.y < -40 || p.y > h + 40) return;
-    q.fillStyle = s.id === 0 ? "#ffd84a" : "#6ee7f5";
+    q.fillStyle = (s.id === 0 || claimable) ? "#ffd84a" : "#6ee7f5";
     q.fillText(s.name, p.x, p.y - 10);
   });
 }
@@ -290,7 +301,7 @@ function onDrawGalaxy() {
       const a = [...pts.values()];
       const d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
       if (pinchD > 0) {
-        onCam.zoom = Math.max(0.5, Math.min(6, pinchZoom * d / pinchD));
+        onCam.zoom = Math.max(0.5, Math.min(20, pinchZoom * d / pinchD));
         onDrawGalaxy();
       }
     }
@@ -332,7 +343,7 @@ function onTapGalaxy(e) {
 
 // ---------- top bar + empire panel ----------
 function onRenderTop() {
-  const el = $("#o-res");
+  const el = onq("#o-res");
   if (!el) return;
   if (!onSpawned || !onEmpire) { el.textContent = ""; return; }
   const c = Math.floor(onEmpire.credits || 0);
@@ -340,7 +351,7 @@ function onRenderTop() {
 }
 
 function onRenderPanel() {
-  const el = $("#o-panel");
+  const el = onq("#o-panel");
   if (!el) return;
   if (!onSpawned) {
     el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Claim systems, grow your empire, fight the five factions.</p><button class="obtn" data-oact="spawn">Found your Home World</button></div>';
@@ -356,7 +367,7 @@ function onRenderPanel() {
     + (e.upkeepPerSec ? ' · Upkeep <b>−' + e.upkeepPerSec.toFixed(2) + '/s</b>' : '')
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
-    + '<br><small>Tap a system on the map to claim or attack it. Green dots are the outer rim — your spawn ground.</small></div>';
+    + '<br><small><b>Next step:</b> tap a system with a <b>gold ring</b> — those are next to your empire and ready to claim. Green dots are the outer rim, your spawn ground.</small></div>';
 }
 
 function onSystemCard(s) {
@@ -423,6 +434,14 @@ async function onDoSpawn() {
     const h = r.data.homeSystem || {};
     onToast("Home World founded: " + (h.name || "your system") + ".");
     await onRefresh();
+    // v3.9.3: drop the player onto their Home World zoomed in (zoom 4) so
+    // the giant galaxy is not the first thing they see — the gold-ringed
+    // neighbours are the next move.
+    if (h.x != null && h.y != null) {
+      onCam.cx = h.x; onCam.cy = h.y; onCam.zoom = 4;
+      onSelected = h.id != null ? h.id : null;
+      onRenderPanel(); onDrawGalaxy();
+    }
   } else {
     onToast("Spawn failed: " + (r.data.error || r.status) + ".");
   }
@@ -456,15 +475,15 @@ async function onInitOnline() {
   let betaOk = false;
   try { betaOk = localStorage.getItem(ON_BETA_KEY) === "1"; } catch (e) {}
   if (!betaOk) {
-    const el = $("#o-panel");
+    const el = onq("#o-panel");
     if (el) el.innerHTML = '<div class="ocard"><h2>Online beta</h2><p>This mode is in closed beta. Enter the access password to continue.</p><input id="o-beta-pw" type="password" placeholder="Beta password" autocomplete="off"><br><button class="obtn" data-oact="beta">Enter</button> <small id="o-beta-err" hidden>Wrong password — try again.</small><br><br><button class="obtn ghost" data-oact="single">‹ Back to Single Player</button></div>';
     const go = async () => {
-      const inp = $("#o-beta-pw");
+      const inp = onq("#o-beta-pw");
       const pw = inp ? inp.value : "";
       if (!pw) return;
       const ok = await onBeta(pw);
       if (ok === null) {
-        const err = $("#o-beta-err");
+        const err = onq("#o-beta-err");
         if (err) { err.textContent = "Could not reach the server — check your connection and try again."; err.hidden = false; }
         return;
       }
@@ -472,7 +491,7 @@ async function onInitOnline() {
         try { localStorage.setItem(ON_BETA_KEY, "1"); } catch (e) {}
         onStartGame();
       } else {
-        const err = $("#o-beta-err");
+        const err = onq("#o-beta-err");
         if (err) { err.textContent = "Wrong password — try again."; err.hidden = false; }
         if (inp) { inp.value = ""; inp.focus(); }
       }
@@ -481,7 +500,7 @@ async function onInitOnline() {
       const b = e.target.closest ? e.target.closest("[data-oact='beta']") : null;
       if (b) go();
     });
-    const inp = $("#o-beta-pw");
+    const inp = onq("#o-beta-pw");
     if (inp) inp.addEventListener("keydown", (e) => { if (e.key === "Enter") go(); });
     return;
   }
