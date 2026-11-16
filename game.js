@@ -304,6 +304,12 @@ function syncMenuSound(){const el=$("#m-sound"); if(el) el.textContent=S.mute?"o
 // else/absent = shown, the default). nsOff() is the single reader.
 function nsOff(){try{return localStorage.getItem("pixelgalaxy-nextstep")==="0"}catch(e){return false}}
 function syncMenuNextStep(){const el=$("#m-nextstep"); if(el) el.textContent=nsOff()?"off":"on";}
+// v3.5.2: the pan/pinch hint chips ("Drag to pan · pinch to zoom …") teach
+// the map gesture once. They dismiss the first time the player actually pans
+// or pinches on either map, and stay gone (persisted in localStorage under
+// pixelgalaxy-gesture-hint). gestureHintDone() is the single reader.
+function gestureHintDone(){try{return localStorage.getItem("pixelgalaxy-gesture-hint")==="1"}catch(e){return false}}
+function markGestureLearned(){if(gestureHintDone())return;try{localStorage.setItem("pixelgalaxy-gesture-hint","1")}catch(e){}const hg=$("#hint-g"),hs=$("#hint-s");if(hg)hg.hidden=true;if(hs)hs.hidden=true}
 
 // v1.2 ISOMETRIC station camera — VIEW-ONLY like the galaxy camera,
 // never saved. The logical plots are still 12x12 (S.bl {u,t,x,y,l});
@@ -685,6 +691,7 @@ const fe=$("#fleet-empty"); if(fe) fe.hidden=!(total()===0&&S.sq.length===0);
 syncMenuSound();syncMenuNextStep(); // v3.4.2: keep the Next step toggle label in sync too
 $("#cap").textContent="Storage holds "+fmt(cap())+" of each. Upgrade the Command Station to store more.";
 const ns=nextStep();const nsEl=$("#nextstep");if(nsEl){nsEl.hidden=nsOff();if(!nsOff())nsEl.textContent="Next step: "+ns}const nsG=$("#nextstep-g");if(nsG){nsG.hidden=nsOff();if(!nsOff())nsG.textContent="Next step: "+ns} // v3.4: one line naming the current bottleneck — a new player always knows what to do next. v3.4.2: hidden entirely when the player opts out (menu toggle).
+if(pDrag||stDrag)markGestureLearned();const hg=$("#hint-g"),hs=$("#hint-s");const gh=gestureHintDone();if(hg)hg.hidden=gh;if(hs)hs.hidden=gh; // v3.5.2: the pan/pinch hint chips dismiss once the player has panned or pinched on either map.
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
 const sqEl=$("#sq");if(sqEl)sqEl.textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
