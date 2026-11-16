@@ -811,7 +811,7 @@ else if(d.place){const t=d.place;if(POP&&POP.kind==="plot"){placeB(t,POP.x,POP.y
 else if(d.pclose){closePopup()}
 else if(d.menu){openMenu()}
 else if(d.mclose){closeMenu()}
-else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="nextstep"){try{localStorage.setItem("pixelgalaxy-nextstep",nsOff()?"1":"0")}catch(e){}update()} /* v3.4.2: toggle the Next step hints on/off (persisted) */else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}else if(m==="export"){const t=$("#savetxt");if(t){try{t.value=localStorage.getItem(KEY)||""}catch(e){t.value=""}}$("#savebox").hidden=false}else if(m==="import"){const t=$("#imptxt");if(t)t.value="";$("#impbox").hidden=false}}
+else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="nextstep"){try{localStorage.setItem("pixelgalaxy-nextstep",nsOff()?"1":"0")}catch(e){}update()} /* v3.4.2: toggle the Next step hints on/off (persisted) */else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}else if(m==="export"){const t=$("#savetxt");if(t){try{t.value=localStorage.getItem(KEY)||""}catch(e){t.value=""}}$("#savebox").hidden=false}else if(m==="import"){const t=$("#imptxt");if(t)t.value="";$("#impbox").hidden=false}else if(m==="switchmode"){try{localStorage.removeItem("pixelgalaxy-mode")}catch(e){}location.reload()}}
 else if(d.scopy){const t=$("#savetxt");if(t){if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t.value).then(()=>msg("Save copied.")).catch(()=>{t.select();msg("Copy didn't work — select the text and copy it yourself.")});else{t.select();msg("Select the text and copy it yourself.")}}} // v3.4: export copies the save JSON to the clipboard (falls back to selecting the text)
 else if(d.sclose){$("#savebox").hidden=true}
 else if(d.impgo){const t=$("#imptxt");let ok=false;if(t&&t.value){try{const j=JSON.parse(t.value);if(j&&j.res&&j.b&&j.ships&&j.res.energy!==undefined){localStorage.setItem(KEY,JSON.stringify(j));ok=true}}catch(e){}}if(ok){$("#impbox").hidden=true;location.reload()}else msg("That doesn't look like a save — paste the text you exported and try again.")} // v3.4: import validates the JSON (needs res/b/ships) before replacing the save
@@ -1459,6 +1459,12 @@ el.innerHTML='<small>Assign your crew to mining, shipbuilding or research. Crew 
 // made after the fix carry S.hwguard=1, so a genuine defeat while
 // actively playing stays terminal.
 function reviveHomeWorld(){if(S.end&&S.end.lost&&!S.hwguard){S.end.lost=0;if(!S.won.includes(0))S.won.push(0);if(S.own)delete S.own[0];msg("Your Home World was restored — a rival overran it while you were away, which shouldn't have been possible. That hole is now fixed: your Home World can only be attacked while you're actively playing.");return true}return false}
+// v3.9.0: online mode gate — when the saved mode is "online" (or the
+// mode-select screen is showing and no mode is picked yet), the
+// single-player loop must NOT start. online.js (loaded before this
+// file) sets window.PG_MODE. If it never ran (PG_MODE undefined), the
+// game boots single-player as before.
+if(window.PG_MODE!=="online"&&window.PG_MODE!=="select"){
 reviveHomeWorld();S.hwguard=1;
 // v3.2.7: a genuinely defeated save (lost=1, hwguard already set so the
 // revive above refused) must show the game-over screen again on load.
@@ -1478,3 +1484,4 @@ setInterval(save,5000);
 fitCam(); // v1.5: default galaxy view fits the whole galaxy in the safe area (bottom row visible)
 update();
 maybeTut();
+} // v3.9.0: end of the single-player-only init gate
