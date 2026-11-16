@@ -42,25 +42,37 @@ let onPlayer = null;
 try { onPlayer = localStorage.getItem(ON_PLAYER_KEY); } catch (e) {}
 
 async function onApi(path, method, body) {
-  const res = await fetch(ON_API + "/g/" + ON_GALAXY + path, {
-    method: method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...(onToken ? { "Authorization": "Bearer " + onToken } : {})
-    },
-    body: body ? JSON.stringify(body) : undefined
-  });
+  let res;
+  try {
+    res = await fetch(ON_API + "/g/" + ON_GALAXY + path, {
+      method: method || "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(onToken ? { "Authorization": "Bearer " + onToken } : {})
+      },
+      body: body ? JSON.stringify(body) : undefined
+    });
+  } catch (e) {
+    // Network failure (offline, DNS, CORS) — never throw; the caller
+    // shows an error instead of hanging silently (v3.9.0 live-check).
+    return { status: 0, data: { error: "network" } };
+  }
   let data = {};
   try { data = await res.json(); } catch (e) {}
   return { status: res.status, data };
 }
 
 async function onBeta(password) {
-  const res = await fetch(ON_API + "/auth/beta", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password })
-  });
+  let res;
+  try {
+    res = await fetch(ON_API + "/auth/beta", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+  } catch (e) {
+    return null; // network failure — caller shows a connection error
+  }
   let data = {};
   try { data = await res.json(); } catch (e) {}
   return !!data.ok;
@@ -451,12 +463,17 @@ async function onInitOnline() {
       const pw = inp ? inp.value : "";
       if (!pw) return;
       const ok = await onBeta(pw);
+      if (ok === null) {
+        const err = $("#o-beta-err");
+        if (err) { err.textContent = "Could not reach the server — check your connection and try again."; err.hidden = false; }
+        return;
+      }
       if (ok) {
         try { localStorage.setItem(ON_BETA_KEY, "1"); } catch (e) {}
         onStartGame();
       } else {
         const err = $("#o-beta-err");
-        if (err) err.hidden = false;
+        if (err) { err.textContent = "Wrong password — try again."; err.hidden = false; }
         if (inp) { inp.value = ""; inp.focus(); }
       }
     };
