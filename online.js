@@ -457,7 +457,7 @@ async function onInitOnline() {
   try { betaOk = localStorage.getItem(ON_BETA_KEY) === "1"; } catch (e) {}
   if (!betaOk) {
     const el = $("#o-panel");
-    if (el) el.innerHTML = '<div class="ocard"><h2>Online beta</h2><p>This mode is in closed beta. Enter the access password to continue.</p><input id="o-beta-pw" type="password" placeholder="Beta password" autocomplete="off"><br><button class="obtn" data-oact="beta">Enter</button> <small id="o-beta-err" hidden>Wrong password — try again.</small></div>';
+    if (el) el.innerHTML = '<div class="ocard"><h2>Online beta</h2><p>This mode is in closed beta. Enter the access password to continue.</p><input id="o-beta-pw" type="password" placeholder="Beta password" autocomplete="off"><br><button class="obtn" data-oact="beta">Enter</button> <small id="o-beta-err" hidden>Wrong password — try again.</small><br><br><button class="obtn ghost" data-oact="single">‹ Back to Single Player</button></div>';
     const go = async () => {
       const inp = $("#o-beta-pw");
       const pw = inp ? inp.value : "";
