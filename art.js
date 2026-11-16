@@ -603,21 +603,32 @@ function drawBase(q,cam,opts){
     const nameW=L.name.length*7+6;
     let shx=Math.max(nameW/2+4,Math.min(vw-nameW/2-4,L.roofX));
     let shy=spriteTop-20; // shield centre: fixed 20 screen px above the sprite
+    const shy0=shy; // v3.5.2: the anchor — the stagger never lifts a label more than 180px above it (see the cap in the loop below)
     const stack=()=>({x0:shx-nameW/2-3,y0:shy-29.5,x1:shx+nameW/2+3,y1:shy+13});
     let jumps=0;
     for(;;){
       const hit=placed.find(r=>{const s=stack();return s.x0<r.x1+2&&s.x1>r.x0-2&&s.y0<r.y1+2&&s.y1>r.y0-2});
       if(!hit||jumps>=12)break;
-      shy=hit.y0-2-13;
+      const ny=hit.y0-2-13;
+      if(ny<shy0-180)break; // v3.5.2: CAP the lift at 180px. Zoomed out, the iso rows pack tight and the stagger used to cascade — each label lifted above the last, up to 12 jumps (~500px), so a label ended up floating over a different building (Jayden's phone screenshot). 180px is just above the lift the 5-building cluster needs at fit zoom (~171px), so the fit stagger still clears, but the runaway cascade at low zoom stops. A lifted label also gets a leader line down to its building (below), so it never reads as belonging to the wrong one.
+      shy=ny;
       jumps++;
     }
     placed.push(stack());
+    // v3.5.2: leader line — if the stagger lifted this label well above its
+    // building, draw a thin line from the shield bottom down to the sprite
+    // top, so the label always reads as belonging to its own building
+    // (same pattern as the galaxy name labels since v3.3). Only when the
+    // lift is significant (>30px); an unlifted label sits 7px above its
+    // sprite and needs no line.
+    const lift=(spriteTop-20)-shy;
+    if(lift>30){q.strokeStyle="rgba(255,255,255,0.35)";q.lineWidth=1;q.beginPath();q.moveTo(shx,shy+13);q.lineTo(L.roofX,spriteTop);q.stroke();}
     q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-13);q.lineTo(shx+13,shy);q.lineTo(shx,shy+13);q.lineTo(shx-13,shy);q.closePath();q.fill();
     q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
     try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
     q.textAlign="center";q.textBaseline="middle";q.fillStyle="#ffffff";q.fillText(String(L.l),shx,shy+1);
     drawLabel(q,L.name,Math.round(shx),Math.round(shy-22),"#ffffff",11,true);
-    if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l,shx,shy});
+    if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l,shx,shy,ct:L.ct}); // v3.5.2: ct (visible sprite top) lets the harness check the lift cap: lift = (ct-20)-shy must stay <= 180
   });
 }
 
