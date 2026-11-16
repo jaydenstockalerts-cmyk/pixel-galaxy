@@ -145,13 +145,14 @@ const SC=R=>{bev(R,4,36,36,6,"s","S","d");R(6,14,2,28,"n");R(36,14,2,28,"n");R(6
 // rocks, craters and mineral crystals only (dark rust/grey blobs).
 const DC={
 rock:R=>{ball(R,13,19,7,"s","S","G");ball(R,21,22,4,"s","S","G")},
-crater:R=>{for(let j=-7;j<=7;j++){const w=Math.round(12*Math.sqrt(1-(j/8)*(j/8)));R(15-w,16+j,2*w,1,j<=-5?"w":j<=-2?"e":j<=2?"s":"d")}R(9,20,12,2,"k");R(12,21,6,1,"k")},
+crater:R=>{for(let j=-8;j<=8;j++){const w=Math.round(13*Math.sqrt(1-(j/9)*(j/9)));R(15-w,16+j,2*w,1,j<=-6?"w":j<=-3?"e":j<=1?"s":j<=5?"d":"k")}R(10,21,10,2,"k");R(12,22,6,1,"k");R(6,12,2,1,"w");R(22,12,2,1,"w")},
 crystal:R=>{R(3,25,24,3,"S");R(5,24,20,2,"G");cr(R,12,1,22,"c","b");R(11,1,2,2,"w");cr(R,21,7,17,"p","P");R(20,7,2,2,"w");cr(R,6,11,14,"c","b");R(5,11,2,2,"w")},
 // v3.6: scattered debris (broken panels + metal bits) and a light post (mast + glowing lamp)
 debris:R=>{R(8,22,10,3,"S");R(10,20,6,2,"G");R(20,24,8,2,"d");R(22,22,4,2,"S");R(12,25,2,2,"c");R(24,20,2,2,"y");R(16,18,3,1,"G")},
 light:R=>{R(14,6,2,18,"G");R(13,5,4,2,"d");R(13,4,4,1,"y");R(14,3,2,1,"w");R(10,24,10,2,"S");R(12,26,6,1,"G")}
 };
 const decor=(i,j)=>{const k=["rock","crater","crystal","debris","light","rock","crater","crystal","debris","light"][(((i*5+j*11)%10)+10)%10];return memo("d"+k,()=>spr(30,30,DC[k]))};
+const decorT=t=>memo("d"+t,()=>spr(30,30,DC[t])); // v3.8.3: sprite by type name, for round-robin placement
 function ground(){return memo("g",()=>{const c=document.createElement("canvas");c.width=576;c.height=576;const q=c.getContext("2d"),H=(a,b)=>((a*73856093)^(b*19349663))>>>0;
 for(let tx=0;tx<36;tx++)for(let ty=0;ty<36;ty++){const h=H(tx,ty),x=tx*16,y=ty*16;q.fillStyle=(tx+ty)&1?"#c98a5a":"#b56a3c";q.fillRect(x,y,16,16);
 for(let k=0;k<4;k++){const hh=H(tx*7+k,ty*3+k*5),px=x+(hh%13)+1,py=y+((hh>>4)%13)+2;q.fillStyle=k&1?"#e8a06a":"#7a3b26";q.fillRect(px,py,1,1);q.fillRect(px+1,py-1,1,1);q.fillRect(px-1,py-1,1,1)}
@@ -527,15 +528,17 @@ function drawBase(q,cam,opts){
   const nearB=(i,j)=>S.bl.some(b=>Math.abs(b.x-i)+Math.abs(b.y-j)<=1);
   // v3.6: decor is a handful of rocks/craters/crystals/debris/light-posts OUTSIDE the city, capped at 8.
   // v3.8.2: cap raised to 12 so crater/crystal clusters actually appear.
+  // v3.8.3: types are assigned round-robin by placement order (not by cell hash) so every type reliably appears, and the placement hash is denser (%9) so the cap is actually reached. The old cell-hash typing only ever placed 1 crater + 1 crystal (and the crater sat at the far west edge).
+  const DECT=["rock","crater","crystal","debris","light"];
   for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
     if(decorN>=12)break;
-    if(i<0||j<0||i>11||j>11){if(i!==-1&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%13===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
+    if(i<0||j<0||i>11||j>11){if(i!==-1&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%9===0){objs.push({d:i+j,kind:"decor",i,j,out:true,dt:DECT[decorN%5]});decorN++}}
   }
   objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
   const labels=[]; // second pass: shields + names drawn on top, screen space
   objs.forEach(o=>{
     if(o.kind==="decor"){
-      const c=isoC(o.i,o.j),dc=decor(o.i,o.j),ds=Math.round(22*k);
+      const c=isoC(o.i,o.j),dc=decorT(o.dt||"rock"),ds=Math.round(22*k);
       q.drawImage(dc,X(c.x)-ds/2,Y(c.y+8)-ds,ds,ds); // bottom anchored to the ground
       return;
     }
