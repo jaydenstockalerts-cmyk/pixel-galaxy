@@ -145,8 +145,8 @@ const SC=R=>{bev(R,4,36,36,6,"s","S","d");R(6,14,2,28,"n");R(36,14,2,28,"n");R(6
 // rocks, craters and mineral crystals only (dark rust/grey blobs).
 const DC={
 rock:R=>{ball(R,13,19,7,"s","S","G");ball(R,21,22,4,"s","S","G")},
-crater:R=>{for(let j=-6;j<=6;j++){const w=Math.round(11*Math.sqrt(1-(j/7)*(j/7)));R(15-w,16+j,2*w,1,j<=-3?"G":j<=2?"d":"k")}R(9,12,4,1,"e");R(20,11,3,1,"e")},
-crystal:R=>{R(6,24,18,4,"S");cr(R,13,6,18,"p","P");cr(R,21,12,14,"c","b");cr(R,8,16,11,"c","b")},
+crater:R=>{for(let j=-7;j<=7;j++){const w=Math.round(12*Math.sqrt(1-(j/8)*(j/8)));R(15-w,16+j,2*w,1,j<=-5?"w":j<=-2?"e":j<=2?"s":"d")}R(9,20,12,2,"k");R(12,21,6,1,"k")},
+crystal:R=>{R(3,25,24,3,"S");R(5,24,20,2,"G");cr(R,12,1,22,"c","b");R(11,1,2,2,"w");cr(R,21,7,17,"p","P");R(20,7,2,2,"w");cr(R,6,11,14,"c","b");R(5,11,2,2,"w")},
 // v3.6: scattered debris (broken panels + metal bits) and a light post (mast + glowing lamp)
 debris:R=>{R(8,22,10,3,"S");R(10,20,6,2,"G");R(20,24,8,2,"d");R(22,22,4,2,"S");R(12,25,2,2,"c");R(24,20,2,2,"y");R(16,18,3,1,"G")},
 light:R=>{R(14,6,2,18,"G");R(13,5,4,2,"d");R(13,4,4,1,"y");R(14,3,2,1,"w");R(10,24,10,2,"S");R(12,26,6,1,"G")}
@@ -526,8 +526,9 @@ function drawBase(q,cam,opts){
   // city edge, never adjacent to a building, never on a road or river.
   const nearB=(i,j)=>S.bl.some(b=>Math.abs(b.x-i)+Math.abs(b.y-j)<=1);
   // v3.6: decor is a handful of rocks/craters/crystals/debris/light-posts OUTSIDE the city, capped at 8.
+  // v3.8.2: cap raised to 12 so crater/crystal clusters actually appear.
   for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
-    if(decorN>=8)break;
+    if(decorN>=12)break;
     if(i<0||j<0||i>11||j>11){if(i!==-1&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%13===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
   }
   objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
