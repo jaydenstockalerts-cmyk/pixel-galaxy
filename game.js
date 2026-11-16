@@ -469,7 +469,7 @@ const keepMoveStranded=(nx,ny)=>S.bl.find(z=>z.t!=="command"&&S.b.command<Math.m
 const unlockedCount=()=>{let n=0;for(let i=0;i<12;i++)for(let j=0;j<12;j++)if(!plotLocked(i,j))n++;return n};
 const newCost=t=>{const c=cost(t,0),f=Math.pow(1.5,cnt(t)),o={};for(const r in c)o[r]=Math.ceil(c[r]*f);return o};
 const cost=(id,l)=>{const o={};for(const r in B[id].c)o[r]=Math.ceil(B[id].c[r]*Math.pow(1.4,l));return o};
-const dur=l=>30*Math.pow(1.6,l)*tmul(); // v3.2 pacing: was 4s x 1.35^level — now 30s x 1.6^level (Lv1→2: 48s, Lv5→6: ~5m, Lv10→11: ~55m)
+const dur=l=>45*Math.pow(1.6,l)*tmul(); // v3.8: was 30s base — builds 50% longer (Jayden: pacing too fast). Now 45s x 1.6^level (Lv1→2: 72s, Lv5→6: ~8m, Lv10→11: ~82m)
 const can=c=>Object.keys(c).every(r=>S.res[r]>=c[r]);
 const pay=c=>{for(const r in c)S.res[r]-=c[r]};
 const fmt=n=>n>=1000?(n/1000).toFixed(1)+"k":String(Math.floor(n));
@@ -508,7 +508,7 @@ const sysDef=i=>i===0?dpower():garPow(i)*garMult()+colDef(i)+.5*dpower();
 // Max colony level is 5.
 const COLSPEC={mine:"metal",forge:"crystal",trade:"credits"};
 const COLSPECNAME={mine:"Mining",forge:"Forge",trade:"Trade"};
-const COL_MAX=5,COL_INC=.14,COL_DEF=15; // v3.5.4: was .2 — nerfed ~30% with the v3.5.2 building nerf so colonies don't out-earn buildings
+const COL_MAX=5,COL_INC=.105,COL_DEF=15; // v3.8: was .14 — nerfed ~25% again (Jayden: production too fast, builds too quick)
 const colAt=i=>(S.col||{})[i]||null;
 const colDef=i=>{const c=colAt(i);return c?COL_DEF*c.l:0};
 const colUpCost=l=>({metal:50*l,crystal:30*l,credits:100*l});
@@ -531,8 +531,8 @@ const crewResMul=()=>1-Math.min(.5,CREW_PCT*(crewAt().res||0));
 // earns +0.14 credits/s. An isolated colony earns nothing: connected
 // territory pays, far-flung islands don't (and they are also the ones
 // that lose stability). Derived from S.won + S.col — no new field.
-const TRADE_INC=.14; // v3.5.4: was .2 — nerfed ~30% with the v3.5.2 building nerf
-const SYS_INC=.2; // v3.5.4: flat credits/s per owned system beyond Home World (was .3 — nerfed with the v3.5.2 building nerf so owning systems doesn't out-earn a Trade Hub)
+const TRADE_INC=.105; // v3.8: was .14 — nerfed ~25% again
+const SYS_INC=.15; // v3.8: was .2 — nerfed ~25% again
 const tradeAt=i=>{const c=colAt(i);if(!c||i===0)return 0;return hopsFromHome()[i]!==undefined?TRADE_INC:0};
 const tradeTotal=()=>S.won.reduce((a,i)=>a+tradeAt(i),0);
 const adj=(i,j)=>SYS[i].l.includes(j)||SYS[j].l.includes(i);
@@ -621,14 +621,14 @@ function toast(t){const c=$("#toasts"),el=document.createElement("div");el.class
 function nextStep(){
 if(Q.some(q=>!S.q.includes(q.id)&&q.ok()))return "A quest is ready to claim — check the Quests tab.";
 if(R.every(k=>S.res[k]>=cap()-0.01))return "Storage is full — upgrade the Command Station to hold more.";
-if(total()>0&&usedQ()>=scap())return "Your Hangar is full — upgrade the Hangar for more ship slots.";
+if(total()>0&&usedQ()>=scap()&&!S.bq.some(j=>{const b=S.bl.find(x=>x.u===j.u);return b&&b.t==="hangar"}))return "Your Hangar is full — upgrade the Hangar for more ship slots.";
 if(!S.b.mine)return "Build a Crystal Mine to start earning crystal.";
 if(!S.b.hangar)return "Build a Hangar to start building ships.";
 if(total()===0&&S.sq.length===0)return "Build a Fighter in the Fleet tab to start your fleet.";
-if(S.b.command<lvlCap("command")&&can(cost("command",S.b.command)))return "Upgrade your Command Station to unlock more plots and storage.";
+if(S.b.command<lvlCap("command")&&can(cost("command",S.b.command))&&!S.bq.some(j=>{const b=S.bl.find(x=>x.u===j.u);return b&&b.t==="command"}))return "Upgrade your Command Station to unlock more plots and storage.";
 if(S.won.length<13)return "Conquer a nearby system to expand your empire.";
 return "Conquer the Dark Nexus to win the galaxy.";
-}
+} // v3.8: the hint no longer repeats an action already in progress (Hangar/Command upgrades already running are skipped)
 const msg=t=>{if(HOLD){HELD=t;return}S.feed.push(fmtClock(Date.now())+" — "+t);if(S.feed.length>30)S.feed.shift();toast(t)}; // v3.3: feed entries carry a clock time so the Event log shows when things happened (the toast still shows the plain message)
 const fmtClock=ts=>{const d=new Date(ts);let h=d.getHours(),m=d.getMinutes(),ap=h>=12?"PM":"AM";h=h%12||12;return h+":"+(m<10?"0":"")+m+" "+ap};
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
@@ -692,8 +692,8 @@ rw.innerHTML='<b>⚠ '+f.n+' is raiding '+SYS[w.sys].n+'!</b> Raid power '+Math.
 }else rw.hidden=true;
 }
 const r=rates(),now=Date.now();
-R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+r[k].toFixed(1)+"/s";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap());const sb=$("#sb-"+k);if(sb)sb.style.width=Math.round(Math.max(0,Math.min(1,S.res[k]/cap()))*100)+"%";});
-const incEl=$("#inc");if(incEl)incEl.innerHTML=R.map(k=>{const ps=incomeParts(k);return ps.length?("<b>"+k[0].toUpperCase()+k.slice(1)+":</b> "+ps.map(p=>p.label+" "+(p.v>=0?"+":"")+p.v.toFixed(1)+"/s").join(" · ")):""}).filter(Boolean).join("<br>")||"No income yet — build a production building."; // v3.3: income breakdown under the expanded resource bar
+R.forEach(k=>{$("#v-"+k).textContent=fmt(S.res[k]);$("#r-"+k).textContent=(r[k]>=0?"+":"")+(r[k]*60).toFixed(0)+"/min";const c=$("#c-"+k);if(c)c.textContent="of "+fmt(cap());const sb=$("#sb-"+k);if(sb)sb.style.width=Math.round(Math.max(0,Math.min(1,S.res[k]/cap()))*100)+"%";});
+const incEl=$("#inc");if(incEl)incEl.innerHTML=R.map(k=>{const ps=incomeParts(k);return ps.length?("<b>"+k[0].toUpperCase()+k.slice(1)+":</b> "+ps.map(p=>p.label+" "+(p.v>=0?"+":"")+(p.v*60).toFixed(0)+"/min").join(" · ")):""}).filter(Boolean).join("<br>")||"No income yet — build a production building."; // v3.3: income breakdown under the expanded resource bar
 const cc=crewCap();if(!LASTCREWCAP)LASTCREWCAP=cc;else if(cc>LASTCREWCAP){msg("Your crew has grown — "+(cc-LASTCREWCAP)+" new crew available to assign.");LASTCREWCAP=cc}else if(cc<LASTCREWCAP)LASTCREWCAP=cc; // v3.3: crew cap used to grow silently on Command upgrades and new colonies
 const full=R.every(k=>S.res[k]>=cap()-0.01);if(full&&!CAPFULL){CAPFULL=true;msg("Storage is full — upgrade the Command Station to hold more.");}else if(!full)CAPFULL=false; // v3.3: a full store now points at the next goal instead of silently capping
 const fe=$("#fleet-empty"); if(fe) fe.hidden=!(total()===0&&S.sq.length===0);
@@ -704,7 +704,7 @@ if(pDrag||stDrag)markGestureLearned();const hg=$("#hint-g"),hs=$("#hint-s");cons
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
 const sqEl=$("#sq");if(sqEl)sqEl.textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
-const garEl=$("#gar");if(garEl){const g=[];for(const i in S.gar||{}){const gg=S.gar[i];if(!gg)continue;const parts=Object.keys(U).filter(k=>gg[k]>0).map(k=>gg[k]+"× "+U[k].n);if(parts.length)g.push(parts.join(", ")+" at "+SYS[i].n)}garEl.textContent=g.length?("Garrisoned: "+g.join("; ")+"."):"";} // v3.3: garrisoned ships are listed here — they used to vanish from the Fleet tab entirely
+const garEl=$("#gar");if(garEl){const g=[];for(const i in S.gar||{}){const gg=S.gar[i];if(!gg)continue;const parts=Object.keys(U).filter(k=>gg[k]>0).map(k=>gg[k]+"× "+U[k].n);if(parts.length)g.push(parts.join(", ")+" at "+SYS[i].n)}garEl.textContent=g.length?(" Garrisoned: "+g.join("; ")+"."):"";} // v3.3: garrisoned ships are listed here — they used to vanish from the Fleet tab entirely
 const bqEl=$("#bq");if(bqEl){const cap=bqcap(),nj=S.bq.length;bqEl.textContent=nj?("Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". "+(cap>1?"Builders busy ("+nj+"/"+cap+").":"Builder busy.")):(cap>1?"Builders idle.":"Builder idle.");} // v3.2.6: the chip names the builder count once Construction Crews (b1) is researched — with one builder the text is unchanged ("Builder idle." / "Builder busy.")
 const mvEl=$("#mvcancel");if(mvEl)mvEl.hidden=!(S.mv||S.place); // v3.2.2: Move/Place mode had no exit — show the Cancel chip while either is active
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
@@ -841,12 +841,12 @@ else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b
 else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
 else if(d.build){const k=d.build,u=U[k],n=+d.n||1;let ok=0;for(let j=0;j<n;j++){if(S.bx.hangar>=u.h&&usedQ()+u.sz<=scap()&&S.sq.length<qcap()&&can(u.c)){pay(u.c);const s0=Math.max(Date.now(),S.sq.length?S.sq[S.sq.length-1].end:0);S.sq.push({k,end:s0+DUR[k]*1000*tmul()*crewShipMul()});ok++}else break}if(ok)msg(ok+"x "+u.n+" construction started.")}
-else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);const lost=[];for(const k in q.r){const add=q.r[k],nw=Math.min(cap(),S.res[k]+add);if(S.res[k]+add>nw)lost.push(fmt(S.res[k]+add-nw)+" "+k);S.res[k]=nw}msg("Quest complete: "+q.t+(lost.length?" (Storage full — "+lost.join(", ")+" lost.)":""));sfx("claim")}} // v3.2.7: quest rewards that exceed the storage cap are no longer silently lost — the claim message says what was lost
+else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);for(const k in q.r)S.res[k]+=q.r[k];msg("Quest complete: "+q.t);sfx("claim")}} // v3.8: quest rewards now overflow the storage cap (they used to be eaten when storage was full — the playtest caught rewards being destroyed with only a toast)
 else if(d.tech){const t=TECH.find(z=>z.id===d.tech);if(t&&!S.rq&&!S.tech.includes(t.id)&&(!t.req||S.tech.includes(t.req))&&can(t.c)){pay(t.c);S.rq={id:t.id,end:Date.now()+t.t*1000*tmul()*crewResMul()};msg("Research started: "+t.n)}}
-else if(d.cmd){const id=d.cmd,c=CM[id];if(!S.cmds.includes(id)){if(S.res.credits>=c.c){S.res.credits-=c.c;S.cmds.push(id);S.slot=id;msg(c.n+" joins your command.")}}else S.slot=S.slot===id?null:id} // v3.5.4: ONE commander — hiring or tapping Assign makes this officer THE commander, replacing any other; tapping the assigned one unassigns
+else if(d.cmd){const id=d.cmd,c=CM[id];if(!S.cmds.includes(id)){if(S.res.credits>=c.c){S.res.credits-=c.c;S.cmds.push(id);const prev=S.slot;S.slot=id;msg(c.n+" joins your command."+(prev&&prev!==id?" "+CM[prev].n+" is unassigned — only one officer can be assigned.":""))}}else{if(S.slot===id){S.slot=null;msg(c.n+" unassigned.")}else{const prev=S.slot;S.slot=id;msg(c.n+" assigned as your officer."+(prev?" "+CM[prev].n+" is unassigned — only one officer can be assigned.":""))}}} // v3.8: hiring/assigning now says which officer was swapped out (the playtest caught silent swaps dropping the fleet bonus right before an attack)
 else if(d.crew){const parts=d.crew.split(":"),k=parts[0],delta=+parts[1];const c=crewAt();if(["mine","ship","res"].includes(k)){if(delta>0&&crewTotal()<crewCap())c[k]=(c[k]||0)+1;else if(delta<0&&(c[k]||0)>0)c[k]--;}}
 else if(d.scrap){const k=d.scrap;if(S.ships[k]>0){S.ships[k]--;for(const r in U[k].c)S.res[r]=Math.min(cap(),S.res[r]+Math.floor(U[k].c[r]/2));msg(U[k].n+" scrapped. Half its cost was refunded.")}}
-else if(d.cspec){const i=S.sel,c=colAt(i);if(i>0&&S.won.includes(i)&&c&&!c.spec&&COLSPEC[d.cspec]){c.spec=d.cspec;msg("Colony on "+SYS[i].n+" focuses on "+COLSPECNAME[d.cspec]+" — it now earns +"+(COL_INC*c.l).toFixed(1)+" "+COLSPEC[d.cspec]+"/s.")}}
+else if(d.cspec){const i=S.sel,c=colAt(i);if(i>0&&S.won.includes(i)&&c&&!c.spec&&COLSPEC[d.cspec]){c.spec=d.cspec;msg("Colony on "+SYS[i].n+" focuses on "+COLSPECNAME[d.cspec]+" — it now earns +"+(COL_INC*c.l*60).toFixed(0)+" "+COLSPEC[d.cspec]+"/min.")}}
 else if(d.cup){const i=S.sel,c=colAt(i);if(i>0&&S.won.includes(i)&&c&&c.l<COL_MAX&&!S.bq.some(j=>j.col===i)&&S.bq.length<bqcap()){const cc=colUpCost(c.l);if(can(cc)){pay(cc);const s0=Math.max(Date.now(),...S.bq.filter(j=>j.col===i).map(j=>j.end));S.bq.push({col:i,s:s0,end:s0+colDur(c.l)*1000});msg("Colony upgrade started on "+SYS[i].n+".")}}}
 else if(d.dip){const parts=d.dip.split(":"),kind=parts[0],id=parts[1];
 if(!RV[id]||!heldCount(id))return; // a defeated faction has nothing to offer
@@ -1225,7 +1225,7 @@ else{const t=sel.t,e=effL(sel),max=e>=lvlCap(t),c=cost(t,e),m=mult(sel),pr=Objec
 $("#bi-name").textContent=B[t].n+" Lv "+sel.l+(e>sel.l?" (+"+(e-sel.l)+" queued)":"");
 let st=B[t].d+". ";
 if(sel.l===0)st="Under construction. ";
-else if(pr)st+="Makes +"+(B[t].p[pr]*sel.l*m*(1+tsum("eco"))*(1+cb("econ"))).toFixed(1)+" "+pr+"/s. ";
+else if(pr)st+="Makes +"+(B[t].p[pr]*sel.l*m*(1+tsum("eco"))*(1+cb("econ"))*60).toFixed(0)+" "+pr+"/min. ";
 else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*sel.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
@@ -1266,7 +1266,7 @@ const stat=(k,v)=>'<div class="stat"><span>'+k+'</span><b>'+v+'</b></div>';
 // line; a jump gate names the system it links to.
 body.innerHTML="<small>"+s.t.toUpperCase()+" fleet. "+(own?"You own this system.":av?"Ready to attack.":secOf(i)===1&&!hasJump()?"Requires Jump Drive research — Sector 2 is beyond normal range.":S.won.length===0?"Out of reach. You own no systems — attack a system next to Home World to regain a foothold.":"Out of reach. You can only attack systems next to one you own.")+(S.own[i]?" Held by "+RV[S.own[i]].n+".":"")+(GATE[i]!==undefined?" Jump gate — links to "+SYS[GATE[i]].n+" (Sector "+(secOf(GATE[i])+1)+").":"")+"</small>"
 +stat("Needs",Number.isFinite(need)?need+" power":"—")
-+stat("Your fleet vs "+s.t,Number.isFinite(fp)?fp.toFixed(1):"0.0")
++stat("Your fleet vs "+s.t+" ("+STANCE[S.stance||"balanced"].n+")",Number.isFinite(fp)?(fp*(STANCE[S.stance||"balanced"].pw)).toFixed(1):"0.0")
 +(loot?stat("Loot",loot):"")
 +stat("Counter","Bring "+WEAK[s.t]+"s (+50%)")
 +(av&&!own?stat("Odds",oddsLabel(fp*(STANCE[S.stance||"balanced"].pw),need))+"<small><b>Stance</b> — "+STANCE[S.stance||"balanced"].d+"</small><div>"+Object.keys(STANCE).map(k=>'<button data-stance="'+k+'" class="mini'+((S.stance||"balanced")===k?" on":"")+'">'+STANCE[k].n+'</button>').join(" ")+"</div><small>Travel time: "+left(travelMs(i))+" from Home World.</small>":"");
@@ -1284,12 +1284,12 @@ body.innerHTML+="<small><b>Garrison</b> — ships stationed here defend this sys
 const c=colAt(i);
 if(c){body.innerHTML+="<small><b>Colony Lv "+c.l+"</b> — settlers here work the system for you. A colony adds +"+COL_DEF+" defence power per level and earns resources once you choose its focus.</small>";
 body.innerHTML+=stat("Stability",(S.stab&&S.stab[i]!==undefined?S.stab[i]:100)+" / 100 — a garrison keeps a far colony loyal; an empty garrison far from Home slowly rebels");
-if(!c.spec){body.innerHTML+="<small>Choose a focus to start earning. Until then the colony earns nothing from its focus"+(tradeAt(i)>0?" — it still earns +"+TRADE_INC.toFixed(1)+" trade credits/s from its route to Home World":"")+" — it only adds defence.</small>"
+if(!c.spec){body.innerHTML+="<small>Choose a focus to start earning. Until then the colony earns nothing from its focus"+(tradeAt(i)>0?" — it still earns +"+(TRADE_INC*60).toFixed(0)+" trade credits/min from its route to Home World":"")+" — it only adds defence.</small>"
 +Object.keys(COLSPEC).map(k=>'<div class="row"><div><b>'+COLSPECNAME[k]+'</b><br><small>Earns +'+COL_INC.toFixed(1)+' '+COLSPEC[k]+'/s per colony level.</small></div><button data-cspec="'+k+'">Choose</button></div>').join("");
-if(tradeAt(i)>0)body.innerHTML+=stat("Trade","+"+TRADE_INC.toFixed(1)+" credits/s — connected to Home World");
+if(tradeAt(i)>0)body.innerHTML+=stat("Trade","+"+(TRADE_INC*60).toFixed(0)+" credits/min — connected to Home World");
 else body.innerHTML+="<small>No trade route — this colony has no owned-system path to Home World, so it earns no trade income.</small>";
 ;}
-else{body.innerHTML+=stat("Income","+"+(COL_INC*c.l*crewMineMult()).toFixed(1)+" "+COLSPEC[c.spec]+"/s at Lv "+c.l+(tradeAt(i)>0?", +"+TRADE_INC.toFixed(1)+" trade credits/s":""));
+else{body.innerHTML+=stat("Income","+"+(COL_INC*c.l*crewMineMult()*60).toFixed(0)+" "+COLSPEC[c.spec]+"/min at Lv "+c.l+(tradeAt(i)>0?", +"+(TRADE_INC*60).toFixed(0)+" trade credits/min":""));
 if(tradeAt(i)===0)body.innerHTML+="<small>No trade route — this colony has no owned-system path to Home World, so it earns no trade income.</small>";
 if(c.l>=COL_MAX){body.innerHTML+="<small>Max level.</small>";}
 else{const cc=colUpCost(c.l),upg=S.bq.some(j=>j.col===i);
@@ -1304,7 +1304,7 @@ title.textContent=B[t].n+" Lv "+b.l;
 if(hq){hq.fillStyle="#c98a5a";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b.l);hq.drawImage(sp,24,24,48,48)}
 let st=B[t].d+". ";
 if(b.l===0)st="Under construction. ";
-else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))*crewMineMult()).toFixed(1)+" "+pr+"/s. ";
+else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))*crewMineMult()*60).toFixed(0)+" "+pr+"/min. ";
 else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};body.innerHTML="<small><b>"+(DISTNAME[t]||"")+"</b> — "+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
@@ -1316,8 +1316,8 @@ if(hq){hq.fillStyle=lk?"#6b7590":"#c98a5a";hq.fillRect(0,0,96,96)}
 if(lk){body.innerHTML="<small>🔒 Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.</small><br><small>"+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". The city grows outward from the keep.</small>";acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
 else{body.innerHTML="<small>"+_dn+". "+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand. Build limits rise with your Command Station: most buildings max at 1 + half your Command level (Hangar: 1 + a third).</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");acts.innerHTML="";} // v3.3: the build-limit rule is now stated — the caps used to sit at 2 with no explanation of when they rise
 }}
-function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of "+SYS.length+" systems. Each owned system pays +"+SYS_INC.toFixed(1)+" credits/s."+(tradeTotal()>0?" Trade routes pay +"+tradeTotal().toFixed(1)+" credits/s.":"");
-$("#emp-list").innerHTML=S.won.map(i=>'<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World · defence "+Math.round(sysDef(0))+" (your full fleet)":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r)+" · Defence "+Math.round(sysDef(i)))+'</small></div><button data-fly="'+i+'">Go to</button></div>').join("")||"<small>No systems yet.</small>";
+function empireUI(){if(PAGE.kind!=="empire")return;$("#emp-sum").textContent=S.won.length+" of "+SYS.length+" systems. Each owned system pays +"+(SYS_INC*60).toFixed(0)+" credits/min."+(tradeTotal()>0?" Trade routes pay +"+(tradeTotal()*60).toFixed(0)+" credits/min.":"");
+$("#emp-list").innerHTML=S.won.map(i=>{const _g=Math.round(garPow(i)*garMult()),_c=Math.round(colDef(i)),_h=Math.round(.5*dpower());return '<div class="emp-row"><div><b>'+SYS[i].n+'</b><br><small>'+(i===0?"Home World · defence "+Math.round(sysDef(0))+" (your full fleet)":"Power "+SYS[i].pw+" · Loot "+cstr(SYS[i].r)+" · Defence "+Math.round(sysDef(i))+" (garrison "+_g+" + colony "+_c+" + fleet "+_h+")")+'</small></div><button data-fly="'+i+'">Go to</button></div>'}).join("")||"<small>No systems yet.</small>"; // v3.8: defence now shows its breakdown (the playtest could not reconcile the numbers)
 // v2.7 STANDINGS BOARD — every faction plus you: systems, estimated
 // fleet power, and your REAL relation (diplomacy state, not the v2.4
 // placeholder): Allied / Pact / Truce with minutes left / At war
@@ -1334,7 +1334,7 @@ const dipRows=Object.keys(RV).map(id=>{
   const dis=k=>(S.res.credits<DIP[k]||!heldCount(id)||(k==="tribute"&&(rel==="truce"||rel==="pact"||rel==="ally"))||(k==="pact"&&(rel==="pact"||rel==="ally"))||(k==="ally"&&rel==="ally"))?"disabled":"";
   return '<div class="emp-row"><div><b>'+RV[id].n+'</b><br><small>'+relText(id)+' — '+DIPLINE[rel]+'</small></div><div class="bg"><button data-dip="tribute:'+id+'" '+dis("tribute")+'>Tribute '+DIP.tribute+'</button><button data-dip="pact:'+id+'" '+dis("pact")+'>Pact '+DIP.pact+'</button><button data-dip="ally:'+id+'" '+dis("ally")+'>Ally '+DIP.ally+'</button></div></div>';
 }).join("");
-$("#e-rvs").innerHTML="<b>Standings</b> — relations are real deals now, not just warnings.<br>"+rows.map(r=>"<b>"+r.n+"</b>: "+r.sys+" system"+(r.sys===1?"":"s")+", power "+Math.round(r.pw)+(r.st==="—"?"":", "+r.st)).join("<br>")+"<br>"+vicLine+"<br>Strongest faction: "+(best.n==="You"?"you":best.n)+" — "+best.sys+" systems, power "+Math.round(best.pw)+". You hold "+S.won.length+" system"+(S.won.length===1?"":"s")+".<br><br><b>Diplomacy</b> — Tribute ("+DIP.tribute+" credits) buys a 30-minute truce: they will not raid you. A pact ("+DIP.pact+") stops raids both ways until someone breaks it. An alliance ("+DIP.ally+") means they never raid you and raid your enemies instead. Attacking a friend's system breaks the deal instantly.<br>"+dipRows+"<br>Rival raids start after about 10 minutes of play. A rival raids one of your systems next to their territory — if your defence power is higher than the raid's power, you repel it (counts toward the 'Repel a rival raid' quest); if not, they take the system and destroy the garrison stationed there — your home fleet is untouched, but the system is lost.<br>Raid power grows the longer you play and the more systems the rival owns. Raise your defence power with more and bigger ships, a garrison stationed on the system, a higher Command Station, power research, and an assigned fleet commander. A colony on a system adds +15 defence power per level and earns resources once you choose its focus — Mining for metal, Forge for crystal, Trade for credits. A colony connected to Home World through systems you own also earns +"+TRADE_INC.toFixed(1)+" trade credits/s — a far-flung colony with no owned-system path home earns no trade income. If a raid takes a system, its colony is gone too; conquering it back founds a fresh level-1 colony.<br>Your defence power now: "+Math.round(dpower())+"."+"<br><br>Sector 2 lies beyond the jump gates — Void Gate and Rift Armada in Sector 1. Rival factions reach it once their jump drives come online, after about 60 minutes of play, and your fleet needs Jump Drive research (Research tab) to attack or claim Sector 2 systems."+"<br><br>Home World is different: a rival can only raid it if they own a system next to it, and it defends with your FULL home fleet — never half. If Home World falls, your empire is defeated."}
+$("#e-rvs").innerHTML="<b>Standings</b> — relations are real deals now, not just warnings.<br>"+rows.map(r=>"<b>"+r.n+"</b>: "+r.sys+" system"+(r.sys===1?"":"s")+", power "+Math.round(r.pw)+(r.st==="—"?"":", "+r.st)).join("<br>")+"<br>"+vicLine+"<br>Strongest faction: "+(best.n==="You"?"you":best.n)+" — "+best.sys+" systems, power "+Math.round(best.pw)+". You hold "+S.won.length+" system"+(S.won.length===1?"":"s")+".<br><br><b>Diplomacy</b> — Tribute ("+DIP.tribute+" credits) buys a 30-minute truce: they will not raid you. A pact ("+DIP.pact+") stops raids both ways until someone breaks it. An alliance ("+DIP.ally+") means they never raid you and raid your enemies instead. Attacking a friend's system breaks the deal instantly.<br>"+dipRows+"<br>Rival raids start after about 10 minutes of play. A rival raids one of your systems next to their territory — if your defence power is higher than the raid's power, you repel it (counts toward the 'Repel a rival raid' quest); if not, they take the system and destroy the garrison stationed there — your home fleet is untouched, but the system is lost.<br>Raid power grows the longer you play and the more systems the rival owns — and the power shown on each system grows the same way, so a target you scouted earlier will be tougher when you come back for it. Raise your defence power with more and bigger ships, a garrison stationed on the system, a higher Command Station, power research, and an assigned fleet commander. A colony on a system adds +15 defence power per level and earns resources once you choose its focus — Mining for metal, Forge for crystal, Trade for credits. A colony connected to Home World through systems you own also earns +"+(TRADE_INC*60).toFixed(0)+" trade credits/min — a far-flung colony with no owned-system path home earns no trade income. If a raid takes a system, its colony is gone too; conquering it back founds a fresh level-1 colony.<br>Your defence power now: "+Math.round(dpower())+"."+"<br><br>Sector 2 lies beyond the jump gates — Void Gate and Rift Armada in Sector 1. Rival factions reach it once their jump drives come online, after about 60 minutes of play, and your fleet needs Jump Drive research (Research tab) to attack or claim Sector 2 systems."+"<br><br>Home World is different: a rival can only raid it if they own a system next to it, and it defends with your FULL home fleet — never half. If Home World falls, your empire is defeated."}
 // v1.5 GLOBAL ACTIVITY TRAY — anything that takes time to create must
 // be visible on every screen, not just on its own menu page. The tray
 // sits above the bottom dock (it counts toward the safe-area inset in
@@ -1422,7 +1422,7 @@ function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 // v3.2.7: show where the power comes from — the totals above were correct but unexplained (base x Command x research x officer). Only nonzero bonuses are listed.
-const _fpwSub=$("#fpw-sub");if(_fpwSub){let _base=0;for(const k in U)_base+=S.ships[k]*U[k].pw;const _parts=["Base "+_base],_cb0=.2*(S.b.command-1),_pw0=tsum("pw"),_fl0=cb("fleet");if(_cb0>0)_parts.push("Command +"+Math.round(_cb0*100)+"%");if(_pw0>0)_parts.push("Research +"+Math.round(_pw0*100)+"%");if(_fl0>0)_parts.push("Officer +"+Math.round(_fl0*100)+"%");_fpwSub.textContent=_parts.join(" · ")}
+const _fpwSub=$("#fpw-sub");if(_fpwSub){let _base=0;for(const k in U)_base+=S.ships[k]*U[k].pw;const _parts=["Base "+_base],_cb0=.2*(S.b.command-1),_pw0=tsum("pw"),_fl0=cb("fleet");if(_cb0>0)_parts.push("Command +"+Math.round(_cb0*100)+"%");if(_pw0>0)_parts.push("Research +"+Math.round(_pw0*100)+"%");if(_fl0>0)_parts.push("Officer +"+Math.round(_fl0*100)+"%");_fpwSub.textContent=_parts.join(" · ")+(_parts.length>2?" (bonuses multiply)":"")}
 const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
 // v2.9: ALL 18 tech rows always render — a locked row is visible but
 // greyed, names its requirement, and its button is disabled; a done row
