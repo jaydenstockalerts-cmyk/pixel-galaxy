@@ -579,7 +579,7 @@ if(k==="credits"){if(S.won.length>1)parts.push({label:"Systems",v:SYS_INC*(S.won
 for(const i of S.won){const c=colAt(i);if(c&&c.spec&&COLSPEC[c.spec]===k)parts.push({label:"Colony "+SYS[i].n+" Lv"+c.l,v:COL_INC*c.l*crewMineMult()})}
 if(k==="energy"){const u=used();if(u>0)parts.push({label:"Ship upkeep",v:-.05*u})}
 return parts.filter(p=>Math.abs(p.v)>=0.05)}
-function step(dt){S.min+=dt/60;const r=rates();R.forEach(k=>{S.res[k]=Math.min(cap(),Math.max(0,S.res[k]+r[k]*dt))})}
+function step(dt){S.min+=dt/60;const r=rates();R.forEach(k=>{const nv=S.res[k]+r[k]*dt;S.res[k]=r[k]>=0&&S.res[k]>=cap()?S.res[k]:Math.min(cap(),Math.max(0,nv))})} // v3.8.1: production pauses at/above cap but never pulls an overflow (e.g. a quest reward) back down — the v3.8 claim fix was being undone by this clamp on the next tick
 function done(){const n=Date.now();
 S.bq=S.bq.filter(j=>{if(j.end>n)return true;
 // v2.6: a colony upgrade job ({col: system id}) raises that colony
