@@ -33,17 +33,31 @@ R(2,38,40,4,"g");R(2,38,40,1,"G");R(2,41,40,1,"d");
 for(let i=0;i<3;i++)pn(5+i*12,19);
 if(t>2){R(21,0,2,5,"G");ball(R,22,2,3,"y","z","Z")}},
 foundry:(R,t)=>{
-if(t>1){bev(R,32,20,11,22,"g","G","d");R(32,26,11,1,"d");R(32,32,11,1,"d")}
-bev(R,2,18,29,24,"h","x","X");
-for(let j=0;j<5;j++){R(3,21+j*4,27,1,"X");for(let i=0;i<4;i++)R(6+i*7+(j&1)*3,22+j*4,1,3,"X")}
-bev(R,0,11,33,8,"g","G","d");R(2,13,29,1,"d");
-R(10,28,13,14,"d");R(11,29,11,13,"o");R(13,31,7,11,"y");R(10,28,13,1,"G");
-win(R,4,22);win(R,25,22);
-bev(R,22,0,7,13,"g","G","d");R(22,3,7,2,"r");R(22,7,7,1,"d");
-if(t>0){bev(R,12,3,6,9,"g","G","d");R(12,5,6,2,"r")}
-// v3.6.1: tall thick smokestacks with glowing mouths (heat) + ember pixels by the furnace
-R(30,0,4,22,"G");R(30,0,4,2,"r");R(31,0,2,1,"y");R(22,0,7,2,"r");R(23,0,5,1,"y");R(12,3,6,1,"r");R(14,42,2,1,"o");R(28,42,2,1,"o")
-if(t>2){R(36,2,2,18,"y");R(26,2,12,2,"y");R(27,4,1,6,"G")}},
+// v3.7 INDUSTRIAL STACKS revamp (Jayden picked #2): a factory complex —
+// cooling tower (left), furnace block (centre), tall smokestacks (right),
+// pipe network across the roof, glowing furnace mouth, vents.
+// --- cooling tower (left): hyperboloid — wide top rim, narrow waist, wide base
+R(2,6,10,2,"g");R(2,6,10,1,"G");
+for(let j=0;j<14;j++){const w=j<4?9-j:j<8?5:5+(j-8);const x0=7-(w>>1);R(x0,8+j,w,1,j<3?"G":j<9?"g":"d")}
+R(2,22,10,2,"S");R(3,22,8,1,"G");
+// --- furnace block (centre): big rust-red block with pipe rows + glowing mouth
+bev(R,14,20,19,22,"h","x","X");
+for(let j=0;j<4;j++){R(15,23+j*4,17,1,"X");for(let i=0;i<3;i++)R(17+i*6+(j&1)*3,24+j*4,1,3,"X")}
+R(20,30,8,12,"d");R(21,31,6,11,"o");R(22,33,4,9,"y");R(20,30,8,1,"G");
+win(R,16,24);win(R,28,24);
+// --- roof slab + pipe network across the roof
+bev(R,12,14,22,6,"g","G","d");R(12,16,22,1,"d");
+R(8,12,28,2,"G");R(8,12,28,1,"d");
+R(18,8,2,6,"G");R(28,8,2,6,"G");
+// --- tall smokestacks (right) with glowing mouths
+bev(R,34,0,6,22,"g","G","d");R(34,0,6,2,"r");R(35,0,4,1,"y");
+bev(R,41,8,3,14,"g","G","d");R(41,8,3,1,"r");
+// --- tier details
+if(t>0){R(36,2,2,2,"y");R(42,9,1,1,"y")}
+if(t>1){bev(R,4,26,8,10,"g","G","d");R(4,28,8,1,"d");R(5,30,6,4,"o")}
+if(t>2){R(14,6,16,2,"y");R(15,8,1,4,"G")}
+// embers by the furnace
+R(16,40,2,1,"o");R(30,40,2,1,"o")},
 mine:(R,t)=>{
 for(let j=0;j<26;j++){const w=Math.round(12+28*Math.sqrt((j+2)/28)),x0=22-(w>>1);R(x0,16+j,w,1,j<7?"s":j<16?"S":"G");if(j%3===0)for(let k=0;k<w;k+=5)R(x0+k+(j%2),16+j,1,1,j<7?"e":"d")}
 R(14,31,16,11,"k");R(13,30,3,12,"n");R(28,30,3,12,"n");R(13,29,18,3,"N");R(16,40,12,1,"G");R(18,41,1,1,"N");R(22,41,1,1,"N");R(26,41,1,1,"N");R(31,31,2,3,"y");
