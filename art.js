@@ -73,8 +73,12 @@ for(let i=0;i<10;i++){R(2+i*4,13,4,7,i&1?"w":"r");R(2+i*4,20,4,1,i&1?"g":"R")}
 bev(R,13,3,18,8,"N","n","N");ball(R,22,7,3,"y","z","Z");R(15,5,3,1,"y");R(26,9,3,1,"y");
 win(R,6,25);win(R,33,25);R(18,27,8,15,"N");R(19,28,6,14,"n");R(23,35,1,1,"y");
 bev(R,0,35,8,7,"e","n","N");
-// v3.6.1: roof antenna mast + a real dish bowl (curved: narrow base, wide rim) on the roof
-R(31,0,2,10,"G");R(31,0,2,1,"w");R(28,2,8,1,"w");R(29,3,6,1,"g");R(30,4,4,1,"G");R(31,5,2,1,"c")
+// v3.8.4: Hub dish bolder — the old 10-tall mast stuck up ABOVE the bowl
+// (white tip at y=0), so the whole thing read as a flat T-bar, especially
+// next to the Mine's drill rig. Now the mast starts at the feed and goes
+// DOWN to the roof (like the Command dish, which reads as a bowl), and the
+// bowl is wider/deeper (10->8->6) for a clearer curve.
+R(31,5,2,6,"G");R(27,2,10,1,"w");R(28,3,8,1,"g");R(29,4,6,1,"G");R(31,5,2,1,"c")
 if(t>0){R(37,0,2,12,"G");ball(R,38,3,3,"w","g","G")}
 if(t>1){R(5,0,1,12,"G");R(6,0,6,4,"r");R(6,2,6,1,"R")}
 if(t>2)R(3,19,38,1,"z")},
