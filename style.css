@@ -332,12 +332,13 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #modesel{position:fixed;inset:0;z-index:30;background:rgba(7,11,31,.88);display:flex;align-items:center;justify-content:center;padding:16px}
 #modesel .bpanel{text-align:center}
 #modesel .bg{display:flex;flex-direction:column;gap:8px;margin:12px 0}
-#online{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;background:var(--bg);color:var(--fg)}
+#online{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+#online *{box-sizing:border-box}
 #o-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:2px solid var(--fg);background:var(--panel)}
 #o-top .brand{font-weight:bold;letter-spacing:1px;font-size:14px}
 #o-res{font-size:12px;text-align:right}
 #ocv{flex:1 1 auto;width:100%;min-height:0;touch-action:none;display:block;background:#0a0e2a}
-#o-panel{border-top:2px solid var(--fg);background:var(--panel);padding:10px 12px;max-height:38vh;overflow-y:auto}
+#o-panel{border-top:2px solid var(--fg);background:var(--panel);padding:10px 12px;max-height:38vh;overflow-y:auto;overflow-x:hidden}
 #o-panel .ocard h2{margin:0 0 4px;font-size:17px;letter-spacing:1px}
 #o-panel .ocard small{font-size:12px;line-height:1.5}
 #o-panel input{width:100%;font:inherit;padding:10px;border:2px solid var(--fg);border-radius:var(--radius-sm);background:var(--bg);color:var(--fg);margin:8px 0}
