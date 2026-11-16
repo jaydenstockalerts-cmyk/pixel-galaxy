@@ -665,6 +665,14 @@ function drawBase(q,cam,opts){
   // smeared line. The shield moves with its name, keeping the
   // fixed 22px gap between them.
   const placed=[]; // stack rects already drawn: {x0,y0,x1,y1}
+  // v3.8.5: below fit zoom (zoom < 0.5) the NAME text is hidden — only the
+  // shield/level diamond shows. Label text is fixed screen size while the
+  // buildings shrink with zoom, so at low zoom the names overlap and the
+  // stagger lifts them up to the 180px cap, floating far above tiny
+  // buildings (v3.5.2 live check). Shields are small (26px) so they need
+  // far less staggering, and the level is the key info at that scale.
+  // Zoom in past fit and the names come back. Fit zoom on a phone is ~0.5.
+  const showName=cam2.zoom>=0.5;
   labels.sort((a,b)=>{const ta=a.ct!==undefined?a.ct:a.roofY-a.ss,tb=b.ct!==undefined?b.ct:b.roofY-b.ss;return ta-tb});
   labels.forEach(L=>{
     const spriteTop=L.ct!==undefined?L.ct:L.roofY-L.ss; // screen y of the VISIBLE sprite top (first drawn pixel row)
@@ -672,7 +680,9 @@ function drawBase(q,cam,opts){
     let shx=Math.max(nameW/2+4,Math.min(vw-nameW/2-4,L.roofX));
     let shy=spriteTop-20; // shield centre: fixed 20 screen px above the sprite
     const shy0=shy; // v3.5.2: the anchor — the stagger never lifts a label more than 180px above it (see the cap in the loop below)
-    const stack=()=>({x0:shx-nameW/2-3,y0:shy-29.5,x1:shx+nameW/2+3,y1:shy+13});
+    // v3.8.5: when the name is hidden the stack is just the shield
+    // (26px tall), so the stagger needs far less lift to clear it.
+    const stack=()=>showName?({x0:shx-nameW/2-3,y0:shy-29.5,x1:shx+nameW/2+3,y1:shy+13}):({x0:shx-16,y0:shy-13,x1:shx+16,y1:shy+13});
     let jumps=0;
     for(;;){
       const hit=placed.find(r=>{const s=stack();return s.x0<r.x1+2&&s.x1>r.x0-2&&s.y0<r.y1+2&&s.y1>r.y0-2});
@@ -695,7 +705,7 @@ function drawBase(q,cam,opts){
     q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
     try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
     q.textAlign="center";q.textBaseline="middle";q.fillStyle="#ffffff";q.fillText(String(L.l),shx,shy+1);
-    drawLabel(q,L.name,Math.round(shx),Math.round(shy-22),"#ffffff",11,true);
+    if(showName)drawLabel(q,L.name,Math.round(shx),Math.round(shy-22),"#ffffff",11,true); // v3.8.5: name hidden below fit zoom
     if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l,shx,shy,ct:L.ct}); // v3.5.2: ct (visible sprite top) lets the harness check the lift cap: lift = (ct-20)-shy must stay <= 180
   });
 }
