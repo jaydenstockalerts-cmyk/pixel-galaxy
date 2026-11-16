@@ -910,7 +910,7 @@ if(Math.abs(e.clientX-downX)>=12||Math.abs(e.clientY-downY)>=12)return;
 popClickGuard=Date.now()+600; // swallow the click that follows
 handleBodyClick(e)});
 
-function rstr(id){const f=RV[id]||{b:150,eco:1};let k=0;for(const i in S.own)if(S.own[i]===id)k++;return f.b*(1+Math.min(5,S.min*.02))*(1+.1*k)*(.8+.2*(f.eco||1))}
+function rstr(id){const f=RV[id]||{b:150,eco:1};let k=0;for(const i in S.own)if(S.own[i]===id)k++;return f.b*(1+Math.min(2,S.min*.01))*(1+.05*k)*(.8+.2*(f.eco||1))}
 function nb(id,i){return Object.keys(S.own).some(j=>S.own[j]===id&&adj(i,+j))}
 function dpower(){let p=0;for(const k in U)p+=S.ships[k]*U[k].pw;return p*(1+.2*(S.b.command-1))*(1+tsum("pw"))*(1+cb("fleet"))*1.2}
 // v2.4 LIVING WORLD — one shared cycle clock for every faction.
@@ -1113,8 +1113,11 @@ function rivalCycle(id,offline,lost){
   // The attempt is spent when the target is yours (no re-pick onto a
   // rival) — but rival-vs-rival raids are NOT capped.
   if(t.who==="you"&&offline&&lost&&lost[id]){checkEnd();return}
-  const rp=rstr(id)*(.85+Math.random()*.3);
+  let rp=rstr(id)*(.85+Math.random()*.3);
   if(t.who==="you"){
+    // v3.5.5: cap a raid on the player at 1.5x the target's defence (floor 50) so it is
+    // always beatable by reinforcing during the warning window, not a guaranteed loss.
+    rp=Math.min(rp,Math.max(50,sysDef(t.i)*1.5));
     if(!offline){
       // v3.4: live raid — warn first, resolve when the window closes.
       // One warning at a time; a second raid rolled while one is
