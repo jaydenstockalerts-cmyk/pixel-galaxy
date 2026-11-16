@@ -694,7 +694,17 @@ function drawBase(q,cam,opts){
       const hit=placed.find(r=>{const s=stack();return s.x0<r.x1+2&&s.x1>r.x0-2&&s.y0<r.y1+2&&s.y1>r.y0-2});
       if(!hit||jumps>=12)break;
       const ny=hit.y0-2-13*zf;
-      if(ny<shy0-180*zf)break; // v3.5.2: CAP the lift at 180px (v3.8.6: scaled by zf below fit zoom). Zoomed out, the iso rows pack tight and the stagger used to cascade — each label lifted above the last, up to 12 jumps (~500px), so a label ended up floating over a different building (Jayden's phone screenshot). 180px is just above the lift the 5-building cluster needs at fit zoom (~171px), so the fit stagger still clears, but the runaway cascade at low zoom stops. A lifted label also gets a leader line down to its building (below), so it never reads as belonging to the wrong one.
+      // v3.8.7: CAP the lift — 180px at fit zoom and above (the 5-building
+      // cluster needs ~171px there), but only 100*zf below fit zoom
+      // (60px at zf 0.6). The v3.8.6 live check showed the stagger staircase
+      // itself still floating the upper shields 95-135px above the tiny
+      // buildings at minimum zoom: 9 shields need ~144px of staircase but
+      // the old 180*zf cap (108px) let them climb that far. A tighter cap
+      // keeps shields close to their buildings; they overlap a little in
+      // the cluster instead, which is fine at that scale (level numbers
+      // stay centred and readable).
+      const capPx=zf>=1?180:100*zf;
+      if(ny<shy0-capPx)break; // v3.5.2: CAP the lift. Zoomed out, the iso rows pack tight and the stagger used to cascade — each label lifted above the last, up to 12 jumps (~500px), so a label ended up floating over a different building (Jayden's phone screenshot). A lifted label also gets a leader line down to its building (below), so it never reads as belonging to the wrong one.
       shy=ny;
       jumps++;
     }
