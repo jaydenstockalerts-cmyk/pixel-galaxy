@@ -673,22 +673,28 @@ function drawBase(q,cam,opts){
   // far less staggering, and the level is the key info at that scale.
   // Zoom in past fit and the names come back. Fit zoom on a phone is ~0.5.
   const showName=cam2.zoom>=0.5;
+  // v3.8.6: zoom factor for the shield — 1 at fit zoom and above (so
+  // fit-zoom behaviour is unchanged), shrinking below fit so the shield
+  // hugs its building instead of floating to the 180px cap. At zoom 0.25
+  // the shield is half size; floored at 0.4 so the level stays readable.
+  const zf=cam2.zoom>=0.5?1:Math.max(0.4,cam2.zoom/0.5);
   labels.sort((a,b)=>{const ta=a.ct!==undefined?a.ct:a.roofY-a.ss,tb=b.ct!==undefined?b.ct:b.roofY-b.ss;return ta-tb});
   labels.forEach(L=>{
     const spriteTop=L.ct!==undefined?L.ct:L.roofY-L.ss; // screen y of the VISIBLE sprite top (first drawn pixel row)
     const nameW=L.name.length*7+6;
     let shx=Math.max(nameW/2+4,Math.min(vw-nameW/2-4,L.roofX));
-    let shy=spriteTop-20; // shield centre: fixed 20 screen px above the sprite
+    let shy=spriteTop-20*zf; // shield centre: 20 screen px above the sprite at full size (v3.8.6: scaled by zf below fit zoom)
     const shy0=shy; // v3.5.2: the anchor — the stagger never lifts a label more than 180px above it (see the cap in the loop below)
     // v3.8.5: when the name is hidden the stack is just the shield
     // (26px tall), so the stagger needs far less lift to clear it.
-    const stack=()=>showName?({x0:shx-nameW/2-3,y0:shy-29.5,x1:shx+nameW/2+3,y1:shy+13}):({x0:shx-16,y0:shy-13,x1:shx+16,y1:shy+13});
+    // v3.8.6: the stack scales by zf below fit zoom.
+    const stack=()=>showName?({x0:shx-nameW/2-3,y0:shy-29.5,x1:shx+nameW/2+3,y1:shy+13*zf}):({x0:shx-16*zf,y0:shy-13*zf,x1:shx+16*zf,y1:shy+13*zf});
     let jumps=0;
     for(;;){
       const hit=placed.find(r=>{const s=stack();return s.x0<r.x1+2&&s.x1>r.x0-2&&s.y0<r.y1+2&&s.y1>r.y0-2});
       if(!hit||jumps>=12)break;
-      const ny=hit.y0-2-13;
-      if(ny<shy0-180)break; // v3.5.2: CAP the lift at 180px. Zoomed out, the iso rows pack tight and the stagger used to cascade — each label lifted above the last, up to 12 jumps (~500px), so a label ended up floating over a different building (Jayden's phone screenshot). 180px is just above the lift the 5-building cluster needs at fit zoom (~171px), so the fit stagger still clears, but the runaway cascade at low zoom stops. A lifted label also gets a leader line down to its building (below), so it never reads as belonging to the wrong one.
+      const ny=hit.y0-2-13*zf;
+      if(ny<shy0-180*zf)break; // v3.5.2: CAP the lift at 180px (v3.8.6: scaled by zf below fit zoom). Zoomed out, the iso rows pack tight and the stagger used to cascade — each label lifted above the last, up to 12 jumps (~500px), so a label ended up floating over a different building (Jayden's phone screenshot). 180px is just above the lift the 5-building cluster needs at fit zoom (~171px), so the fit stagger still clears, but the runaway cascade at low zoom stops. A lifted label also gets a leader line down to its building (below), so it never reads as belonging to the wrong one.
       shy=ny;
       jumps++;
     }
@@ -699,14 +705,14 @@ function drawBase(q,cam,opts){
     // (same pattern as the galaxy name labels since v3.3). Only when the
     // lift is significant (>30px); an unlifted label sits 7px above its
     // sprite and needs no line.
-    const lift=(spriteTop-20)-shy;
-    if(lift>30){q.strokeStyle="rgba(255,255,255,0.35)";q.lineWidth=1;q.beginPath();q.moveTo(shx,shy+13);q.lineTo(L.roofX,spriteTop);q.stroke();}
-    q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-13);q.lineTo(shx+13,shy);q.lineTo(shx,shy+13);q.lineTo(shx-13,shy);q.closePath();q.fill();
+    const lift=(spriteTop-20*zf)-shy;
+    if(lift>30){q.strokeStyle="rgba(255,255,255,0.35)";q.lineWidth=1;q.beginPath();q.moveTo(shx,shy+13*zf);q.lineTo(L.roofX,spriteTop);q.stroke();}
+    q.fillStyle="#7a4fc0";q.beginPath();q.moveTo(shx,shy-13*zf);q.lineTo(shx+13*zf,shy);q.lineTo(shx,shy+13*zf);q.lineTo(shx-13*zf,shy);q.closePath();q.fill();
     q.strokeStyle="#ffffff";q.lineWidth=2;q.stroke();
-    try{q.font="bold 12px 'Courier New',monospace"}catch(e){}
+    try{q.font="bold "+Math.max(7,Math.round(12*zf))+"px 'Courier New',monospace"}catch(e){}
     q.textAlign="center";q.textBaseline="middle";q.fillStyle="#ffffff";q.fillText(String(L.l),shx,shy+1);
     if(showName)drawLabel(q,L.name,Math.round(shx),Math.round(shy-22),"#ffffff",11,true); // v3.8.5: name hidden below fit zoom
-    if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l,shx,shy,ct:L.ct}); // v3.5.2: ct (visible sprite top) lets the harness check the lift cap: lift = (ct-20)-shy must stay <= 180
+    if(window.__isoDraw)window.__isoDraw.push({shield:L.u,l:L.l,shx,shy,ct:L.ct,zf}); // v3.5.2: ct (visible sprite top) lets the harness check the lift cap: lift = (ct-20)-shy must stay <= 180 (v3.8.6: scaled by zf)
   });
 }
 
