@@ -325,3 +325,25 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #tech .treenode button{margin-top:auto;min-height:28px;font-size:12px;padding:4px 8px}
 .techlink{fill:none;stroke:var(--fg);stroke-width:2;opacity:.3}
 .techlink.done{stroke:#ffb02e;opacity:1}
+
+/* v3.9.0 ONLINE MODE + MODE SELECT — the shared galaxy. #modesel is a
+   full-screen overlay (same pattern as the other modals). #online is a
+   full-screen column: top bar, galaxy canvas, bottom panel, bottom bar. */
+#modesel{position:fixed;inset:0;z-index:30;background:rgba(7,11,31,.88);display:flex;align-items:center;justify-content:center;padding:16px}
+#modesel .bpanel{text-align:center}
+#modesel .bg{display:flex;flex-direction:column;gap:8px;margin:12px 0}
+#online{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;background:var(--bg);color:var(--fg)}
+#o-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:2px solid var(--fg);background:var(--panel)}
+#o-top .brand{font-weight:bold;letter-spacing:1px;font-size:14px}
+#o-res{font-size:12px;text-align:right}
+#ocv{flex:1 1 auto;width:100%;min-height:0;touch-action:none;display:block;background:#0a0e2a}
+#o-panel{border-top:2px solid var(--fg);background:var(--panel);padding:10px 12px;max-height:38vh;overflow-y:auto}
+#o-panel .ocard h2{margin:0 0 4px;font-size:17px;letter-spacing:1px}
+#o-panel .ocard small{font-size:12px;line-height:1.5}
+#o-panel input{width:100%;font:inherit;padding:10px;border:2px solid var(--fg);border-radius:var(--radius-sm);background:var(--bg);color:var(--fg);margin:8px 0}
+.obtn{font:inherit;font-weight:bold;background:var(--fg);color:var(--bg);border:0;border-radius:var(--radius-sm);padding:10px 14px;min-height:44px;cursor:pointer}
+.obtn.big{min-height:52px;font-size:16px}
+.obtn.ghost{background:none;color:var(--fg);border:2px solid var(--fg)}
+#o-toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:25;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:var(--radius-sm);font-weight:bold;font-size:13px;max-width:90vw;text-align:center;box-shadow:var(--shadow)}
+#o-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-top:2px solid var(--fg);background:var(--panel)}
+#o-gal{font-size:11px;color:var(--ink-2)}
