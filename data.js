@@ -82,11 +82,11 @@ const Q=[
 const TT={fleet:"fleet power",econ:"production",build:"faster building and research"};
 const CM={
 vex:{n:"Admiral Vex",t:"fleet",b:.05,c:150,d:"Fleet commander. Boosts fleet power."},
-kade:{n:"Commodore Kade",t:"fleet",b:.08,c:700,d:"Elite fleet commander. Big fleet power boost."},
+kade:{n:"Commodore Kade",t:"fleet",b:.08,c:2500,d:"Elite fleet commander. Big fleet power boost."},
 orla:{n:"Director Orla",t:"econ",b:.05,c:150,d:"Station manager. Boosts production."},
-juno:{n:"Quartermaster Juno",t:"econ",b:.08,c:700,d:"Master of supply. Big production boost."},
+juno:{n:"Quartermaster Juno",t:"econ",b:.08,c:2500,d:"Master of supply. Big production boost."},
 tam:{n:"Engineer Tamsin",t:"build",b:.04,c:300,d:"Chief builder. Faster building, shipyard and research."},
-bolt:{n:"Chief Bolt",t:"build",b:.06,c:1200,d:"Legendary engineer. Much faster builds."}
+bolt:{n:"Chief Bolt",t:"build",b:.06,c:5000,d:"Legendary engineer. Much faster builds."}
 };
 const TECH=[
 {id:"w1",n:"Laser Cannons",d:"+15% fleet power",c:{credits:150,crystal:80},t:180,k:"pw",v:.15},
