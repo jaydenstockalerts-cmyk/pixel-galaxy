@@ -41,8 +41,8 @@ R(10,28,13,14,"d");R(11,29,11,13,"o");R(13,31,7,11,"y");R(10,28,13,1,"G");
 win(R,4,22);win(R,25,22);
 bev(R,22,0,7,13,"g","G","d");R(22,3,7,2,"r");R(22,7,7,1,"d");
 if(t>0){bev(R,12,3,6,9,"g","G","d");R(12,5,6,2,"r")}
-// v3.6: taller smokestacks with glowing mouths (heat) + ember pixels by the furnace
-R(31,0,2,20,"G");R(31,0,2,2,"r");R(32,0,1,1,"y");R(22,0,7,1,"r");R(12,3,6,1,"r");R(14,42,2,1,"o");R(28,42,2,1,"o")
+// v3.6.1: tall thick smokestacks with glowing mouths (heat) + ember pixels by the furnace
+R(30,0,4,22,"G");R(30,0,4,2,"r");R(31,0,2,1,"y");R(22,0,7,2,"r");R(23,0,5,1,"y");R(12,3,6,1,"r");R(14,42,2,1,"o");R(28,42,2,1,"o")
 if(t>2){R(36,2,2,18,"y");R(26,2,12,2,"y");R(27,4,1,6,"G")}},
 mine:(R,t)=>{
 for(let j=0;j<26;j++){const w=Math.round(12+28*Math.sqrt((j+2)/28)),x0=22-(w>>1);R(x0,16+j,w,1,j<7?"s":j<16?"S":"G");if(j%3===0)for(let k=0;k<w;k+=5)R(x0+k+(j%2),16+j,1,1,j<7?"e":"d")}
@@ -59,8 +59,8 @@ for(let i=0;i<10;i++){R(2+i*4,13,4,7,i&1?"w":"r");R(2+i*4,20,4,1,i&1?"g":"R")}
 bev(R,13,3,18,8,"N","n","N");ball(R,22,7,3,"y","z","Z");R(15,5,3,1,"y");R(26,9,3,1,"y");
 win(R,6,25);win(R,33,25);R(18,27,8,15,"N");R(19,28,6,14,"n");R(23,35,1,1,"y");
 bev(R,0,35,8,7,"e","n","N");
-// v3.6: roof antenna mast + dish (visible from tier 0)
-R(31,0,1,10,"G");R(28,1,7,1,"G");R(31,0,1,1,"w");R(28,2,1,1,"c");R(34,2,1,1,"c")
+// v3.6.1: roof antenna mast + a real dish bowl (curved: narrow base, wide rim) on the roof
+R(31,0,2,10,"G");R(31,0,2,1,"w");R(28,2,8,1,"w");R(29,3,6,1,"g");R(30,4,4,1,"G");R(31,5,2,1,"c")
 if(t>0){R(37,0,2,12,"G");ball(R,38,3,3,"w","g","G")}
 if(t>1){R(5,0,1,12,"G");R(6,0,6,4,"r");R(6,2,6,1,"R")}
 if(t>2)R(3,19,38,1,"z")},
@@ -100,8 +100,8 @@ const dome=(cx,cy,r)=>{
   for(let dy=-r;dy<=0;dy++){const w=Math.max(1,Math.round(Math.sqrt(Math.max(0,r*r-dy*dy)))),tt=(dy+r)/r;R(cx-w,cy+dy,2*w+1,1,mixC(tt))}
   R(cx-4,cy-r+2,4,1,"#e8f6ff");R(cx-5,cy-r+3,5,1,"#e8f6ff");R(cx-4,cy-r+4,3,1,"#cfeeff");
 };
-// v3.6: radar dish on the left side tower (bowl + mast)
-R(7,12,1,6,"G");R(4,10,7,2,"g");R(5,11,5,1,"w");R(6,10,1,1,"c")
+// v3.6.1: radar dish on the left side tower — a real bowl (curved: narrow base, wide rim) on a mast
+R(7,13,2,6,"G");R(4,10,8,1,"w");R(5,11,6,1,"g");R(6,12,4,1,"G");R(7,13,2,1,"c")
 if(t>0){bev(R,3,18,10,14,"w","g","G");bev(R,31,18,10,14,"w","g","G");[[5,21],[33,21],[5,27],[33,27]].forEach(p=>win(R,p[0],p[1],1))}
 // tower first: the base is drawn over its bottom rows, so the tower
 // emerges from the base's roofline (not in front of its face).
@@ -480,9 +480,9 @@ function drawBase(q,cam,opts){
       });
     });
   }
-  // --- v3.6: landing pad — a flat marked pad on the sand east of the city (outside the 12x12 grid).
+  // --- v3.6.1: landing pad — a flat marked pad on the sand due east of the city (outside the 12x12 grid).
   {
-    const pc=isoC(13,6);
+    const pc=isoC(12,0);
     dia(pc.x,pc.y,30,15,"#4b4b57");
     dia(pc.x,pc.y,26,13,"#3a4257");
     q.strokeStyle="#ffd84a";q.lineWidth=Math.max(1,2*k);
@@ -514,7 +514,7 @@ function drawBase(q,cam,opts){
   // v3.6: decor is a handful of rocks/craters/crystals/debris/light-posts OUTSIDE the city, capped at 8.
   for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
     if(decorN>=8)break;
-    if(i<0||j<0||i>11||j>11){if(i!==-1&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%41===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
+    if(i<0||j<0||i>11||j>11){if(i!==-1&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%13===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
   }
   objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
   const labels=[]; // second pass: shields + names drawn on top, screen space
@@ -569,12 +569,12 @@ function drawBase(q,cam,opts){
     if(b.l>0){
       const sTop=spy-ssh;
       // v3.6 ANIMATED DETAILS — all marks stay ON the sprite body (v1.7: nothing drifts above the sprite top, where the shield/name sit).
-      if(b.t==="solar"){q.fillStyle=F&2?"#9be8ff":"#4aa3df";q.fillRect(spx-Math.max(1,2*k),spy-Math.max(2,5*k),Math.max(2,4*k),Math.max(2,3*k));q.fillStyle=F&1?"#ffe066":"#c9a21e";q.fillRect(spx+Math.max(2,6*k),spy-Math.max(2,5*k),Math.max(1,2*k),Math.max(1,2*k))}
-      if(b.t==="foundry"){q.fillStyle=F&1?"#f4f6ff":"#c9c3b0";q.fillRect(spx-Math.max(2,7*k),sTop+Math.max(2,5*k),Math.max(2,4*k),Math.max(2,3*k));q.fillStyle=F&2?"#f4f6ff":"#8f8a76";q.fillRect(spx+Math.max(1,4*k),sTop+Math.max(2,8*k),Math.max(2,3*k),Math.max(2,3*k))}
+      if(b.t==="solar"){q.fillStyle=F&2?"#9be8ff":"#2f78b0";q.fillRect(spx-Math.max(1,3*k),spy-Math.max(2,6*k),Math.max(3,6*k),Math.max(2,4*k));q.fillStyle=F&1?"#ffe066":"#a84630";q.fillRect(spx+Math.max(2,6*k),spy-Math.max(2,6*k),Math.max(2,4*k),Math.max(2,3*k))}
+      if(b.t==="foundry"){q.fillStyle=F&1?"#ffffff":"#8f8a76";q.fillRect(spx-Math.max(2,8*k),sTop+Math.max(2,4*k),Math.max(3,6*k),Math.max(3,5*k));q.fillStyle=F&2?"#ffffff":"#6b7590";q.fillRect(spx+Math.max(1,5*k),sTop+Math.max(2,7*k),Math.max(3,5*k),Math.max(3,4*k))}
       if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(spx-Math.max(1,2*k),sTop+Math.max(2,6*k),Math.max(2,4*k),Math.max(2,4*k))}
       if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(spx-Math.max(3,10*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(spx+Math.max(3,7*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillStyle=F&1?"#9be8ff":"#4aa3df";q.fillRect(spx+Math.max(2,8*k),sTop+Math.max(2,4*k),Math.max(1,2*k),Math.max(1,2*k))}
       if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(spx-Math.max(3,8*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k));q.fillRect(spx+Math.max(3,4*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k))}
-      if(b.t==="command"){q.fillStyle=F&2?"#ffe066":"#c9a21e";q.fillRect(spx-Math.max(1,2*k),sTop+Math.max(2,4*k),Math.max(2,3*k),Math.max(2,3*k));q.fillStyle=F&1?"#9be8ff":"#2f78b0";q.fillRect(spx-Math.max(2,6*k),sTop+Math.max(2,10*k),Math.max(1,2*k),Math.max(1,2*k))}
+      if(b.t==="command"){q.fillStyle=F&2?"#ffe066":"#a84630";q.fillRect(spx-Math.max(1,3*k),sTop+Math.max(2,3*k),Math.max(3,5*k),Math.max(3,4*k));q.fillStyle=F&1?"#9be8ff":"#2f78b0";q.fillRect(spx-Math.max(2,6*k),sTop+Math.max(2,10*k),Math.max(2,4*k),Math.max(2,3*k))}
       // v1.9: NO canvas-space glint squares. The command glint (a gold
       // square just above the sprite top) read as a stray yellow square
       // under the level shield AND as a yellow speck at the dome's edge
