@@ -23,7 +23,7 @@ function ball(R,cx,cy,r,l,m,d,hi){for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;d
 function cr(R,x,y,h,a,b){for(let j=0;j<h;j++){const w=Math.max(0,Math.round(Math.min(j,h-1-j)*.45+.4));R(x-w,y+j,2*w+1,1,j<h*.4?b:a)}R(x,y+1,1,Math.max(1,h-3),"w")}
 const tier=l=>l>=12?3:l>=8?2:l>=4?1:0;
 const BS={
-solar:(R,t)=>{const g=t>1,pn=(x,y)=>{bev(R,x,y,11,11,g?"z":"c","u",g?"Z":"U");R(x+5,y+1,1,9,"U");R(x+1,y+5,9,1,"U");R(x+2,y+2,2,1,"w");R(x+5,y+11,2,8,"G")};
+solar:(R,t)=>{const g=t>1,pn=(x,y)=>{bev(R,x,y,11,11,g?"z":"c","u",g?"Z":"U");R(x+3,y+1,1,9,"U");R(x+7,y+1,1,9,"U");R(x+1,y+3,9,1,"U");R(x+1,y+7,9,1,"U");R(x+2,y+2,2,1,"w");R(x+5,y+11,2,8,"G");R(x+1,y+10,9,1,"c")};
 if(t>0)for(let i=0;i<3;i++)pn(5+i*12,5);
 // v2.2: the mount is ONE flat slab, not a stepped pyramid. The five
 // inset rows read as a small stack sitting on the blue plinth (live
@@ -41,6 +41,8 @@ R(10,28,13,14,"d");R(11,29,11,13,"o");R(13,31,7,11,"y");R(10,28,13,1,"G");
 win(R,4,22);win(R,25,22);
 bev(R,22,0,7,13,"g","G","d");R(22,3,7,2,"r");R(22,7,7,1,"d");
 if(t>0){bev(R,12,3,6,9,"g","G","d");R(12,5,6,2,"r")}
+// v3.6: taller smokestacks with glowing mouths (heat) + ember pixels by the furnace
+R(31,0,2,20,"G");R(31,0,2,2,"r");R(32,0,1,1,"y");R(22,0,7,1,"r");R(12,3,6,1,"r");R(14,42,2,1,"o");R(28,42,2,1,"o")
 if(t>2){R(36,2,2,18,"y");R(26,2,12,2,"y");R(27,4,1,6,"G")}},
 mine:(R,t)=>{
 for(let j=0;j<26;j++){const w=Math.round(12+28*Math.sqrt((j+2)/28)),x0=22-(w>>1);R(x0,16+j,w,1,j<7?"s":j<16?"S":"G");if(j%3===0)for(let k=0;k<w;k+=5)R(x0+k+(j%2),16+j,1,1,j<7?"e":"d")}
@@ -48,13 +50,17 @@ R(14,31,16,11,"k");R(13,30,3,12,"n");R(28,30,3,12,"n");R(13,29,18,3,"N");R(16,40
 cr(R,8,14,12,"c","b");cr(R,36,19,10,"c","b");
 if(t>0){cr(R,26,10,14,"c","b");cr(R,16,16,9,"c","b")}
 if(t>1){cr(R,5,26,8,"p","P");cr(R,39,28,8,"p","P")}
-if(t>2)cr(R,21,0,18,"c","w")},
+if(t>2)cr(R,21,0,18,"c","w")
+// v3.6: drill rig over the pit (mast + crossbeam + bit) + extra crystal clusters at the base
+R(21,2,2,14,"G");R(16,4,12,2,"g");R(21,16,2,4,"d");R(20,20,4,1,"G");cr(R,4,30,7,"c","b");cr(R,38,32,7,"p","P")},
 hub:(R,t)=>{
 bev(R,3,19,38,23,"e","E","F");
 for(let i=0;i<10;i++){R(2+i*4,13,4,7,i&1?"w":"r");R(2+i*4,20,4,1,i&1?"g":"R")}
 bev(R,13,3,18,8,"N","n","N");ball(R,22,7,3,"y","z","Z");R(15,5,3,1,"y");R(26,9,3,1,"y");
 win(R,6,25);win(R,33,25);R(18,27,8,15,"N");R(19,28,6,14,"n");R(23,35,1,1,"y");
 bev(R,0,35,8,7,"e","n","N");
+// v3.6: roof antenna mast + dish (visible from tier 0)
+R(31,0,1,10,"G");R(28,1,7,1,"G");R(31,0,1,1,"w");R(28,2,1,1,"c");R(34,2,1,1,"c")
 if(t>0){R(37,0,2,12,"G");ball(R,38,3,3,"w","g","G")}
 if(t>1){R(5,0,1,12,"G");R(6,0,6,4,"r");R(6,2,6,1,"R")}
 if(t>2)R(3,19,38,1,"z")},
@@ -62,6 +68,8 @@ hangar:(R,t)=>{
 for(let j=0;j<17;j++){const q=(16-j)/17,w=Math.round(40*Math.sqrt(1-q*q)),x0=22-(w>>1);R(x0,9+j,w,1,j<2?"w":(j%4?"g":"G"))}
 bev(R,2,26,40,16,"g","G","d");
 R(8,28,28,14,"k");R(14,34,14,6,"w");R(26,35,5,4,"g");R(20,35,3,2,"b");R(14,39,14,1,"G");
+// v3.6: fighter silhouette inside the hangar (fuselage + swept wings + cockpit)
+R(19,32,6,2,"w");R(16,33,12,1,"g");R(15,34,14,1,"w");R(21,31,2,2,"c");R(18,34,1,1,"G");R(25,34,1,1,"G");
 for(let i=0;i<8;i++)R(6+i*4,41,2,1,"y");
 R(21,5,2,5,"G");R(20,3,4,3,"r");
 if(t>0)bev(R,37,30,7,12,"g","G","d");
@@ -92,6 +100,8 @@ const dome=(cx,cy,r)=>{
   for(let dy=-r;dy<=0;dy++){const w=Math.max(1,Math.round(Math.sqrt(Math.max(0,r*r-dy*dy)))),tt=(dy+r)/r;R(cx-w,cy+dy,2*w+1,1,mixC(tt))}
   R(cx-4,cy-r+2,4,1,"#e8f6ff");R(cx-5,cy-r+3,5,1,"#e8f6ff");R(cx-4,cy-r+4,3,1,"#cfeeff");
 };
+// v3.6: radar dish on the left side tower (bowl + mast)
+R(7,12,1,6,"G");R(4,10,7,2,"g");R(5,11,5,1,"w");R(6,10,1,1,"c")
 if(t>0){bev(R,3,18,10,14,"w","g","G");bev(R,31,18,10,14,"w","g","G");[[5,21],[33,21],[5,27],[33,27]].forEach(p=>win(R,p[0],p[1],1))}
 // tower first: the base is drawn over its bottom rows, so the tower
 // emerges from the base's roofline (not in front of its face).
@@ -122,9 +132,12 @@ const SC=R=>{bev(R,4,36,36,6,"s","S","d");R(6,14,2,28,"n");R(36,14,2,28,"n");R(6
 const DC={
 rock:R=>{ball(R,13,19,7,"s","S","G");ball(R,21,22,4,"s","S","G")},
 crater:R=>{for(let j=-6;j<=6;j++){const w=Math.round(11*Math.sqrt(1-(j/7)*(j/7)));R(15-w,16+j,2*w,1,j<=-3?"G":j<=2?"d":"k")}R(9,12,4,1,"e");R(20,11,3,1,"e")},
-crystal:R=>{R(6,24,18,4,"S");cr(R,13,6,18,"p","P");cr(R,21,12,14,"c","b");cr(R,8,16,11,"c","b")}
+crystal:R=>{R(6,24,18,4,"S");cr(R,13,6,18,"p","P");cr(R,21,12,14,"c","b");cr(R,8,16,11,"c","b")},
+// v3.6: scattered debris (broken panels + metal bits) and a light post (mast + glowing lamp)
+debris:R=>{R(8,22,10,3,"S");R(10,20,6,2,"G");R(20,24,8,2,"d");R(22,22,4,2,"S");R(12,25,2,2,"c");R(24,20,2,2,"y");R(16,18,3,1,"G")},
+light:R=>{R(14,6,2,18,"G");R(13,5,4,2,"d");R(13,4,4,1,"y");R(14,3,2,1,"w");R(10,24,10,2,"S");R(12,26,6,1,"G")}
 };
-const decor=(i,j)=>{const k=["rock","crater","crystal","rock","crater","crystal","rock"][(((i*5+j*11)%7)+7)%7];return memo("d"+k,()=>spr(30,30,DC[k]))};
+const decor=(i,j)=>{const k=["rock","crater","crystal","debris","light","rock","crater","crystal","debris","light"][(((i*5+j*11)%10)+10)%10];return memo("d"+k,()=>spr(30,30,DC[k]))};
 function ground(){return memo("g",()=>{const c=document.createElement("canvas");c.width=576;c.height=576;const q=c.getContext("2d"),H=(a,b)=>((a*73856093)^(b*19349663))>>>0;
 for(let tx=0;tx<36;tx++)for(let ty=0;ty<36;ty++){const h=H(tx,ty),x=tx*16,y=ty*16;q.fillStyle=(tx+ty)&1?"#c98a5a":"#b56a3c";q.fillRect(x,y,16,16);
 for(let k=0;k<4;k++){const hh=H(tx*7+k,ty*3+k*5),px=x+(hh%13)+1,py=y+((hh>>4)%13)+2;q.fillStyle=k&1?"#e8a06a":"#7a3b26";q.fillRect(px,py,1,1);q.fillRect(px+1,py-1,1,1);q.fillRect(px-1,py-1,1,1)}
@@ -418,6 +431,8 @@ function drawBase(q,cam,opts){
         }
       } else { // terrain outside the city: Mars sand, never void
         dia(c.x,c.y,ISO_DIA_RX,ISO_DIA_RY,"#c98a5a"); // v2.2: light Mars sand, no checker
+        // v3.6: twinkling mineral glints on the sand (tiny bright dots that blink with F)
+        const hh=Hh(i,j);if(hh%7===0){const tw=(hh>>3)+F;if(tw%4<2){q.fillStyle=tw%2?"#ffe066":"#9be8ff";q.fillRect(X(c.x)-1,Y(c.y)-1,Math.max(1,2*k),Math.max(1,2*k))}}
       }
       return;
     }
@@ -448,6 +463,33 @@ function drawBase(q,cam,opts){
       q.globalAlpha=1;
     }
   });
+  // --- v3.6: cables/pipes between adjacent buildings (drawn on the ground, before the buildings cover their ends).
+  // For each building, link to the neighbour on its right (x+1) and below (y+1) with a thin dark cable.
+  {
+    const bAt2=(x,y)=>S.bl.find(b=>b.x===x&&b.y===y);
+    q.lineCap="round";
+    S.bl.forEach(b=>{
+      [[1,0],[0,1]].forEach(d=>{
+        const nb=bAt2(b.x+d[0],b.y+d[1]);
+        if(!nb)return;
+        const a=isoC(b.x,b.y),c2=isoC(nb.x,nb.y);
+        q.beginPath();q.moveTo(X(a.x),Y(a.y+4));q.lineTo(X(c2.x),Y(c2.y+4));
+        q.strokeStyle="rgba(30,32,48,0.55)";q.lineWidth=Math.max(1,2*k);q.stroke();
+        q.beginPath();q.moveTo(X(a.x),Y(a.y+4));q.lineTo(X(c2.x),Y(c2.y+4));
+        q.strokeStyle="rgba(255,176,46,0.35)";q.lineWidth=Math.max(1,1*k);q.stroke();
+      });
+    });
+  }
+  // --- v3.6: landing pad — a flat marked pad on the sand east of the city (outside the 12x12 grid).
+  {
+    const pc=isoC(13,6);
+    dia(pc.x,pc.y,30,15,"#4b4b57");
+    dia(pc.x,pc.y,26,13,"#3a4257");
+    q.strokeStyle="#ffd84a";q.lineWidth=Math.max(1,2*k);
+    q.beginPath();q.ellipse(X(pc.x),Y(pc.y),Math.max(2,12*k),Math.max(2,6*k),0,0,Math.PI*2);q.stroke();
+    q.fillStyle="#ffd84a";q.font="bold "+Math.max(8,10*k)+"px monospace";q.textAlign="center";q.textBaseline="middle";
+    q.fillText("H",X(pc.x),Y(pc.y));
+  }
   // --- v2.3: NO plaza diamond at all (deleted). The v2.2 plaza was
   // a 28x14 basalt diamond drawn UNDER the keep's 44x22 plinth, so
   // it was fully covered and never visible — the comment claiming
@@ -469,9 +511,9 @@ function drawBase(q,cam,opts){
   // v1.4: sparse, deliberate decor — a handful of trees/rocks at the
   // city edge, never adjacent to a building, never on a road or river.
   const nearB=(i,j)=>S.bl.some(b=>Math.abs(b.x-i)+Math.abs(b.y-j)<=1);
-  // v2.1: decor is a handful of trees/rocks OUTSIDE the city, capped at 5.
+  // v3.6: decor is a handful of rocks/craters/crystals/debris/light-posts OUTSIDE the city, capped at 8.
   for(let j=-2;j<=13;j++)for(let i=-2;i<=13;i++){
-    if(decorN>=5)break;
+    if(decorN>=8)break;
     if(i<0||j<0||i>11||j>11){if(i!==-1&&!nearB(i,j)&&(i<wx0-1||i>wx1+1||j<wy0-1||j>wy1+1)&&(i*7+j*11)%41===0){decorN++;objs.push({d:i+j,kind:"decor",i,j,out:true})}}
   }
   objs.sort((a,b)=>a.d-b.d||(a.i||0)-(b.i||0));
@@ -526,9 +568,13 @@ function drawBase(q,cam,opts){
     // sprite body, so they stay.
     if(b.l>0){
       const sTop=spy-ssh;
+      // v3.6 ANIMATED DETAILS — all marks stay ON the sprite body (v1.7: nothing drifts above the sprite top, where the shield/name sit).
+      if(b.t==="solar"){q.fillStyle=F&2?"#9be8ff":"#4aa3df";q.fillRect(spx-Math.max(1,2*k),spy-Math.max(2,5*k),Math.max(2,4*k),Math.max(2,3*k));q.fillStyle=F&1?"#ffe066":"#c9a21e";q.fillRect(spx+Math.max(2,6*k),spy-Math.max(2,5*k),Math.max(1,2*k),Math.max(1,2*k))}
+      if(b.t==="foundry"){q.fillStyle=F&1?"#f4f6ff":"#c9c3b0";q.fillRect(spx-Math.max(2,7*k),sTop+Math.max(2,5*k),Math.max(2,4*k),Math.max(2,3*k));q.fillStyle=F&2?"#f4f6ff":"#8f8a76";q.fillRect(spx+Math.max(1,4*k),sTop+Math.max(2,8*k),Math.max(2,3*k),Math.max(2,3*k))}
       if(b.t==="mine"){q.fillStyle=F&2?"#9be8ff":"#b07cf0";q.fillRect(spx-Math.max(1,2*k),sTop+Math.max(2,6*k),Math.max(2,4*k),Math.max(2,4*k))}
-      if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(spx-Math.max(3,10*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(spx+Math.max(3,7*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k))}
+      if(b.t==="hub"){q.fillStyle=F&2?"#ffe066":"#ff9a3c";q.fillRect(spx-Math.max(3,10*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillRect(spx+Math.max(3,7*k),spy-Math.max(3,8*k),Math.max(1,3*k),Math.max(1,3*k));q.fillStyle=F&1?"#9be8ff":"#4aa3df";q.fillRect(spx+Math.max(2,8*k),sTop+Math.max(2,4*k),Math.max(1,2*k),Math.max(1,2*k))}
       if(b.t==="hangar"){q.fillStyle=F&2?"#ff6b6b":"#ffd0d0";q.fillRect(spx-Math.max(3,8*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k));q.fillRect(spx+Math.max(3,4*k),spy-Math.max(2,4*k),Math.max(2,4*k),Math.max(2,3*k))}
+      if(b.t==="command"){q.fillStyle=F&2?"#ffe066":"#c9a21e";q.fillRect(spx-Math.max(1,2*k),sTop+Math.max(2,4*k),Math.max(2,3*k),Math.max(2,3*k));q.fillStyle=F&1?"#9be8ff":"#2f78b0";q.fillRect(spx-Math.max(2,6*k),sTop+Math.max(2,10*k),Math.max(1,2*k),Math.max(1,2*k))}
       // v1.9: NO canvas-space glint squares. The command glint (a gold
       // square just above the sprite top) read as a stray yellow square
       // under the level shield AND as a yellow speck at the dome's edge
