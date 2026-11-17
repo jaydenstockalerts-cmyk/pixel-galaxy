@@ -176,8 +176,12 @@ function onSizeCanvas() {
   if (!cv) return;
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   const w = cv.clientWidth || 360, h = cv.clientHeight || 360;
-  cv.width = Math.round(w * dpr);
-  cv.height = Math.round(h * dpr);
+  const nw = Math.round(w * dpr), nh = Math.round(h * dpr);
+  // v3.9.4: only resize when the size actually changed (resizing clears the
+  // canvas). Called before every draw/tap so the backing store never goes
+  // stale when the panel height changes — a stale store made taps land
+  // ~40px above the dot they hit.
+  if (cv.width !== nw || cv.height !== nh) { cv.width = nw; cv.height = nh; }
 }
 
 // World (x,y in [-1.15,1.15]) -> screen px.
@@ -199,6 +203,7 @@ function onScreenToWorld(px, py) {
 function onDrawGalaxy() {
   const cv = onCv();
   if (!cv) return;
+  onSizeCanvas();
   const q = cv.getContext("2d");
   if (!q) return;
   const w = cv.width, h = cv.height;
@@ -318,6 +323,7 @@ function onDrawGalaxy() {
 
 function onTapGalaxy(e) {
   const cv = onCv();
+  onSizeCanvas();
   const rect = cv.getBoundingClientRect();
   const dpr = cv.width / (rect.width || 1);
   const px = (e.clientX - rect.left) * dpr;
