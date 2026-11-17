@@ -521,13 +521,16 @@ async function onStartGame() {
   if (!okAuth) { onToast("Could not create a guest account. Check your connection and reload."); return; }
   await onRefresh();
   onReady = true;
-  // Poll the empire every 5s so credits/power tick up live.
+  // Poll the empire every 15s so credits/power tick up live. (v3.9.5: was
+  // 5s — the 5s poll plus a per-call full galaxy scan burned the DO
+  // free-tier rows-read limit; the server now caches the galaxy map, and
+  // the slower poll is cheap insurance against hitting the limit again.)
   setInterval(async () => {
     if (!onReady) return;
     await onLoadEmpire();
     onRenderTop();
     if (onSelected == null) onRenderPanel();
-  }, 5000);
+  }, 15000);
 }
 
 // Boot the online mode when this is the saved mode.
