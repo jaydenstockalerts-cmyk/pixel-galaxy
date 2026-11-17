@@ -85,6 +85,8 @@ let onSysById = {};
 let onEmpire = null;     // from /empire
 let onSelected = null;   // selected system id
 let onSpawned = false;
+let onRaids = [];        // from /raids (pending/tribute_offered/resolved)
+let onPrevRaidStatus = {}; // raid id -> status, to toast on resolution
 let onReady = false;
 
 // Camera for the galaxy canvas: world coords are x,y in [-1,1].
@@ -227,9 +229,71 @@ async function onLoadSystems() {
   return false;
 }
 
+// ---------- PvP raids (Jayden's rules, Nov 16) ----------
+// Load raids involving the player (as attacker or defender). When a raid
+// flips to resolved, toast the outcome once.
+async function onLoadRaids() {
+  const r = await onApi("/raids", "GET");
+  if (r.status !== 200 || !Array.isArray(r.data.raids)) return;
+  const prev = onPrevRaidStatus;
+  for (const raid of r.data.raids) {
+    const was = prev[raid.id];
+    if (raid.status === "resolved" && was && was !== "resolved") {
+      const mine = raid.attackerId === onPlayer;
+      const sys = raid.systemName || "a system";
+      let msg = "";
+      if (raid.outcome === "tribute_accepted") msg = mine ? ("Tribute accepted — you took " + raid.tributeAmount + " credits. The raid is off.") : ("Your tribute was accepted — the raid is off.");
+      else if (raid.outcome === "attacker_won") msg = mine ? ("Raid won — " + sys + " is yours.") : ("You lost " + sys + " to a raid.");
+      else if (raid.outcome === "attacker_won_home_raid") msg = mine ? ("Home World raid — you stole resources from " + sys + ". It was not taken.") : ("Your Home World was raided for resources — it was not taken.");
+      else if (raid.outcome === "attacker_lost") msg = mine ? ("Raid repelled — " + sys + " held.") : ("A raid on your " + sys + " was repelled.");
+      if (msg) onToast(msg);
+    }
+    prev[raid.id] = raid.status;
+  }
+  onRaids = r.data.raids;
+}
+
+// Seconds left on a raid warning (resolvesAt is a server timestamp).
+function onRaidSecs(raid) {
+  return Math.max(0, Math.ceil(((raid.resolvesAt || 0) - Date.now()) / 1000));
+}
+
+// The raid banner: a defender warning (with tribute offer) and/or an
+// attacker tribute decision. Prepended to the panel when spawned.
+function onRaidBanner() {
+  if (!onSpawned) return "";
+  let html = "";
+  for (const raid of onRaids) {
+    if (raid.status !== "pending" && raid.status !== "tribute_offered") continue;
+    const secs = onRaidSecs(raid);
+    if (raid.defenderId === onPlayer) {
+      // Incoming raid — warn + let the defender offer tribute.
+      const isHome = raid.isHomeWorld;
+      html += '<div class="ocard" style="border-color:#ff8a80"><h2>⚠ Raid incoming!</h2>'
+        + '<p>Another player is raiding <b>' + esc(raid.systemName || "your system") + '</b>. '
+        + (isHome ? 'Your Home World <b>cannot be taken</b>, but they can steal resources. ' : '')
+        + 'You have <b id="o-raid-count">' + secs + 's</b> to respond.</p>'
+        + (raid.status === "tribute_offered"
+          ? '<small>Tribute of <b>' + raid.tributeAmount + ' credits</b> offered — waiting for the attacker to accept or decline.</small>'
+          : '<small>Offer tribute to call it off — the attacker can accept or decline.</small><br>'
+            + '<input id="o-tribute-amt" type="number" min="1" placeholder="Tribute (credits)" style="width:130px"> '
+            + '<button class="obtn" data-oact="raid-tribute" data-raid="' + raid.id + '">Offer tribute</button>')
+        + '</div>';
+    } else if (raid.attackerId === onPlayer && raid.status === "tribute_offered" && raid.tributeAmount != null) {
+      // The defender offered tribute — the attacker accepts or declines.
+      html += '<div class="ocard" style="border-color:#ffd84a"><h2>Tribute offered</h2>'
+        + '<p>The defender offers <b>' + raid.tributeAmount + ' credits</b> to call off your raid on <b>' + esc(raid.systemName || "their system") + '</b>.</p>'
+        + '<button class="obtn" data-oact="raid-tribute-accept" data-raid="' + raid.id + '">Accept tribute</button> '
+        + '<button class="obtn ghost" data-oact="raid-tribute-decline" data-raid="' + raid.id + '">Decline — raid on</button></div>';
+    }
+  }
+  return html;
+}
+
 async function onRefresh() {
   await onLoadEmpire();
   await onLoadSystems();
+  await onLoadRaids();
   onRenderTop();
   onRenderPanel();
   onDrawGalaxy();
@@ -436,7 +500,8 @@ function onRenderPanel() {
     return;
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
-  if (sel) { el.innerHTML = onSystemCard(sel); return; }
+  const banner = onRaidBanner();
+  if (sel) { el.innerHTML = banner + onSystemCard(sel); return; }
   const e = onEmpire || {};
   const over = Math.max(0, (e.count || 0) - (e.softCap || 25));
   el.innerHTML = '<div class="ocard"><h2>Your empire</h2>'
@@ -447,6 +512,7 @@ function onRenderPanel() {
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
     + '<br><small><b>Next step:</b> tap a system with a <b>gold ring</b> — those are next to your empire and ready to claim. Green dots are the outer rim, your spawn ground.</small>'
     + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button></div>';
+  el.innerHTML = banner + el.innerHTML;
 }
 
 function onSystemCard(s) {
@@ -471,7 +537,9 @@ function onSystemCard(s) {
       + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>';
   } else if (s.ownerType === "player") {
     html += '<small>Owned by another player.</small>';
-    if (adj) html += '<br><small>Adjacent — attacks on player systems are not enabled yet.</small>';
+    if (!adj) html += '<br><small>Not adjacent to your empire — claim systems next to yours to reach it.</small>';
+    else html += '<br><small>Adjacent. Raiding gives the defender <b>90 seconds</b> to respond — they may offer tribute, and you can accept or decline it. A Home World cannot be taken, only raided for resources.</small><br>'
+      + '<div class="bg"><button class="obtn" data-oact="raid" data-stance="allout">Raid · All-out</button> <button class="obtn" data-oact="raid" data-stance="balanced">Raid · Balanced</button> <button class="obtn" data-oact="raid" data-stance="cautious">Raid · Cautious</button></div>';
   } else {
     // Neutral — claimable.
     const cost = s.pw * 2;
@@ -503,6 +571,58 @@ async function onDoAttack(id, stance) {
     await onRefresh();
   } else {
     onToast("Attack failed: " + (r.data.error || r.status) + ".");
+    await onRefresh();
+  }
+}
+
+// Launch a PvP raid on a player-owned system. The defender gets 90s to
+// respond (tribute offer); the raid resolves as a battle at the deadline.
+async function onDoRaid(id, stance) {
+  const r = await onApi("/raid", "POST", { systemId: id, stance: stance || "balanced" });
+  if (r.status === 201) {
+    onToast("Raid launched — the defender has 90 seconds to respond.");
+    await onRefresh();
+  } else {
+    onToast("Raid failed: " + (r.data.error || r.status) + ".");
+    await onRefresh();
+  }
+}
+
+// Defender offers tribute to call off a pending raid on their system.
+async function onDoRaidTribute(raidId) {
+  const inp = onq("#o-tribute-amt");
+  const amount = inp ? Math.floor(Number(inp.value) || 0) : 0;
+  if (amount <= 0) { onToast("Enter a tribute amount first."); return; }
+  const r = await onApi("/raid-tribute", "POST", { raidId, amount });
+  if (r.status === 200) {
+    onToast("Tribute of " + amount + " credits offered — waiting on the attacker.");
+    await onRefresh();
+  } else {
+    onToast("Tribute failed: " + (r.data.error || r.status) + ".");
+    await onRefresh();
+  }
+}
+
+// Attacker accepts the defender's tribute (raid called off, credits move).
+async function onDoRaidTributeAccept(raidId) {
+  const r = await onApi("/raid-tribute-accept", "POST", { raidId });
+  if (r.status === 200) {
+    onToast("Tribute accepted — you took " + (r.data.raid ? r.data.raid.tributeAmount : "") + " credits. The raid is off.");
+    await onRefresh();
+  } else {
+    onToast("Could not accept: " + (r.data.error || r.status) + ".");
+    await onRefresh();
+  }
+}
+
+// Attacker declines the tribute — the raid proceeds to its 90s deadline.
+async function onDoRaidTributeDecline(raidId) {
+  const r = await onApi("/raid-tribute-decline", "POST", { raidId });
+  if (r.status === 200) {
+    onToast("Tribute declined — the raid goes ahead.");
+    await onRefresh();
+  } else {
+    onToast("Could not decline: " + (r.data.error || r.status) + ".");
     await onRefresh();
   }
 }
@@ -584,6 +704,10 @@ document.addEventListener("click", (e) => {
   else if (act === "recover-go") { onDoRecover(); }
   else if (act === "claim" && onSelected != null) onDoClaim(onSelected);
   else if (act === "attack" && onSelected != null) onDoAttack(onSelected, b.dataset.stance || "balanced");
+  else if (act === "raid" && onSelected != null) onDoRaid(onSelected, b.dataset.stance || "balanced");
+  else if (act === "raid-tribute" && b.dataset.raid) onDoRaidTribute(b.dataset.raid);
+  else if (act === "raid-tribute-accept" && b.dataset.raid) onDoRaidTributeAccept(b.dataset.raid);
+  else if (act === "raid-tribute-decline" && b.dataset.raid) onDoRaidTributeDecline(b.dataset.raid);
   else if (act === "close") { onSelected = null; onRenderPanel(); onDrawGalaxy(); }
   else if (act === "single") {
     try { localStorage.removeItem(ON_MODE_KEY); } catch (err) {}
@@ -651,9 +775,19 @@ async function onStartGame() {
   setInterval(async () => {
     if (!onReady) return;
     await onLoadEmpire();
+    await onLoadRaids();
     onRenderTop();
     if (onSelected == null) onRenderPanel();
   }, 15000);
+  // Tick the raid-warning countdown live (only the number, so an open
+  // tribute input never loses focus).
+  setInterval(() => {
+    if (!onReady) return;
+    const el = onq("#o-raid-count");
+    if (!el) return;
+    const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
+    if (raid) el.textContent = onRaidSecs(raid) + "s";
+  }, 1000);
 }
 
 // Boot the online mode when this is the saved mode.
