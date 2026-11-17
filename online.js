@@ -541,7 +541,11 @@ function onSystemCard(s) {
     + '<small>Ring ' + s.ring + ' · ' + esc(s.type || "") + ' · Power <b>' + s.pw + '</b> · ' + esc(owner) + '</small><br>';
   if (isNexus) html += '<small>The Dark Nexus — power 5000, the endgame. Holding it is a tournament objective, not just a conquest.</small><br>';
   if (mine) {
-    html += '<small>This system is yours. Defence comes from your empire power.</small>';
+    const garrison = s.garrison || 0;
+    html += '<small>This system is yours. Defence comes from your empire power.</small>'
+      + '<br><small>Garrison: <b>' + garrison + '</b>' + (garrison > 0 ? ' — cuts the revolt chance by <b>' + (garrison * 0.2).toFixed(1) + '%</b>.' : ' — a garrison suppresses revolt (each point cuts the chance by 0.2%).') + '</small><br>'
+      + '<input id="o-garrison-amt" type="number" min="1" placeholder="Garrison points" style="width:130px"> '
+      + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>';
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — claim systems next to yours to reach it.</small>';
     else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small><br>'
@@ -622,6 +626,22 @@ async function onDoRaidTributeAccept(raidId) {
     await onRefresh();
   } else {
     onToast("Could not accept: " + (r.data.error || r.status) + ".");
+    await onRefresh();
+  }
+}
+
+// Station a garrison on one of your systems (2 credits per point).
+// A garrison suppresses revolt: each point cuts the revolt chance by 0.2%.
+async function onDoGarrison(id) {
+  const inp = onq("#o-garrison-amt");
+  const amount = inp ? Math.floor(Number(inp.value) || 0) : 0;
+  if (amount <= 0) { onToast("Enter how many garrison points to station."); return; }
+  const r = await onApi("/garrison", "POST", { systemId: id, amount });
+  if (r.status === 200) {
+    onToast("Garrison of " + (r.data.garrison || amount) + " stationed on " + ((r.data.system || {}).name || "the system") + ".");
+    await onRefresh();
+  } else {
+    onToast("Could not station a garrison: " + (r.data.error || r.status) + ".");
     await onRefresh();
   }
 }
@@ -719,6 +739,7 @@ document.addEventListener("click", (e) => {
   else if (act === "raid-tribute" && b.dataset.raid) onDoRaidTribute(b.dataset.raid);
   else if (act === "raid-tribute-accept" && b.dataset.raid) onDoRaidTributeAccept(b.dataset.raid);
   else if (act === "raid-tribute-decline" && b.dataset.raid) onDoRaidTributeDecline(b.dataset.raid);
+  else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
   else if (act === "close") { onSelected = null; onRenderPanel(); onDrawGalaxy(); }
   else if (act === "single") {
     try { localStorage.removeItem(ON_MODE_KEY); } catch (err) {}
