@@ -200,9 +200,19 @@ async function onEnsureAuth() {
   return false;
 }
 
+// Toast faction revolts (a conquered faction system flipped back to its
+// original faction). The server includes them in /empire and /raids.
+function onToastRevolts(revolts) {
+  if (!Array.isArray(revolts)) return;
+  for (const rv of revolts) {
+    const fname = (typeof FAC_NAME !== "undefined" && FAC_NAME[rv.faction]) || rv.faction || "its faction";
+    onToast((rv.systemName || "A system") + " revolted back to " + fname + ".");
+  }
+}
+
 async function onLoadEmpire() {
   const r = await onApi("/empire", "GET");
-  if (r.status === 200) { onEmpire = r.data; onSpawned = true; return true; }
+  if (r.status === 200) { onEmpire = r.data; onSpawned = true; onToastRevolts(r.data.revolts); return true; }
   if (r.status === 409 && r.data.error === "not_spawned") { onEmpire = null; onSpawned = false; return true; }
   if (r.status === 401) { // token dead — re-auth once
     try { localStorage.removeItem(ON_TOKEN_KEY); localStorage.removeItem(ON_PLAYER_KEY); } catch (e) {}
@@ -235,6 +245,7 @@ async function onLoadSystems() {
 async function onLoadRaids() {
   const r = await onApi("/raids", "GET");
   if (r.status !== 200 || !Array.isArray(r.data.raids)) return;
+  onToastRevolts(r.data.revolts);
   const prev = onPrevRaidStatus;
   for (const raid of r.data.raids) {
     const was = prev[raid.id];
