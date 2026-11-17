@@ -12,6 +12,7 @@ const ON_MODE_KEY = "pixelgalaxy-mode";
 const ON_BETA_KEY = "pixelgalaxy-beta-ok";
 const ON_TOKEN_KEY = "pixelgalaxy-online-token";
 const ON_PLAYER_KEY = "pixelgalaxy-online-player";
+const ON_RECOVERY_KEY = "pixelgalaxy-online-recovery";
 const ON_GALAXY_KEY = "pixelgalaxy-online-galaxy";
 
 // ---------- boot: decide the mode before game.js loads ----------
@@ -115,6 +116,71 @@ function onToast(msg) {
   onToast._t = setTimeout(() => { el.hidden = true; }, 3500);
 }
 
+// ---------- recovery codes (v3.9.6) ----------
+// The server returns a recovery code ONCE at guest creation; only its hash
+// is stored server-side. The client keeps the code in localStorage so the
+// player can grab it from the menu at any time — but the player must ALSO
+// save it somewhere safe (screenshot / password manager / written down),
+// because if this browser's data is lost, the localStorage copy goes with
+// it. New players are told to copy it right after spawning, or they lose
+// their progress if the device is lost.
+let onShowRecovery = false;    // show the recovery card (after spawn, or from the menu)
+let onShowRecoverForm = false; // show the "recover an empire" input on the welcome card
+let onRecoverErr = "";
+
+function onSaveRecoveryCode(code) {
+  if (!code) return;
+  try { localStorage.setItem(ON_RECOVERY_KEY, code); } catch (e) {}
+}
+function onGetRecoveryCode() {
+  try { return localStorage.getItem(ON_RECOVERY_KEY) || ""; } catch (e) { return ""; }
+}
+function onFormatCode(code) {
+  const c = String(code || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  if (c.length !== 12) return String(code || "");
+  return c.slice(0, 4) + "-" + c.slice(4, 8) + "-" + c.slice(8, 12);
+}
+async function onCopyText(text, btn) {
+  let ok = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    ok = true;
+  } catch (e) {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch (e2) {}
+  }
+  if (btn) {
+    btn.textContent = ok ? "Copied!" : "Copy failed — select it manually";
+    setTimeout(() => { btn.textContent = "Copy code"; }, 2500);
+  }
+  return ok;
+}
+// The recovery card: the code in large type, a Copy button, and the
+// save-it-or-lose-it warning. Shown right after spawning (first thing a
+// new player sees) and any time from the empire panel.
+function onRecoveryCard() {
+  const code = onGetRecoveryCode();
+  let html = '<div class="ocard"><h2>Your recovery code</h2>';
+  if (code) {
+    html += '<p>Save this code somewhere safe — screenshot it, put it in a password manager, or write it down. <b>If you lose this device and this code, your empire is gone.</b></p>'
+      + '<p style="font-size:22px;letter-spacing:2px;text-align:center"><b>' + esc(code) + '</b></p>'
+      + '<div class="bg"><button class="obtn" data-oact="recovery-copy">Copy code</button> <button class="obtn ghost" data-oact="recovery-new">Get a new code</button></div>'
+      + '<p><small>Getting a new code replaces this one — the old code stops working.</small></p>';
+  } else {
+    html += '<p>No recovery code saved on this device yet. Get one now and save it somewhere safe.</p>'
+      + '<div class="bg"><button class="obtn" data-oact="recovery-new">Get a recovery code</button></div>';
+  }
+  html += '<br><button class="obtn ghost" data-oact="recovery-done">Done</button></div>';
+  return html;
+}
+
 // ---------- data loading ----------
 async function onEnsureAuth() {
   if (onToken && onPlayer) return true;
@@ -122,6 +188,7 @@ async function onEnsureAuth() {
   if (r.status === 201 && r.data.token) {
     onToken = r.data.token;
     onPlayer = r.data.playerId;
+    if (r.data.recoveryCode) onSaveRecoveryCode(r.data.recoveryCode);
     try {
       localStorage.setItem(ON_TOKEN_KEY, onToken);
       localStorage.setItem(ON_PLAYER_KEY, onPlayer);
@@ -359,8 +426,13 @@ function onRenderTop() {
 function onRenderPanel() {
   const el = onq("#o-panel");
   if (!el) return;
+  if (onShowRecovery) { el.innerHTML = onRecoveryCard(); return; }
   if (!onSpawned) {
-    el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Claim systems, grow your empire, fight the five factions.</p><button class="obtn" data-oact="spawn">Found your Home World</button></div>';
+    if (onShowRecoverForm) {
+      el.innerHTML = '<div class="ocard"><h2>Recover your empire</h2><p>Enter the recovery code you saved when you started. It works on any device.</p><input id="o-rec-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><br><button class="obtn" data-oact="recover-go">Recover empire</button> <button class="obtn ghost" data-oact="recover-cancel">Cancel</button>' + (onRecoverErr ? '<br><small style="color:#ff8a80">' + esc(onRecoverErr) + '</small>' : '') + '</div>';
+      return;
+    }
+    el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Claim systems, grow your empire, fight the five factions.</p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>';
     return;
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
@@ -373,7 +445,8 @@ function onRenderPanel() {
     + (e.upkeepPerSec ? ' · Upkeep <b>−' + e.upkeepPerSec.toFixed(2) + '/s</b>' : '')
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
-    + '<br><small><b>Next step:</b> tap a system with a <b>gold ring</b> — those are next to your empire and ready to claim. Green dots are the outer rim, your spawn ground.</small></div>';
+    + '<br><small><b>Next step:</b> tap a system with a <b>gold ring</b> — those are next to your empire and ready to claim. Green dots are the outer rim, your spawn ground.</small>'
+    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button></div>';
 }
 
 function onSystemCard(s) {
@@ -434,11 +507,54 @@ async function onDoAttack(id, stance) {
   }
 }
 
+// Issue (or re-issue) a recovery code for the logged-in player. The
+// server returns the code once and invalidates the old one.
+async function onDoRecoveryNew() {
+  const r = await onApi("/auth/recovery", "POST", {});
+  if (r.status === 200 && r.data.recoveryCode) {
+    onSaveRecoveryCode(r.data.recoveryCode);
+    onToast("New recovery code issued — save it now.");
+    onRenderPanel();
+  } else {
+    onToast("Could not issue a code: " + (r.data.error || r.status) + ".");
+  }
+}
+
+// Recover an empire with a saved code. On success the code stays valid
+// (only the token rotates), so save it locally for the menu copy.
+async function onDoRecover() {
+  const inp = onq("#o-rec-code");
+  const code = inp ? inp.value.trim() : "";
+  if (!code) { onRecoverErr = "Enter your recovery code."; onRenderPanel(); return; }
+  const r = await onApi("/auth/recover", "POST", { recoveryCode: code });
+  if (r.status === 200 && r.data.token) {
+    onToken = r.data.token;
+    onPlayer = r.data.playerId;
+    onSaveRecoveryCode(onFormatCode(code));
+    try {
+      localStorage.setItem(ON_TOKEN_KEY, onToken);
+      localStorage.setItem(ON_PLAYER_KEY, onPlayer);
+    } catch (e) {}
+    onShowRecoverForm = false; onRecoverErr = "";
+    onToast("Empire recovered. Welcome back, Commander.");
+    await onRefresh();
+  } else {
+    onRecoverErr = "That code did not match any empire — check it and try again.";
+    onRenderPanel();
+    const inp2 = onq("#o-rec-code");
+    if (inp2) inp2.focus();
+  }
+}
+
 async function onDoSpawn() {
   const r = await onApi("/spawn", "POST", {});
   if (r.status === 200 || r.status === 201) {
     const h = r.data.homeSystem || {};
     onToast("Home World founded: " + (h.name || "your system") + ".");
+    // v3.9.6: the first thing a new player sees after spawning is the
+    // recovery code — they must copy/save it now, or the empire is
+    // unrecoverable if the device/browser data is lost.
+    onShowRecovery = true;
     await onRefresh();
     // v3.9.3: drop the player onto their Home World zoomed in (zoom 4) so
     // the giant galaxy is not the first thing they see — the gold-ringed
@@ -459,6 +575,13 @@ document.addEventListener("click", (e) => {
   if (!b) return;
   const act = b.dataset.oact;
   if (act === "spawn") onDoSpawn();
+  else if (act === "recovery") { onShowRecovery = true; onRenderPanel(); }
+  else if (act === "recovery-done") { onShowRecovery = false; onRenderPanel(); }
+  else if (act === "recovery-copy") { onCopyText(onGetRecoveryCode(), b); }
+  else if (act === "recovery-new") { onDoRecoveryNew(); }
+  else if (act === "recover") { onShowRecoverForm = true; onRecoverErr = ""; onRenderPanel(); }
+  else if (act === "recover-cancel") { onShowRecoverForm = false; onRecoverErr = ""; onRenderPanel(); }
+  else if (act === "recover-go") { onDoRecover(); }
   else if (act === "claim" && onSelected != null) onDoClaim(onSelected);
   else if (act === "attack" && onSelected != null) onDoAttack(onSelected, b.dataset.stance || "balanced");
   else if (act === "close") { onSelected = null; onRenderPanel(); onDrawGalaxy(); }
