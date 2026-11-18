@@ -104,11 +104,15 @@ let onSpawned = false;
 let onRaids = [];        // from /raids (pending/tribute_offered/resolved)
 let onPrevRaidStatus = {}; // raid id -> status, to toast on resolution
 let onLastRaidOutcome = null; // last resolved raid, kept visible until dismissed (v3.9.22: a 3.5s toast is invisible — raid 1's lost battle was never seen)
+let onLastTransitOutcome = null; // last resolved attack transit, kept visible until dismissed (v3.9.26 — mirrors the raid report)
+let onLastTransitReportAt = null; // newest transit report already shown (null until the first /empire load, so a stale report never pops on login)
 let onLastBannerSig = null; // banner + selected-system signatures, so the
 let onLastSelSig = null;    // 15s poll re-renders the panel when a raid or
                             // the selected system changed — even with a
                             // system card open (v3.9.22: the tribute popup
                             // never appeared while the card was open)
+let onLastPanelKey = null; // card identity, so the panel scrolls to the
+                            // top when the card changes (v3.9.26)
 let onGalaxyVersion = null; // server galaxy version (v3.9.22): the map
                             // refetches only when ownership changed
 let onEmpireAt = 0; // when the empire/station snapshots were fetched —
@@ -158,9 +162,11 @@ function onToast(msg) {
 let onShowRecovery = false;    // show the recovery card (after spawn, or from the menu)
 let onShowRecoverForm = false; // show the "recover an empire" input on the welcome card
 let onRecoverErr = "";
+let onShowResetConfirm = false; // show the "reset credits to 10" confirm card (v3.9.26)
 let onSpawnName = "";   // custom Home World name typed on the welcome card
 let onShowRename = false; // show the "rename Home World" input in the empire card
 let onRenameName = "";  // rename input value, kept while typing (v3.9.23)
+let onGarrisonAmt = ""; // garrison input value, kept while typing (v3.9.26)
 
 function onSaveRecoveryCode(code) {
   if (!code) return;
@@ -251,7 +257,29 @@ function onToastRevolts(revolts) {
 
 async function onLoadEmpire() {
   const r = await onApi("/empire", "GET");
-  if (r.status === 200) { onEmpire = r.data; onEmpireAt = Date.now(); onSpawned = true; onToastRevolts(r.data.revolts); return true; }
+  if (r.status === 200) {
+    onEmpire = r.data; onEmpireAt = Date.now(); onSpawned = true; onToastRevolts(r.data.revolts);
+    // v3.9.26: a transit report newer than the last one shown means an
+    // attack resolved — surface it as a Battle report card (a 3.5s toast
+    // is invisible). The first load only arms the watermark, so a stale
+    // report never pops on login.
+    const rep = (r.data.transitReports || [])[0];
+    if (rep && rep.resolvedAt) {
+      if (onLastTransitReportAt == null) { onLastTransitReportAt = rep.resolvedAt; }
+      else if (rep.resolvedAt > onLastTransitReportAt) {
+        onLastTransitReportAt = rep.resolvedAt;
+        const sys = rep.systemName || "a system";
+        let msg = "";
+        if (rep.outcome === "attacker_won") msg = "Victory! " + sys + " is yours.";
+        else if (rep.outcome === "attacker_lost") msg = "Defeat — your fleet was repelled at " + sys + ".";
+        else if (rep.outcome === "cancelled") msg = "The attack on " + sys + " was called off — the fleet came home.";
+        // v3.9.18 invariant: ship losses are always named, never "Nothing lost".
+        if (msg && (rep.shipsLost || 0) > 0) msg += " Your fleet lost " + rep.shipsLost + " ship" + (rep.shipsLost > 1 ? "s" : "") + " in the battle.";
+        if (msg) { onToast(msg); onLastTransitOutcome = { msg, at: Date.now(), transitId: rep.id }; }
+      }
+    }
+    return true;
+  }
   if (r.status === 409 && r.data.error === "not_spawned") { onEmpire = null; onSpawned = false; return true; }
   if (r.status === 401) { // token dead — re-auth once
     try { localStorage.removeItem(ON_TOKEN_KEY); localStorage.removeItem(ON_PLAYER_KEY); } catch (e) {}
@@ -315,12 +343,53 @@ function onRaidSecs(raid) {
   return Math.max(0, Math.ceil(((raid.resolvesAt || 0) - Date.now()) / 1000));
 }
 
+// Travel time for an attack (v3.9.26, Jayden: attacks take time like
+// single player): 10s + 5s per jump from the Home World, cap 60s.
+// BFS over the client-side system graph — the same formula the server
+// uses (travelMsForJumps in empire.js).
+function onJumpsTo(id) {
+  if (!onEmpire || onEmpire.homeSystem == null) return -1;
+  const home = onEmpire.homeSystem;
+  if (home === id) return 0;
+  const seen = new Set([home]);
+  let frontier = [home], d = 0;
+  while (frontier.length) {
+    d++;
+    const next = [];
+    for (const n of frontier) {
+      const sys = onSysById[n];
+      for (const nb of (sys && sys.links) || []) {
+        if (nb === id) return d;
+        if (!seen.has(nb)) { seen.add(nb); next.push(nb); }
+      }
+    }
+    frontier = next;
+  }
+  return -1;
+}
+function onTravelMs(id) {
+  const j = onJumpsTo(id);
+  return Math.min(60000, (10 + 5 * Math.max(0, j)) * 1000);
+}
+function onTransitSecs() {
+  const t = onEmpire && onEmpire.transit;
+  return t ? Math.max(0, Math.ceil((t.arriveAt - Date.now()) / 1000)) : 0;
+}
+
 // The last resolved raid, kept visible until the player dismisses it
 // (v3.9.22 — see onLoadRaids). A 3.5s toast was the whole report.
 function onRaidOutcomeCard() {
   if (!onLastRaidOutcome) return "";
   return '<div class="ocard" style="border-color:#6ee7f5"><h2>Raid report</h2><p>'
     + esc(onLastRaidOutcome.msg) + '</p><button class="obtn ghost" data-oact="raid-outcome-dismiss">Dismiss</button></div>';
+}
+
+// The last resolved attack transit, kept visible until the player
+// dismisses it (v3.9.26 — mirrors the raid report card).
+function onTransitOutcomeCard() {
+  if (!onLastTransitOutcome) return "";
+  return '<div class="ocard" style="border-color:#6ee7f5"><h2>Battle report</h2><p>'
+    + esc(onLastTransitOutcome.msg) + '</p><button class="obtn ghost" data-oact="transit-outcome-dismiss">Dismiss</button></div>';
 }
 
 // Signatures for the banner + selected system (v3.9.22): the poll
@@ -335,7 +404,8 @@ function onBannerSig() {
 function onSelSig() {
   if (onSelected == null) return "none";
   const s = onSysById[onSelected];
-  return s ? [s.id, s.owner, s.ownerType, s.pw, s.garrison, s.type].join(":") : "gone:" + onSelected;
+  const tr = onEmpire && onEmpire.transit ? onEmpire.transit.id : "-";
+  return s ? [s.id, s.owner, s.ownerType, s.pw, s.garrison, s.type, "tr:" + tr].join(":") : "gone:" + onSelected;
 }
 
 // The raid banner: a defender warning (with tribute offer) and/or an
@@ -448,6 +518,10 @@ function onDrawGalaxy() {
     if (isNexus) { col = "#ffd84a"; r = 6; }
     else if (mine) { col = "#6ee7f5"; r = 3.4; }
     else if (s.ownerType === "faction" && FAC_COL[s.owner]) { col = FAC_COL[s.owner]; r = 3; }
+    // v3.9.26: another real player's systems get their own colour —
+    // vivid orange, distinct from every faction, neutral, and ring
+    // colour — so a human empire is obvious at a glance.
+    else if (s.ownerType === "player") { col = "#ff7a29"; r = 3; }
     else if (s.ring >= 14) { col = "#4ade80"; r = 2.4; }
     q.fillStyle = col;
     q.beginPath();
@@ -484,12 +558,14 @@ function onDrawGalaxy() {
   const cands = [];
   onSystems.forEach(s => {
     const mine = owned.has(s.id);
-    // v3.9.13: zoomed in (zoom >= 3), also label systems you can attack now.
-    const attackable = onSpawned && !mine && s.id !== 0 && s.ownerType !== "player" && onIsAdjacent(s);
-    if (s.id !== 0 && !mine && s.id !== onSelected && !(onCam.zoom >= 3 && attackable)) return;
+    // v3.9.26: zoomed in (zoom >= 4), also label systems you can attack
+    // now — adjacent neutrals/factions (gold) and adjacent player
+    // empires (orange: another real player's systems, raid targets).
+    const attackable = onSpawned && !mine && s.id !== 0 && onIsAdjacent(s);
+    if (s.id !== 0 && !mine && s.id !== onSelected && !(onCam.zoom >= 4 && attackable)) return;
     const p = onWorldToScreen(s.x, s.y);
     if (p.x < -40 || p.x > w + 40 || p.y < -40 || p.y > h + 40) return;
-    cands.push({ s, p, color: (s.id === 0 || attackable) ? "#ffd84a" : "#6ee7f5" });
+    cands.push({ s, p, color: s.ownerType === "player" ? "#ff7a29" : (s.id === 0 || attackable) ? "#ffd84a" : "#6ee7f5" });
   });
   cands.sort((a, b) => a.p.y - b.p.y);
   const placed = [];
@@ -510,10 +586,27 @@ function onDrawGalaxy() {
       if (ny < cy0 - 180) break;
       cy = ny; jumps++;
     }
+    // v3.9.26: keep the label inside the canvas — the old pass only
+    // lifted up, so a dot near the top pushed its label off-screen
+    // (it looked like the ribbon was covering it), and a crowded
+    // frontier could still overlap once the 180px lift cap was hit.
+    // If it can't fit above, drop it below its dot instead.
+    const rectAt = (y) => ({ x0: cx - tw / 2 - 3, y0: y - hh / 2, x1: cx + tw / 2 + 3, y1: y + hh / 2 });
+    const clearAt = (y) => y - hh / 2 >= 2 && y + hh / 2 <= h - 2 && !placed.some((o) => overlap(rectAt(y), o));
+    if (!clearAt(cy)) {
+      let below = c.p.y + 10 + hh / 2, bj = 0;
+      while (bj < 12 && !clearAt(below)) {
+        const hit = placed.find((o) => overlap(rectAt(below), o));
+        if (!hit) break;
+        below = hit.y1 + 2 + hh / 2; bj++;
+      }
+      if (clearAt(below)) cy = below;
+      else cy = Math.max(hh / 2 + 2, Math.min(h - hh / 2 - 2, cy));
+    }
     placed.push({ x0: cx - tw / 2 - 3, y0: cy - hh / 2, x1: cx + tw / 2 + 3, y1: cy + hh / 2 });
-    if (cy0 - cy > 30) {
+    if (Math.abs(cy0 - cy) > 30) {
       q.strokeStyle = "rgba(255,255,255,0.35)"; q.lineWidth = 1;
-      q.beginPath(); q.moveTo(cx, cy + hh / 2); q.lineTo(c.p.x, c.p.y); q.stroke();
+      q.beginPath(); q.moveTo(cx, cy < c.p.y ? cy + hh / 2 : cy - hh / 2); q.lineTo(c.p.x, c.p.y); q.stroke();
     }
     q.fillStyle = "#161628";
     q.fillRect(cx - tw / 2 - 3, cy - hh / 2, tw + 6, hh);
@@ -654,10 +747,30 @@ function onRenderTop() {
       + (capV > 0 ? '<span class="sbar"><i style="width:' + Math.round(pct * 100) + '%"></i></span><span class="cap">of ' + Math.floor(capV) + '</span>' : '')
       + '</div>';
   };
+  // v3.9.26: the expanded ribbon shows the income breakdown, like
+  // single-player incomeParts — all per-minute, like the pills. The
+  // tap handler toggles .expanded and the CSS shows #inc, but nothing
+  // ever rendered the element, so the tap showed nothing.
+  const pm = (v) => (v >= 0 ? "+" : "−") + Math.abs(v * 60).toFixed(1) + "/min";
+  const e = onEmpire;
+  const upkeep = (onStation && onStation.fleetEnergyUpkeepPerSec) || 0;
+  let inc = '<div id="inc">';
+  if (e.sysPerSec != null && e.hubPerSec != null) {
+    inc += 'Credits: systems ' + pm(e.sysPerSec) + ' · Trade Hub ' + pm(e.hubPerSec);
+    if ((e.upkeepPerSec || 0) > 0) inc += ' · upkeep −' + ((e.upkeepPerSec || 0) * 60).toFixed(1) + '/min';
+    if ((e.garrisonUpkeepPerSec || 0) > 0) inc += ' · garrisons −' + ((e.garrisonUpkeepPerSec || 0) * 60).toFixed(1) + '/min';
+    inc += ' · net ' + pm(e.netPerSec || 0);
+  } else {
+    inc += 'Credits: net ' + pm(e.netPerSec || 0);
+  }
+  inc += '<br>Energy: station ' + pm((pps.energy || 0) + upkeep);
+  if (upkeep > 0) inc += ' · ship upkeep −' + (upkeep * 60).toFixed(1) + '/min';
+  inc += '<br>Metal: station ' + pm(pps.metal || 0) + ' · Crystal: station ' + pm(pps.crystal || 0);
+  inc += '</div>';
   el.innerHTML = pill("energy", acc.energy, (pps.energy || 0) * 60, cap)
     + pill("metal", acc.metal, (pps.metal || 0) * 60, cap)
     + pill("crystal", acc.crystal, (pps.crystal || 0) * 60, cap)
-    + pill("credits", cr, crRate, 0);
+    + pill("credits", cr, crRate, 0) + inc;
 }
 
 // ---------- activity tray (single-player #activity) ----------
@@ -687,6 +800,10 @@ function onRenderActivity() {
     const t = (typeof TECH !== "undefined" ? TECH : []).find((z) => z.id === rq.id);
     rows.push("⚙ " + (t ? t.n : rq.id) + " — done in " + onStLeft(Math.max(0, rq.end - Date.now())));
   }
+  const tr = onEmpire && onEmpire.transit;
+  if (tr) {
+    rows.push('<span data-oact="transit-jump" data-sys="' + tr.systemId + '" style="text-decoration:underline">🚀 Fleet en route — ' + esc(tr.systemName || "a system") + ' — arrives in ' + onStLeft(Math.max(0, tr.arriveAt - Date.now())) + '</span>');
+  }
   if (!rows.length) { el.hidden = true; el.innerHTML = ""; return; }
   el.hidden = false;
   el.innerHTML = rows.map((r) => '<div class="trayrow">' + r + '</div>').join("");
@@ -695,6 +812,14 @@ function onRenderActivity() {
 // ---------- tab dock (single-player #tabs) ----------
 // Galaxy / Station / Fleet / Crew / Research switch views; Quests is
 // Phase 4, so it toasts instead of opening anything.
+// v3.9.26: every view is a full-screen overlay at the same z-index, so
+// the DOM order decides what paints on top — switching tabs used to
+// leave the old view visible (crew is last in the DOM, so crew→anything
+// never looked like it switched; fleet→station failed the same way).
+// Close the other overlays FIRST, synchronously, then load and open.
+// onTabGen guards the async race: if the player taps another tab while
+// a load is in flight, the stale load's open is dropped.
+let onTabGen = 0;
 function onSetTab(t) {
   onTab = t;
   document.querySelectorAll("#o-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.otab === t));
@@ -706,11 +831,15 @@ function onCloseAllOverlays() {
 }
 function onShowTab(t) {
   if (t === "quests") { onToast("Quests come online with Phase 4 — still to build."); return; }
+  onTabGen++;
   if (t === "map") { onCloseAllOverlays(); return; }
-  if (t === "station") onOpenStation();
-  else if (t === "fleet") onOpenFleet();
-  else if (t === "research") onOpenResearch();
-  else if (t === "crew") onOpenCrew();
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseCrew();
+  onSetTab(t);
+  const gen = onTabGen;
+  if (t === "station") onOpenStation(gen);
+  else if (t === "fleet") onOpenFleet(gen);
+  else if (t === "research") onOpenResearch(gen);
+  else if (t === "crew") onOpenCrew(gen);
 }
 
 // ---------- online menu (single-player #menu) ----------
@@ -732,7 +861,14 @@ function onCloseMenu() {
 function onRenderPanel() {
   const el = onq("#o-panel");
   if (!el) return;
+  // v3.9.26: the panel is a 38vh scroller and innerHTML swaps never
+  // reset its scroll position — a new card opened mid-scroll, showing
+  // its middle ("empire power." with the top cut off). Reset to the
+  // top whenever the card identity changes.
+  const panelKey = onShowRecovery ? "recovery" : onShowResetConfirm ? "reset" : !onSpawned ? (onShowRecoverForm ? "recover-form" : "welcome") : (onSelected != null ? "sys:" + onSelected : "empire");
+  if (panelKey !== onLastPanelKey) { el.scrollTop = 0; onLastPanelKey = panelKey; }
   if (onShowRecovery) { el.innerHTML = onRecoveryCard(); return; }
+  if (onShowResetConfirm) { el.innerHTML = '<div class="ocard"><h2>Reset credits to 10?</h2><p>This sets your credits to 10 — the fresh-spawn amount. It wipes the balance you banked under the old economy, and it can\'t be undone.</p><button class="obtn" data-oact="reset-credits-go">Reset credits</button> <button class="obtn ghost" data-oact="reset-credits-cancel">Cancel</button></div>'; return; }
   if (!onSpawned) {
     if (onShowRecoverForm) {
       el.innerHTML = '<div class="ocard"><h2>Recover your empire</h2><p>Enter the recovery code you saved when you started. It works on any device.</p><input id="o-rec-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><br><button class="obtn" data-oact="recover-go">Recover empire</button> <button class="obtn ghost" data-oact="recover-cancel">Cancel</button>' + (onRecoverErr ? '<br><small style="color:#ff8a80">' + esc(onRecoverErr) + '</small>' : '') + '</div>';
@@ -743,7 +879,7 @@ function onRenderPanel() {
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
   const banner = onRaidBanner();
-  const outcome = onRaidOutcomeCard();
+  const outcome = onRaidOutcomeCard() + onTransitOutcomeCard();
   // v3.9.22: record what the panel currently shows, so the poll can
   // tell when a raid or the selected system changed underneath it.
   onLastBannerSig = onBannerSig();
@@ -759,7 +895,8 @@ function onRenderPanel() {
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
     + '<br><small><b>Next step:</b> ' + onNextStep() + '</small>'
-    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button> <button class="obtn ghost" data-oact="rename">Rename Home World</button>'
+    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn ghost" data-oact="rename">Rename Home World</button>'
+    + '<br><small>Map: <span style="color:#ff7a29">orange dots</span> are other players\' empires; <span style="color:#ffd84a">gold rings</span> mark systems you can attack.</small>'
     + (onShowRename ? '<br><small>Rename your Home World (1–24 characters):</small><br><input id="o-rename-name" type="text" maxlength="24" autocomplete="off" value="' + esc(onRenameName) + '"> <button class="obtn" data-oact="rename-save">Save name</button> <button class="obtn ghost" data-oact="rename-cancel">Cancel</button>' : '')
     + '</div>';
   el.innerHTML = banner + outcome + el.innerHTML;
@@ -816,17 +953,24 @@ function onSystemCard(s) {
     // button shows only on the Home World card.
     const isHome = onEmpire && onEmpire.homeSystem === s.id;
     const garrison = s.garrison || 0;
+    // v3.9.26: the Fleet/Research/Crew/Station buttons duplicated the
+    // bottom tabs — Jayden: those live ONLY in the bottom tabs. The
+    // garrison controls are spelled out plainly now (the old "Station
+    // garrison (2 cr/pt)" button read as station-related and never
+    // mentioned the upkeep; the 130px input clipped its own label).
     html += '<small>This system is yours. Defence comes from your empire power.</small>'
       + (isHome ? '' : '<br><small>Your station is at your Home World — this system pays income and can be garrisoned.</small>')
-      + '<br><small>Garrison: <b>' + garrison + '</b>' + (garrison > 0 ? ' — cuts the revolt chance by <b>' + (garrison * 0.2).toFixed(1) + '%</b>.' : ' — a garrison suppresses revolt (each point cuts the chance by 0.2%).') + '</small><br>'
-      + '<input id="o-garrison-amt" type="number" min="1" placeholder="Garrison points" style="width:130px"> '
-      + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>'
-      + (isHome ? '<br><button class="obtn" data-oact="station">Enter station</button> ' : '<br>')
-      + '<button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button>';
+      + '<br><small>Garrison: <b>' + garrison + '</b> — troops stationed here defend this system and cut its revolt chance by 0.2% per point.</small>'
+      + '<br><small>Costs 2 credits per point now, plus 0.05 credits/sec per point upkeep.</small>'
+      + '<br><label for="o-garrison-amt"><small>Garrison points to add:</small></label>'
+      + '<input id="o-garrison-amt" type="number" min="1" placeholder="e.g. 10" value="' + esc(onGarrisonAmt) + '">'
+      + '<button class="obtn" data-oact="garrison">Add garrison</button>';
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
-      + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>';
+      + '<small>Travel time: ' + Math.ceil(onTravelMs(s.id) / 1000) + 's from Home World.</small><br>'
+      + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + onTransitSecs() + 's.</small>'
+        : '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
   } else if (s.ownerType === "player") {
     html += '<small>Owned by another player.</small>';
     if (!adj) html += '<br><small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
@@ -837,26 +981,26 @@ function onSystemCard(s) {
     // No credit cost, no power gate: the battle itself decides it.
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<small>Neutral system, power <b>' + s.pw + '</b>. Attack to take it — win and it is yours, plus its loot.</small>' + flLine + '<br>'
-      + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>';
+      + '<small>Travel time: ' + Math.ceil(onTravelMs(s.id) / 1000) + 's from Home World.</small><br>'
+      + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + onTransitSecs() + 's.</small>'
+        : '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
   }
   html += '<br><button class="obtn ghost" data-oact="close">Close</button></div>';
   return html;
 }
 
 // ---------- actions ----------
+// Launch an attack (v3.9.26): the fleet travels like single player
+// (10s + 5s per jump, cap 60s) and the battle resolves on arrival —
+// the outcome comes back as a Battle report card, not an instant toast.
 async function onDoAttack(id, stance) {
-  const pre = ((onEmpire && onEmpire.fleet && onEmpire.fleet.ships) || {});
   const r = await onApi("/attack", "POST", { systemId: id, stance: stance || "balanced" });
-  if (r.status === 200) {
-    // Ship losses (Phase 2, single-player resolveAttack): a win keeps
-    // ceil(count x min(.95, .7 + stanceKeep)) of each type, a loss keeps
-    // floor(count x (.4 + stanceKeep)). The response carries the surviving
-    // ships; compare with the pre-battle fleet to name the losses.
-    const post = r.data.ships || {};
-    let lost = 0;
-    for (const k of ["fighter", "cruiser", "capital"]) lost += Math.max(0, (pre[k] || 0) - (post[k] || 0));
-    const lossNote = lost > 0 ? " Your fleet lost " + lost + " ship" + (lost > 1 ? "s" : "") + " in the battle." : "";
-    onToast(r.data.win ? ("Victory! " + (r.data.system || "System") + " is yours." + lossNote) : ("Defeat — your fleet was repelled." + lossNote));
+  if (r.status === 201 && r.data.launched) {
+    const t = r.data.transit || {};
+    onToast("Fleet en route to " + (t.systemName || "the system") + " — arrives in " + Math.ceil((t.travelMs || 0) / 1000) + "s.");
+    await onRefresh();
+  } else if (r.status === 409 && r.data.error === "fleet_in_transit") {
+    onToast("Your fleet is already en route.");
     await onRefresh();
   } else {
     onToast("Attack failed: " + (r.data.error || r.status) + ".");
@@ -912,6 +1056,7 @@ async function onDoGarrison(id) {
   if (amount <= 0) { onToast("Enter how many garrison points to station."); return; }
   const r = await onApi("/garrison", "POST", { systemId: id, amount });
   if (r.status === 200) {
+    onGarrisonAmt = "";
     onToast("Garrison of " + (r.data.garrison || amount) + " stationed on " + ((r.data.system || {}).name || "the system") + ".");
     await onRefresh();
   } else {
@@ -1022,6 +1167,20 @@ async function onDoRename() {
   } else {
     onToast("Could not rename: " + ((r.data && r.data.error) || r.status) + ".");
   }
+}
+
+// v3.9.26: reset the caller's own credits to the 10-credit fresh-spawn
+// amount (Jayden's pick — his balance was banked under the old economy).
+async function onDoResetCredits() {
+  const r = await onApi("/reset-credits", "POST", {});
+  onShowResetConfirm = false;
+  if (r.status === 200) {
+    onToast("Credits reset to 10.");
+    await onRefresh();
+  } else {
+    onToast("Could not reset credits — check your connection.");
+  }
+  onRenderPanel();
 }
 
 
@@ -1234,6 +1393,7 @@ function onRenderStPop() {
   onStPopKeyCache = key;
   const title = onq("#o-st-pop-title"), hero = onq("#o-st-pop-hero"), body = onq("#o-st-pop-body"), acts = onq("#o-st-pop-actions");
   if (!title || !hero || !body || !acts) return;
+  body.scrollTop = 0; // v3.9.26: a fresh popup always starts at the top (close button visible)
   const cmdLv = (onStation.b && onStation.b.command) || 1;
   const hq = hero.getContext("2d");
   if (hq) { hq.imageSmoothingEnabled = false; hq.fillStyle = "#0a0e2a"; hq.fillRect(0, 0, 96, 96); }
@@ -1345,10 +1505,11 @@ async function onDoStationMove(u, x, y) {
   }
 }
 
-async function onOpenStation() {
+async function onOpenStation(gen) {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
   const ok = await onLoadStation();
-  if (!ok) { onToast("Could not load your station \u2014 check your connection."); return; }
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok) { onToast("Could not load your station \u2014 check your connection."); onSetTab("map"); return; }
   onStationOpen = true;
   onStPop = null; onStPopKeyCache = ""; onStMove = null;
   const ov = onq("#o-station");
@@ -1671,10 +1832,11 @@ async function onDoCommander(id) {
   }
 }
 
-async function onOpenResearch() {
+async function onOpenResearch(gen) {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
   const ok = await onLoadProgress();
-  if (!ok) { onToast("Could not load research — check your connection."); return; }
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok) { onToast("Could not load research — check your connection."); onSetTab("map"); return; }
   onResearchOpen = true;
   const ov = onq("#o-research");
   if (ov) ov.hidden = false;
@@ -1683,10 +1845,11 @@ async function onOpenResearch() {
 }
 function onCloseResearch() { onResearchOpen = false; const ov = onq("#o-research"); if (ov) ov.hidden = true; }
 
-async function onOpenCrew() {
+async function onOpenCrew(gen) {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
   const ok = await onLoadProgress();
-  if (!ok) { onToast("Could not load crew — check your connection."); return; }
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok) { onToast("Could not load crew — check your connection."); onSetTab("map"); return; }
   onCrewOpen = true;
   const ov = onq("#o-crew");
   if (ov) ov.hidden = false;
@@ -1744,10 +1907,11 @@ async function onLoadFleet() {
   return false;
 }
 
-async function onOpenFleet() {
+async function onOpenFleet(gen) {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
   const ok = await onLoadFleet();
-  if (!ok) { onToast("Could not load your fleet \u2014 check your connection."); return; }
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok) { onToast("Could not load your fleet \u2014 check your connection."); onSetTab("map"); return; }
   onFleetOpen = true;
   const ov = onq("#o-fleet");
   if (ov) ov.hidden = false;
@@ -1823,7 +1987,10 @@ function onRenderFleet() {
     + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>. Home defence <b>' + Math.round(f.defence || 0) + '</b>.</small><br>'
     + '<small>' + _sub + '</small><br>'
     + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
-    + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (5 + onSlotBonus()) + ' slots per level).</small>';
+    + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (5 + onSlotBonus()) + ' slots per level).</small>'
+    // v3.9.26: fleets drain energy like single player — 0.05/s per
+    // occupied slot (launched ships only), read per minute.
+    + (((f.energyUpkeepPerSec || 0) > 0) ? '<br><small>Ship upkeep: <b>−' + ((f.energyUpkeepPerSec || 0) * 60).toFixed(1) + ' energy/min</b> (0.05/s per ship slot).</small>' : '');
   if (hangarLv < 1) html += '<br><small><b>No Hangar yet</b> — build one at your station to start building ships.</small>';
   if (total === 0 && hangarLv >= 1) html += '<br><small>No ships yet — build a Fighter to start your fleet.</small>';
   html += '</div>';
@@ -1900,6 +2067,7 @@ document.addEventListener("input", (e) => {
   if (!t || !t.id) return;
   if (t.id === "o-spawn-name") onSpawnName = t.value;
   if (t.id === "o-rename-name") onRenameName = t.value;
+  if (t.id === "o-garrison-amt") onGarrisonAmt = t.value;
 });
 
 // Panel + bar clicks (delegated).
@@ -1917,6 +2085,9 @@ document.addEventListener("click", (e) => {
   const act = b.dataset.oact;
   if (act === "spawn") onDoSpawn();
   else if (act === "recovery") { onCloseMenu(); onShowRecovery = true; onRenderPanel(); }
+  else if (act === "reset-credits") { onCloseMenu(); onShowResetConfirm = true; onRenderPanel(); }
+  else if (act === "reset-credits-cancel") { onShowResetConfirm = false; onRenderPanel(); }
+  else if (act === "reset-credits-go") onDoResetCredits();
   else if (act === "recovery-done") { onShowRecovery = false; onRenderPanel(); }
   else if (act === "recovery-copy") { onCopyText(onGetRecoveryCode(), b); }
   else if (act === "recovery-new") { onDoRecoveryNew(); }
@@ -1929,16 +2100,21 @@ document.addEventListener("click", (e) => {
   else if (act === "raid-tribute-accept" && b.dataset.raid) onDoRaidTributeAccept(b.dataset.raid);
   else if (act === "raid-tribute-decline" && b.dataset.raid) onDoRaidTributeDecline(b.dataset.raid);
   else if (act === "raid-outcome-dismiss") { onLastRaidOutcome = null; onRenderPanel(); }
+  else if (act === "transit-outcome-dismiss") { onLastTransitOutcome = null; onRenderPanel(); }
+  else if (act === "transit-jump" && b.dataset.sys) {
+    const id = +b.dataset.sys, sys = onSysById[id];
+    if (sys) { onSelected = id; if (sys.x != null && sys.y != null) { onCam.cx = sys.x; onCam.cy = sys.y; } onRenderPanel(); onDrawGalaxy(); }
+  }
   else if (act === "rename") { const home = onEmpire && onEmpire.homeSystem != null ? onSysById[onEmpire.homeSystem] : null; onRenameName = home ? home.name : ""; onShowRename = true; onRenderPanel(); }
   else if (act === "rename-save") onDoRename();
   else if (act === "rename-cancel") { onShowRename = false; onRenameName = ""; onRenderPanel(); }
   else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
-  else if (act === "station") onOpenStation();
-  else if (act === "fleet") onOpenFleet();
-  else if (act === "research") onOpenResearch();
+  else if (act === "station") onShowTab("station");
+  else if (act === "fleet") onShowTab("fleet");
+  else if (act === "research") onShowTab("research");
   else if (act === "research-start" && b.dataset.tech) onDoResearchStart(b.dataset.tech);
   else if (act === "crew" && b.dataset.crew) { const parts = b.dataset.crew.split(":"); onDoCrewAssign(parts[0], Number(parts[1]) || 0); }
-  else if (act === "crew") onOpenCrew();
+  else if (act === "crew") onShowTab("crew");
   else if (act === "commander" && b.dataset.id) onDoCommander(b.dataset.id);
   else if (act === "fleet-build" && b.dataset.type) onDoFleetBuild(b.dataset.type, Number(b.dataset.n) || 1);
   else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
