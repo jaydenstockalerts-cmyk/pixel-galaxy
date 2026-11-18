@@ -1,9 +1,9 @@
 const KEY="pixelgalaxy-v3",R=["energy","metal","crystal","credits"];
 const B={
-solar:{n:"Solar Array",d:"Makes energy",c:{metal:10},p:{energy:.525}},
-foundry:{n:"Metal Foundry",d:"Refines metal",c:{energy:10},p:{metal:.4125}},
-mine:{n:"Crystal Mine",d:"Digs crystal",c:{metal:25,energy:10},p:{crystal:.3}},
-hub:{n:"Trade Hub",d:"Earns credits",c:{metal:30,crystal:20},p:{credits:.2625}},
+solar:{n:"Solar Array",d:"Makes energy",c:{metal:10},p:{energy:.2625}},
+foundry:{n:"Metal Foundry",d:"Refines metal",c:{energy:10},p:{metal:.20625}},
+mine:{n:"Crystal Mine",d:"Digs crystal",c:{metal:25,energy:10},p:{crystal:.15}},
+hub:{n:"Trade Hub",d:"Earns credits",c:{metal:30,crystal:20},p:{credits:.13125}},
 hangar:{n:"Hangar",d:"Holds 5 ship slots per level (research adds more)",c:{metal:40,crystal:30},p:{}},
 command:{n:"Command Station",d:"Raises building cap, storage and fleet power",c:{metal:60,crystal:40,credits:20},p:{}}
 };
