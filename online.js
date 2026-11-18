@@ -101,6 +101,19 @@ let onSelected = null;   // selected system id
 let onSpawned = false;
 let onRaids = [];        // from /raids (pending/tribute_offered/resolved)
 let onPrevRaidStatus = {}; // raid id -> status, to toast on resolution
+let onLastRaidOutcome = null; // last resolved raid, kept visible until dismissed (v3.9.22: a 3.5s toast is invisible — raid 1's lost battle was never seen)
+let onLastBannerSig = null; // banner + selected-system signatures, so the
+let onLastSelSig = null;    // 15s poll re-renders the panel when a raid or
+                            // the selected system changed — even with a
+                            // system card open (v3.9.22: the tribute popup
+                            // never appeared while the card was open)
+let onGalaxyVersion = null; // server galaxy version (v3.9.22): the map
+                            // refetches only when ownership changed
+let onEmpireAt = 0; // when the empire/station snapshots were fetched —
+let onStationAt = 0; // the 1s ticker accrues from them so the ribbon
+                     // ticks live between polls (v3.9.22)
+let onPrevStation = null; // previous station/fleet snapshots, to toast
+let onPrevFleet = null;   // build/ship completions once (v3.9.22)
 let onReady = false;
 
 // Camera for the galaxy canvas: world coords are x,y in [-1,1].
@@ -217,20 +230,28 @@ function onSetGalaxy(id) {
 }
 
 // ---------- data loading ----------
+let onAuthPromise = null; // in-flight guest creation (v3.9.22): two
+// concurrent onEnsureAuth calls used to mint two guests — the spawn
+// could land on the orphaned one while the UI kept the other.
 async function onEnsureAuth() {
   if (onToken && onPlayer) return true;
-  const r = await onApi("/auth/guest", "POST", {});
-  if (r.status === 201 && r.data.token) {
-    onToken = r.data.token;
-    onPlayer = r.data.playerId;
-    if (r.data.recoveryCode) onSaveRecoveryCode(r.data.recoveryCode);
-    try {
-      localStorage.setItem(ON_TOKEN_KEY, onToken);
-      localStorage.setItem(ON_PLAYER_KEY, onPlayer);
-    } catch (e) {}
-    return true;
-  }
-  return false;
+  if (onAuthPromise) return onAuthPromise;
+  onAuthPromise = (async () => {
+    const r = await onApi("/auth/guest", "POST", {});
+    if (r.status === 201 && r.data.token) {
+      onToken = r.data.token;
+      onPlayer = r.data.playerId;
+      if (r.data.recoveryCode) onSaveRecoveryCode(r.data.recoveryCode);
+      try {
+        localStorage.setItem(ON_TOKEN_KEY, onToken);
+        localStorage.setItem(ON_PLAYER_KEY, onPlayer);
+      } catch (e) {}
+      return true;
+    }
+    return false;
+  })();
+  try { return await onAuthPromise; }
+  finally { onAuthPromise = null; }
 }
 
 // Toast faction revolts (a conquered faction system flipped back to its
@@ -245,7 +266,7 @@ function onToastRevolts(revolts) {
 
 async function onLoadEmpire() {
   const r = await onApi("/empire", "GET");
-  if (r.status === 200) { onEmpire = r.data; onSpawned = true; onToastRevolts(r.data.revolts); return true; }
+  if (r.status === 200) { onEmpire = r.data; onEmpireAt = Date.now(); onSpawned = true; onToastRevolts(r.data.revolts); return true; }
   if (r.status === 409 && r.data.error === "not_spawned") { onEmpire = null; onSpawned = false; return true; }
   if (r.status === 401) { // token dead — re-auth once
     try { localStorage.removeItem(ON_TOKEN_KEY); localStorage.removeItem(ON_PLAYER_KEY); } catch (e) {}
@@ -290,7 +311,13 @@ async function onLoadRaids() {
       else if (raid.outcome === "attacker_won") msg = mine ? ("Raid won — " + sys + " is yours.") : ("You lost " + sys + " to a raid.");
       else if (raid.outcome === "attacker_won_home_raid") msg = mine ? ("Home World raid — you stole resources from " + sys + ". It was not taken.") : ("Your Home World was raided for resources — it was not taken.");
       else if (raid.outcome === "attacker_lost") msg = mine ? ("Raid repelled — " + sys + " held.") : ("A raid on your " + sys + " was repelled.");
-      if (msg) onToast(msg);
+      if (msg) {
+        onToast(msg);
+        // v3.9.22: keep the outcome visible until dismissed — the 3.5s
+        // toast was the whole raid report, and the playtest's lost
+        // battle was never seen at all. onRenderPanel shows it.
+        onLastRaidOutcome = { msg, at: Date.now(), raidId: raid.id };
+      }
     }
     prev[raid.id] = raid.status;
   }
@@ -301,6 +328,29 @@ async function onLoadRaids() {
 // Seconds left on a raid warning (resolvesAt is a server timestamp).
 function onRaidSecs(raid) {
   return Math.max(0, Math.ceil(((raid.resolvesAt || 0) - Date.now()) / 1000));
+}
+
+// The last resolved raid, kept visible until the player dismisses it
+// (v3.9.22 — see onLoadRaids). A 3.5s toast was the whole report.
+function onRaidOutcomeCard() {
+  if (!onLastRaidOutcome) return "";
+  return '<div class="ocard" style="border-color:#6ee7f5"><h2>Raid report</h2><p>'
+    + esc(onLastRaidOutcome.msg) + '</p><button class="obtn ghost" data-oact="raid-outcome-dismiss">Dismiss</button></div>';
+}
+
+// Signatures for the banner + selected system (v3.9.22): the poll
+// re-renders the panel when either changed, even with a system card
+// open — the tribute popup only appears on a re-render, and the poll
+// used to skip it while a system was selected.
+function onBannerSig() {
+  return onRaids
+    .filter((r) => (r.status === "pending" || r.status === "tribute_offered") && (r.defenderId === onPlayer || r.attackerId === onPlayer))
+    .map((r) => [r.id, r.status, r.tributeAmount, r.systemName, r.isHomeWorld].join(":")).join("|");
+}
+function onSelSig() {
+  if (onSelected == null) return "none";
+  const s = onSysById[onSelected];
+  return s ? [s.id, s.owner, s.ownerType, s.pw, s.garrison, s.type].join(":") : "gone:" + onSelected;
 }
 
 // The raid banner: a defender warning (with tribute offer) and/or an
@@ -436,10 +486,17 @@ function onDrawGalaxy() {
       q.stroke();
     }
   });
-  // Labels: Dark Nexus + your systems + selected system.
+  // Labels: Dark Nexus + your systems + selected system. Ported from
+  // single-player drawBase (art.js): topmost label first; a label
+  // overlapping one already placed lifts in jumps until clear (max 12,
+  // capped 180px); a lifted label gets a leader line down to its dot.
+  // v3.9.22 — labels used to pile on each other at spawn zoom, with no
+  // backing, so they were unreadable.
   const fs = Math.max(11, Math.round(11 * Math.min(3, onCam.zoom)));
   q.font = "bold " + fs + "px sans-serif";
-  q.textAlign = "center";
+  q.textAlign = "center"; q.textBaseline = "middle";
+  const hh = fs * 1.3;
+  const cands = [];
   onSystems.forEach(s => {
     const mine = owned.has(s.id);
     // v3.9.13: zoomed in (zoom >= 3), also label systems you can attack now.
@@ -447,9 +504,52 @@ function onDrawGalaxy() {
     if (s.id !== 0 && !mine && s.id !== onSelected && !(onCam.zoom >= 3 && attackable)) return;
     const p = onWorldToScreen(s.x, s.y);
     if (p.x < -40 || p.x > w + 40 || p.y < -40 || p.y > h + 40) return;
-    q.fillStyle = (s.id === 0 || attackable) ? "#ffd84a" : "#6ee7f5";
-    q.fillText(s.name, p.x, p.y - 10);
+    cands.push({ s, p, color: (s.id === 0 || attackable) ? "#ffd84a" : "#6ee7f5" });
   });
+  cands.sort((a, b) => a.p.y - b.p.y);
+  const placed = [];
+  const overlap = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+  for (const c of cands) {
+    const tw = q.measureText(c.s.name).width;
+    const cx = Math.max(tw / 2 + 4, Math.min(w - tw / 2 - 4, c.p.x));
+    // Label sits just above its dot when unlifted (baseline was p.y-10
+    // before the middle-baseline switch — same look, now centred).
+    let cy = c.p.y - 10 - hh / 2;
+    const cy0 = cy;
+    let jumps = 0;
+    while (jumps < 12) {
+      const r = { x0: cx - tw / 2 - 3, y0: cy - hh / 2, x1: cx + tw / 2 + 3, y1: cy + hh / 2 };
+      const hit = placed.find((o) => overlap(r, o));
+      if (!hit) break;
+      const ny = hit.y0 - 2 - hh / 2;
+      if (ny < cy0 - 180) break;
+      cy = ny; jumps++;
+    }
+    placed.push({ x0: cx - tw / 2 - 3, y0: cy - hh / 2, x1: cx + tw / 2 + 3, y1: cy + hh / 2 });
+    if (cy0 - cy > 30) {
+      q.strokeStyle = "rgba(255,255,255,0.35)"; q.lineWidth = 1;
+      q.beginPath(); q.moveTo(cx, cy + hh / 2); q.lineTo(c.p.x, c.p.y); q.stroke();
+    }
+    q.fillStyle = "#161628";
+    q.fillRect(cx - tw / 2 - 3, cy - hh / 2, tw + 6, hh);
+    q.fillStyle = c.color;
+    q.fillText(c.s.name, cx, cy);
+  }
+}
+
+// Zoom the galaxy map, keeping the world point under (px, py) fixed —
+// mirrors single-player setZoom (game.js). Used by the mouse wheel.
+function onSetZoom(z, px, py) {
+  const cv = onCv();
+  if (!cv) return;
+  const wpt = (px !== undefined && py !== undefined) ? onScreenToWorld(px, py) : null;
+  onCam.zoom = Math.max(0.5, Math.min(20, z));
+  if (wpt) {
+    const base = Math.min(cv.width, cv.height) / 2.3;
+    const sc = base * onCam.zoom;
+    onCam.cx = wpt.x - (px - cv.width / 2) / sc;
+    onCam.cy = wpt.y - (py - cv.height / 2) / sc;
+  }
 }
 
 // Pan / pinch / tap on the galaxy canvas.
@@ -499,6 +599,17 @@ function onDrawGalaxy() {
   };
   cv.addEventListener("pointerup", up);
   cv.addEventListener("pointercancel", up);
+  // v3.9.22: mouse-wheel zoom toward the cursor, like single player —
+  // the map had pinch only, so desktop players could not zoom at all.
+  cv.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const rect = cv.getBoundingClientRect();
+    const dpr = cv.width / (rect.width || 1);
+    const px = (e.clientX - rect.left) * dpr;
+    const py = (e.clientY - rect.top) * dpr;
+    onSetZoom(onCam.zoom * (e.deltaY < 0 ? 1.15 : 1 / 1.15), px, py);
+    onDrawGalaxy();
+  }, { passive: false });
 })();
 
 function onTapGalaxy(e) {
@@ -538,7 +649,19 @@ function onRenderTop() {
   if (!el) return;
   if (!onSpawned || !onEmpire) { el.innerHTML = ""; return; }
   const st = onStation, res = (st && st.res) || {}, pps = (st && st.productionPerSec) || {}, cap = (st && st.storageCap) || 0;
-  const cr = Math.floor(onEmpire.credits || 0);
+  // v3.9.22: accrue locally from the last fetch so the ribbon ticks live
+  // between 15s polls (single player ticks every 250ms). The server
+  // settles the same interval on the next read, so the display converges
+  // instead of drifting; dt is capped at the 8h offline cap like the
+  // server. Station resources pause at the cap, like single player.
+  const dtE = onEmpireAt ? Math.max(0, Math.min(8 * 3600, (Date.now() - onEmpireAt) / 1000)) : 0;
+  const dtS = onStationAt ? Math.max(0, Math.min(8 * 3600, (Date.now() - onStationAt) / 1000)) : 0;
+  const cr = Math.floor((onEmpire.credits || 0) + (onEmpire.netPerSec || 0) * dtE);
+  const acc = {};
+  for (const k of ["energy", "metal", "crystal"]) {
+    const v = (res[k] || 0) + (pps[k] || 0) * dtS;
+    acc[k] = cap > 0 ? Math.min(cap, Math.max(0, v)) : Math.max(0, v);
+  }
   const crRate = (onEmpire.netPerSec || 0) * 60;
   const pill = (key, val, rate, capV) => {
     const pct = capV > 0 ? Math.max(0, Math.min(1, val / capV)) : 0;
@@ -546,9 +669,9 @@ function onRenderTop() {
       + (capV > 0 ? '<span class="sbar"><i style="width:' + Math.round(pct * 100) + '%"></i></span><span class="cap">of ' + Math.floor(capV) + '</span>' : '')
       + '</div>';
   };
-  el.innerHTML = pill("energy", res.energy || 0, (pps.energy || 0) * 60, cap)
-    + pill("metal", res.metal || 0, (pps.metal || 0) * 60, cap)
-    + pill("crystal", res.crystal || 0, (pps.crystal || 0) * 60, cap)
+  el.innerHTML = pill("energy", acc.energy, (pps.energy || 0) * 60, cap)
+    + pill("metal", acc.metal, (pps.metal || 0) * 60, cap)
+    + pill("crystal", acc.crystal, (pps.crystal || 0) * 60, cap)
     + pill("credits", cr, crRate, 0);
 }
 
@@ -638,7 +761,12 @@ function onRenderPanel() {
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
   const banner = onRaidBanner();
-  if (sel) { el.innerHTML = banner + onSystemCard(sel); return; }
+  const outcome = onRaidOutcomeCard();
+  // v3.9.22: record what the panel currently shows, so the poll can
+  // tell when a raid or the selected system changed underneath it.
+  onLastBannerSig = onBannerSig();
+  onLastSelSig = onSelSig();
+  if (sel) { el.innerHTML = banner + outcome + onSystemCard(sel); return; }
   const e = onEmpire || {};
   const over = Math.max(0, (e.count || 0) - (e.softCap || 25));
   el.innerHTML = '<div class="ocard"><h2>Your empire</h2><small>' + esc(onGalaxyName()) + '</small>'
@@ -650,7 +778,7 @@ function onRenderPanel() {
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
     + '<br><small><b>Next step:</b> ' + onNextStep() + '</small>'
     + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button></div>';
-  el.innerHTML = banner + el.innerHTML;
+  el.innerHTML = banner + outcome + el.innerHTML;
 }
 
 // Next best step (single-player nextStep()): a Hangar, then ships, then
@@ -860,6 +988,11 @@ async function onDoRecover() {
 }
 
 async function onDoSpawn() {
+  // v3.9.22: the spawn button is live before the guest account exists —
+  // wait for auth first, or the POST goes out with no token and 401s
+  // (the playtest needed 3 clicks). onEnsureAuth serialises, so a tap
+  // racing the boot-time auth still mints exactly one guest.
+  if (!(await onEnsureAuth())) { onToast("Still signing in — try again in a moment."); return; }
   const r = await onApi("/spawn", "POST", {});
   if (r.status === 200 || r.status === 201) {
     const h = r.data.homeSystem || {};
@@ -979,7 +1112,24 @@ let onStMove = null;        // uid of the building being moved, or null
 
 async function onLoadStation() {
   const r = await onApi("/station", "GET");
-  if (r.status === 200) { onStation = r.data; return true; }
+  if (r.status === 200) {
+    const prev = onPrevStation;
+    onStation = r.data; onStationAt = Date.now();
+    // v3.9.22: build completions were silent (single player announces
+    // them). Toast once when a queued job disappears as a finished
+    // building — same transition detection as research in onLoadProgress.
+    if (prev && Array.isArray(prev.bq)) {
+      for (const j of prev.bq) {
+        const still = (onStation.bq || []).some((z) => z.u === j.u && z.end === j.end);
+        if (still) continue;
+        const b = (onStation.bl || []).find((z) => z.u === j.u);
+        const pb = (prev.bl || []).find((z) => z.u === j.u);
+        if (b && pb && b.l > pb.l) onToast(ON_ST_B[b.t].name + " reaches level " + b.l + ".");
+      }
+    }
+    onPrevStation = onStation;
+    return true;
+  }
   return false;
 }
 
@@ -1565,7 +1715,21 @@ function onFlCanAfford(cost) {
 
 async function onLoadFleet() {
   const r = await onApi("/fleet", "GET");
-  if (r.status === 200) { onFleet = r.data; return true; }
+  if (r.status === 200) {
+    const prev = onPrevFleet;
+    onFleet = r.data;
+    // v3.9.22: ship launches were silent (single player announces
+    // them). Toast once when the launched count grows — ships only ever
+    // increase by launching (losses and scraps decrease them).
+    if (prev && prev.ships) {
+      for (const k of ["fighter", "cruiser", "capital"]) {
+        const d = (onFleet.ships[k] || 0) - (prev.ships[k] || 0);
+        if (d > 0) onToast((d > 1 ? d + "x " : "") + ON_FL_SHIPS[k].name + " launched.");
+      }
+    }
+    onPrevFleet = onFleet;
+    return true;
+  }
   return false;
 }
 
@@ -1743,6 +1907,7 @@ document.addEventListener("click", (e) => {
   else if (act === "raid-tribute" && b.dataset.raid) onDoRaidTribute(b.dataset.raid);
   else if (act === "raid-tribute-accept" && b.dataset.raid) onDoRaidTributeAccept(b.dataset.raid);
   else if (act === "raid-tribute-decline" && b.dataset.raid) onDoRaidTributeDecline(b.dataset.raid);
+  else if (act === "raid-outcome-dismiss") { onLastRaidOutcome = null; onRenderPanel(); }
   else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
   else if (act === "station") onOpenStation();
   else if (act === "fleet") onOpenFleet();
@@ -1831,6 +1996,15 @@ async function onStartGame() {
   if (!okAuth) { onToast("Could not create a guest account. Check your connection and reload."); return; }
   await onRefresh();
   onReady = true;
+  // v3.9.22: a reload used to drop the camera on the full galaxy — drop
+  // it on the Home World at zoom 4 instead, like right after spawn.
+  if (onSpawned && onEmpire && onEmpire.homeSystem != null) {
+    const home = onSysById[onEmpire.homeSystem];
+    if (home && home.x != null) {
+      onCam.cx = home.x; onCam.cy = home.y; onCam.zoom = 4;
+      onDrawGalaxy();
+    }
+  }
   // Poll the empire every 15s so credits/power tick up live. (v3.9.5: was
   // 5s — the 5s poll plus a per-call full galaxy scan burned the DO
   // free-tier rows-read limit; the server now caches the galaxy map, and
@@ -1848,8 +2022,22 @@ async function onStartGame() {
     // those views are open.
     await onLoadStation();
     await onLoadProgress();
+    // v3.9.22: ship launches need onLoadFleet even when the Fleet view
+    // is closed, or their completion toast never fires.
+    await onLoadFleet();
+    // v3.9.22: the map is only refetched when ownership actually
+    // changed — /systems is 1,000 rows, so polling it every 15s would
+    // burn the shared DO rows-read quota (5.76M/day per player).
+    if (onSpawned && onEmpire && onEmpire.galaxyVersion != null) {
+      if (onGalaxyVersion === null) { onGalaxyVersion = onEmpire.galaxyVersion; }
+      else if (onEmpire.galaxyVersion !== onGalaxyVersion) {
+        onGalaxyVersion = onEmpire.galaxyVersion;
+        await onLoadSystems();
+        onDrawGalaxy();
+      }
+    }
     if (onStationOpen) { onRenderStation(); }
-    if (onFleetOpen) { await onLoadFleet(); onRenderFleet(); }
+    if (onFleetOpen) { onRenderFleet(); }
     if (onResearchOpen) { onRenderResearch(); }
     if (onCrewOpen) { onRenderCrew(); }
     if (okE || okR) { onPollFails = 0; }
@@ -1862,7 +2050,11 @@ async function onStartGame() {
     }
     onRenderTop();
     onRenderActivity();
+    // v3.9.22: re-render the panel when a raid arrived or the selected
+    // system changed — even with a system card open, or the tribute
+    // popup never appears. With nothing selected it always re-renders.
     if (onSelected == null) onRenderPanel();
+    else if (onBannerSig() !== onLastBannerSig || onSelSig() !== onLastSelSig) onRenderPanel();
   }, 15000);
   // Tick the raid-warning countdown live (only the number, so an open
   // tribute input never loses focus). Also the shipyard + research bars,
@@ -1872,6 +2064,8 @@ async function onStartGame() {
     onFlTick();
     onResTick();
     onRenderActivity();
+    onRenderTop(); // v3.9.22: the ribbon accrues live between polls
+    onStChips();   // v3.9.22: the build countdown went stale off-ticker
     const el = onq("#o-raid-count");
     if (!el) return;
     const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
