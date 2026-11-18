@@ -1124,7 +1124,9 @@ async function onLoadStation() {
         if (still) continue;
         const b = (onStation.bl || []).find((z) => z.u === j.u);
         const pb = (prev.bl || []).find((z) => z.u === j.u);
-        if (b && pb && b.l > pb.l) onToast(ON_ST_B[b.t].name + " reaches level " + b.l + ".");
+        // New building (no previous entry) or an upgrade — either way
+        // the job finished and the building stands at its new level.
+        if (b && (!pb || b.l > pb.l)) onToast(ON_ST_B[b.t].name + " reaches level " + b.l + ".");
       }
     }
     onPrevStation = onStation;
