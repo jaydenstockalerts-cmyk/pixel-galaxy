@@ -156,6 +156,9 @@ function onToast(msg) {
 let onShowRecovery = false;    // show the recovery card (after spawn, or from the menu)
 let onShowRecoverForm = false; // show the "recover an empire" input on the welcome card
 let onRecoverErr = "";
+let onSpawnName = "";   // custom Home World name typed on the welcome card
+let onShowRename = false; // show the "rename Home World" input in the empire card
+let onRenameName = "";  // rename input value, kept while typing (v3.9.23)
 
 function onSaveRecoveryCode(code) {
   if (!code) return;
@@ -756,7 +759,7 @@ function onRenderPanel() {
     el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Battle to take systems, grow your empire, fight the five factions.</p><p><small>Galaxy:</small><br>'
       + '<button class="obtn' + (onGalaxy() === "test-1" ? '' : ' ghost') + '" data-oact="galaxy" data-galaxy="test-1">Beta Galaxy</button> '
       + '<button class="obtn' + (onGalaxy() === "staging-1" ? '' : ' ghost') + '" data-oact="galaxy" data-galaxy="staging-1">Staging Galaxy</button>'
-      + '<br><small>Beta is the live galaxy. Staging is where new features land first — your empire there is separate.</small></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>';
+      + '<br><small>Beta is the live galaxy. Staging is where new features land first — your empire there is separate.</small></p><p><small>Name your Home World (optional — leave blank to keep the galaxy\'s name):</small><br><input id="o-spawn-name" type="text" placeholder="e.g. New Terra" maxlength="24" autocomplete="off" value="' + esc(onSpawnName) + '"></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>';
     return;
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
@@ -777,7 +780,9 @@ function onRenderPanel() {
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
     + '<br><small><b>Next step:</b> ' + onNextStep() + '</small>'
-    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button></div>';
+    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button> <button class="obtn ghost" data-oact="rename">Rename Home World</button>'
+    + (onShowRename ? '<br><small>Rename your Home World (1–24 characters):</small><br><input id="o-rename-name" type="text" maxlength="24" autocomplete="off" value="' + esc(onRenameName) + '"> <button class="obtn" data-oact="rename-save">Save name</button> <button class="obtn ghost" data-oact="rename-cancel">Cancel</button>' : '')
+    + '</div>';
   el.innerHTML = banner + outcome + el.innerHTML;
 }
 
@@ -993,8 +998,14 @@ async function onDoSpawn() {
   // (the playtest needed 3 clicks). onEnsureAuth serialises, so a tap
   // racing the boot-time auth still mints exactly one guest.
   if (!(await onEnsureAuth())) { onToast("Still signing in — try again in a moment."); return; }
-  const r = await onApi("/spawn", "POST", {});
+  // v3.9.23: a custom Home World name goes with the spawn — blank means
+  // keep the galaxy's generated name. Read the live input first (the
+  // module var lags only if the input event hasn't fired yet).
+  const nameInp = onq("#o-spawn-name");
+  const name = ((nameInp ? nameInp.value : onSpawnName) || "").trim();
+  const r = await onApi("/spawn", "POST", name ? { name } : {});
   if (r.status === 200 || r.status === 201) {
+    onSpawnName = "";
     const h = r.data.homeSystem || {};
     onToast("Home World founded: " + (h.name || "your system") + ".");
     // v3.9.6: the first thing a new player sees after spawning is the
@@ -1012,6 +1023,25 @@ async function onDoSpawn() {
     }
   } else {
     onToast("Spawn failed: " + (r.data.error || r.status) + ".");
+  }
+}
+
+// Rename the Home World (v3.9.23): the name is the system itself, so it
+// shows on the map and in raid banners for everyone. Only the Home
+// World can be renamed.
+async function onDoRename() {
+  const inp = onq("#o-rename-name");
+  const name = ((inp ? inp.value : onRenameName) || "").trim();
+  if (!name) { onToast("Enter a name first."); return; }
+  const r = await onApi("/rename-home", "POST", { name });
+  if (r.status === 200) {
+    onShowRename = false; onRenameName = "";
+    onToast("Home World renamed to " + ((r.data.system && r.data.system.name) || name) + ".");
+    await onRefresh();
+  } else if (r.data && r.data.error === "bad_name") {
+    onToast("Names are 1–24 characters.");
+  } else {
+    onToast("Could not rename: " + ((r.data && r.data.error) || r.status) + ".");
   }
 }
 
@@ -1883,6 +1913,16 @@ function onFlTick() {
   }
 }
 
+// Panel inputs (delegated): the 15s poll rebuilds the panel, which would
+// wipe a half-typed name — keep the typed value in a module var and
+// restore it on render (v3.9.23).
+document.addEventListener("input", (e) => {
+  const t = e.target;
+  if (!t || !t.id) return;
+  if (t.id === "o-spawn-name") onSpawnName = t.value;
+  if (t.id === "o-rename-name") onRenameName = t.value;
+});
+
 // Panel + bar clicks (delegated).
 document.addEventListener("click", (e) => {
   // v3.9.20: ribbon menu + tap-to-expand and the tab dock carry no
@@ -1910,6 +1950,9 @@ document.addEventListener("click", (e) => {
   else if (act === "raid-tribute-accept" && b.dataset.raid) onDoRaidTributeAccept(b.dataset.raid);
   else if (act === "raid-tribute-decline" && b.dataset.raid) onDoRaidTributeDecline(b.dataset.raid);
   else if (act === "raid-outcome-dismiss") { onLastRaidOutcome = null; onRenderPanel(); }
+  else if (act === "rename") { const home = onEmpire && onEmpire.homeSystem != null ? onSysById[onEmpire.homeSystem] : null; onRenameName = home ? home.name : ""; onShowRename = true; onRenderPanel(); }
+  else if (act === "rename-save") onDoRename();
+  else if (act === "rename-cancel") { onShowRename = false; onRenameName = ""; onRenderPanel(); }
   else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
   else if (act === "station") onOpenStation();
   else if (act === "fleet") onOpenFleet();
