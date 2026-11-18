@@ -560,9 +560,20 @@ function onRenderPanel() {
     + (e.garrisonUpkeepPerSec ? ' · Garrisons <b>−' + e.garrisonUpkeepPerSec.toFixed(2) + '/s</b>' : '')
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
-    + '<br><small><b>Next step:</b> tap a system with a <b>gold ring</b> — those are next to your empire and ready to attack. Green dots are the outer rim, your spawn ground.</small>'
-    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button></div>';
+    + '<br><small><b>Next step:</b> ' + onNextStep() + '</small>'
+    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button></div>';
   el.innerHTML = banner + el.innerHTML;
+}
+
+// Next best step (single-player nextStep()): a Hangar, then ships, then
+// attack a gold-ringed system.
+function onNextStep() {
+  const f = (onEmpire && onEmpire.fleet) || null;
+  if (!f) return 'tap a system with a <b>gold ring</b> — those are next to your empire and ready to attack. Green dots are the outer rim, your spawn ground.';
+  if ((f.hangarLv || 0) < 1) return 'build a <b>Hangar</b> at your station to start building ships.';
+  const total = ((f.ships || {}).fighter || 0) + ((f.ships || {}).cruiser || 0) + ((f.ships || {}).capital || 0);
+  if (total === 0) return 'build a <b>Fighter</b> in Fleet to start your fleet.';
+  return 'tap a system with a <b>gold ring</b> — those are next to your empire and ready to attack. Green dots are the outer rim, your spawn ground.';
 }
 
 function onSystemCard(s) {
@@ -572,6 +583,26 @@ function onSystemCard(s) {
   const adj = onIsAdjacent(s);
   const e = onEmpire || {};
   const power = e.power || 0, credits = e.credits || 0;
+  // Fleet power vs this system's type (single-player fpt): the ship type
+  // that counters it hits for +50%. The /empire fleet summary carries
+  // the ships and the Command level.
+  const flPowerVs = (() => {
+    const fl = (onEmpire && onEmpire.fleet) || null;
+    if (!fl) return 0;
+    const ships = fl.ships || {};
+    const weak = { swarm: "fighter", armored: "cruiser", fortress: "capital" }[s.type];
+    let base = 0;
+    for (const k of ["fighter", "cruiser", "capital"]) {
+      const pw = { fighter: 1, cruiser: 3, capital: 8 }[k];
+      base += (ships[k] || 0) * pw * (k === weak ? 1.5 : 1);
+    }
+    return base * (1 + 0.2 * ((fl.commandLv || 1) - 1));
+  })();
+  const flLine = adj && !mine
+    ? '<br><small>Your fleet power vs this system: <b>' + Math.round(flPowerVs) + '</b> (defence ' + s.pw + ').'
+      + (flPowerVs <= 0 ? ' You have no ships — build a Hangar and Fighters in Fleet first.' : '')
+      + '</small>'
+    : '';
   let owner = "Neutral";
   if (mine) owner = "Yours";
   else if (s.ownerType === "faction") owner = FAC_NAME[s.owner] || s.owner;
@@ -585,10 +616,10 @@ function onSystemCard(s) {
       + '<br><small>Garrison: <b>' + garrison + '</b>' + (garrison > 0 ? ' — cuts the revolt chance by <b>' + (garrison * 0.2).toFixed(1) + '%</b>.' : ' — a garrison suppresses revolt (each point cuts the chance by 0.2%).') + '</small><br>'
       + '<input id="o-garrison-amt" type="number" min="1" placeholder="Garrison points" style="width:130px"> '
       + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>'
-      + '<br><button class="obtn" data-oact="station">Enter station</button>';
+      + '<br><button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button>';
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
-    else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small><br>'
+    else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
       + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>';
   } else if (s.ownerType === "player") {
     html += '<small>Owned by another player.</small>';
@@ -599,7 +630,7 @@ function onSystemCard(s) {
     // Neutral — battle to take it, like single player (Jayden, Nov 17).
     // No credit cost, no power gate: the battle itself decides it.
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
-    else html += '<small>Neutral system, power <b>' + s.pw + '</b>. Attack to take it — win and it is yours, plus its loot.</small><br>'
+    else html += '<small>Neutral system, power <b>' + s.pw + '</b>. Attack to take it — win and it is yours, plus its loot.</small>' + flLine + '<br>'
       + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>';
   }
   html += '<br><button class="obtn ghost" data-oact="close">Close</button></div>';
@@ -608,9 +639,18 @@ function onSystemCard(s) {
 
 // ---------- actions ----------
 async function onDoAttack(id, stance) {
+  const pre = ((onEmpire && onEmpire.fleet && onEmpire.fleet.ships) || {});
   const r = await onApi("/attack", "POST", { systemId: id, stance: stance || "balanced" });
   if (r.status === 200) {
-    onToast(r.data.win ? ("Victory! " + (r.data.system || "System") + " is yours.") : "Defeat — your fleet was repelled. Nothing lost but the attempt.");
+    // Ship losses (Phase 2, single-player resolveAttack): a win keeps
+    // ceil(count x min(.95, .7 + stanceKeep)) of each type, a loss keeps
+    // floor(count x (.4 + stanceKeep)). The response carries the surviving
+    // ships; compare with the pre-battle fleet to name the losses.
+    const post = r.data.ships || {};
+    let lost = 0;
+    for (const k of ["fighter", "cruiser", "capital"]) lost += Math.max(0, (pre[k] || 0) - (post[k] || 0));
+    const lossNote = lost > 0 ? " Your fleet lost " + lost + " ship" + (lost > 1 ? "s" : "") + " in the battle." : "";
+    onToast(r.data.win ? ("Victory! " + (r.data.system || "System") + " is yours." + lossNote) : ("Defeat — your fleet was repelled." + lossNote));
     await onRefresh();
   } else {
     onToast("Attack failed: " + (r.data.error || r.status) + ".");
@@ -1176,6 +1216,170 @@ function onTapStation(e) {
   onOpenStPlot(gx, gy);
 }
 
+// ---------- fleet (ships) — Phase 2 (Jayden, Nov 17) ----------
+// Mirrors the single-player Fleet tab (data.js U + DUR, fpt/dpower, the
+// build rules, and the battle ship losses). The server owns the fleet
+// state; this view renders it and posts builds/scraps.
+let onFleet = null;         // from GET /fleet
+let onFleetOpen = false;
+
+// Ship defs (mirror FLEET_SHIPS in the backend's fleet.js). Cost is paid
+// from the station resources (energy/metal/crystal) plus empire credits.
+const ON_FL_SHIPS = {
+  fighter: { name: "Fighter", pw: 1, sz: 1, hangar: 1, cost: { energy: 10, credits: 5 }, dur: 9, vs: "swarm" },
+  cruiser: { name: "Cruiser", pw: 3, sz: 2, hangar: 2, cost: { metal: 25, crystal: 10, credits: 10 }, dur: 24, vs: "armored" },
+  capital: { name: "Capital Ship", pw: 8, sz: 4, hangar: 4, cost: { metal: 80, crystal: 50, credits: 40 }, dur: 60, vs: "fortress" },
+};
+
+function onFlCostStr(cost) {
+  return Object.keys(cost).map((r) => cost[r] + " " + r).join(", ");
+}
+
+function onFlCanAfford(cost) {
+  if (!onFleet) return false;
+  const res = onFleet.res || {};
+  for (const r in cost) {
+    const have = r === "credits" ? (onFleet.credits || 0) : (res[r] || 0);
+    if (have < cost[r]) return false;
+  }
+  return true;
+}
+
+async function onLoadFleet() {
+  const r = await onApi("/fleet", "GET");
+  if (r.status === 200) { onFleet = r.data; return true; }
+  return false;
+}
+
+async function onOpenFleet() {
+  if (!onSpawned) { onToast("Found your Home World first."); return; }
+  const ok = await onLoadFleet();
+  if (!ok) { onToast("Could not load your fleet \u2014 check your connection."); return; }
+  onFleetOpen = true;
+  const ov = onq("#o-fleet");
+  if (ov) ov.hidden = false;
+  onRenderFleet();
+}
+
+function onCloseFleet() {
+  onFleetOpen = false;
+  const ov = onq("#o-fleet");
+  if (ov) ov.hidden = true;
+  onRefresh();
+}
+
+// Build n ships of a type (single-player d.build: one call per ship,
+// each queued after the last). The server builds as many as fit and
+// names the first blocker (no_hangar / slots_full / queue_full /
+// not_enough_resources).
+async function onDoFleetBuild(type, n) {
+  const def = ON_FL_SHIPS[type];
+  if (!def) return;
+  const r = await onApi("/fleet/build", "POST", { type, n: n || 1 });
+  if (r.status === 200 && r.data.built > 0) {
+    onToast(r.data.built + "x " + def.name + " construction started.");
+    await onLoadFleet(); onRenderFleet(); onRefresh();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    const why = err === "no_hangar" ? "Build a Hangar at your station first (needs Hangar Lv " + def.hangar + ")."
+      : err === "slots_full" ? "Your Hangar is full — upgrade the Hangar for more ship slots."
+      : err === "queue_full" ? "The shipyard queue is full — wait for a ship to launch."
+      : err === "not_enough_resources" ? "Not enough resources — need " + onFlCostStr(def.cost) + "."
+      : "Build failed: " + err + ".";
+    onToast(why);
+    await onLoadFleet(); onRenderFleet();
+  }
+}
+
+// Scrap one ship (single-player d.scrap): half its cost is refunded.
+async function onDoFleetScrap(type) {
+  const def = ON_FL_SHIPS[type];
+  if (!def) return;
+  const r = await onApi("/fleet/scrap", "POST", { type });
+  if (r.status === 200) {
+    onToast(def.name + " scrapped. Half its cost was refunded.");
+    await onLoadFleet(); onRenderFleet(); onRefresh();
+  } else {
+    onToast("Scrap failed: " + ((r.data && r.data.error) || r.status) + ".");
+  }
+}
+
+function onRenderFleet() {
+  const ov = onq("#o-fleet");
+  if (!ov || ov.hidden) return;
+  const f = onFleet;
+  const resEl = onq("#o-fl-res");
+  if (resEl && f) {
+    const res = f.res || {};
+    resEl.textContent = "Energy " + Math.floor(res.energy || 0) + " · Metal " + Math.floor(res.metal || 0) + " · Crystal " + Math.floor(res.crystal || 0) + " · " + Math.floor(f.credits || 0) + " cr";
+  }
+  const body = onq("#o-fl-body");
+  if (!body) return;
+  if (!f) { body.innerHTML = '<div class="ocard"><p>Loading your fleet…</p></div>'; return; }
+  const hangarLv = f.hangarLv || 0, cmdLv = f.commandLv || 1;
+  const ships = f.ships || {};
+  const total = (ships.fighter || 0) + (ships.cruiser || 0) + (ships.capital || 0);
+  const used = f.usedSlots || 0, slotCap = f.slotCap || 0;
+  const q = f.sq || [];
+  let html = '<div class="ocard"><h2>Fleet</h2>'
+    + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>. Home defence <b>' + Math.round(f.defence || 0) + '</b>.</small><br>'
+    + '<small>Base ' + Math.round(f.power || 0) + ' · Command +' + Math.round(0.2 * (cmdLv - 1) * 100) + '%</small><br>'
+    + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
+    + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — 5 slots per level).</small>';
+  if (hangarLv < 1) html += '<br><small><b>No Hangar yet</b> — build one at your station to start building ships.</small>';
+  if (total === 0 && hangarLv >= 1) html += '<br><small>No ships yet — build a Fighter to start your fleet.</small>';
+  html += '</div>';
+  // One row per ship type (single-player Fleet tab rows).
+  html += '<div class="ocard">';
+  for (const k of Object.keys(ON_FL_SHIPS)) {
+    const d = ON_FL_SHIPS[k];
+    const n = ships[k] || 0;
+    const needsHangar = hangarLv < d.hangar;
+    const afford = onFlCanAfford(d.cost);
+    const slotsFit = used + d.sz <= slotCap;
+    const canBuild = !needsHangar && afford && slotsFit && q.length < (f.queueCap || 0);
+    html += '<div class="shiprow"><div><b>' + d.name + '</b> x' + n + '<br><small>Power ' + d.pw + ', ' + d.sz + ' slot' + (d.sz > 1 ? "s" : "") + ', ' + d.dur + 's. Strong vs ' + d.vs + ' (+50%).<br>Cost: ' + onFlCostStr(d.cost) + '<br>'
+      + (needsHangar ? 'Needs Hangar Lv ' + d.hangar + '.' : '')
+      + (!needsHangar && !afford ? 'Not enough resources.' : '')
+      + (!needsHangar && afford && !slotsFit ? 'No free ship slots.' : '')
+      + '</small></div><div class="bg">'
+      + '<button class="obtn" data-oact="fleet-build" data-type="' + k + '" data-n="1"' + (canBuild ? '' : ' disabled') + '>Build</button>'
+      + '<button class="obtn" data-oact="fleet-build" data-type="' + k + '" data-n="5"' + (canBuild ? '' : ' disabled') + '>x5</button>'
+      + '<button class="obtn ghost" data-oact="fleet-scrap" data-type="' + k + '"' + (n > 0 ? '' : ' disabled') + '>Scrap</button>'
+      + '</div></div>';
+  }
+  html += '</div>';
+  // Shipyard queue with a progress bar on the first job.
+  if (q.length) {
+    const first = q[0];
+    const now = Date.now();
+    const dur = (ON_FL_SHIPS[first.k] || {}).dur || 9;
+    const leftMs = Math.max(0, first.end - now);
+    const done = Math.max(0, Math.min(100, 100 * (1 - leftMs / (dur * 1000))));
+    html += '<div class="ocard"><small><b>Shipyard queue</b> (' + q.length + ')</small><br>'
+      + '<small>' + (ON_FL_SHIPS[first.k] || {}).name + ' — done in <b id="o-fl-left">' + Math.ceil(leftMs / 1000) + 's</b></small>'
+      + '<div class="pbar"><div id="o-fl-bar" style="width:' + done.toFixed(0) + '%"></div></div>'
+      + '<small>' + q.map((j) => (ON_FL_SHIPS[j.k] || {}).name).join(", ") + '</small></div>';
+  }
+  body.innerHTML = html;
+}
+
+// Tick the shipyard progress bar live while the Fleet view is open
+// (the 15s poll reloads the fleet; this only moves the bar/countdown).
+function onFlTick() {
+  if (!onFleetOpen || !onFleet) return;
+  const q = onFleet.sq || [];
+  if (!q.length) return;
+  const first = q[0];
+  const dur = (ON_FL_SHIPS[first.k] || {}).dur || 9;
+  const leftMs = Math.max(0, first.end - Date.now());
+  const left = onq("#o-fl-left");
+  if (left) left.textContent = Math.ceil(leftMs / 1000) + "s";
+  const bar = onq("#o-fl-bar");
+  if (bar) bar.style.width = Math.max(0, Math.min(100, 100 * (1 - leftMs / (dur * 1000)))).toFixed(0) + "%";
+  if (leftMs <= 0) { onLoadFleet().then(() => onRenderFleet()); }
+}
+
 // Panel + bar clicks (delegated).
 document.addEventListener("click", (e) => {
   const b = e.target.closest ? e.target.closest("[data-oact]") : null;
@@ -1197,6 +1401,10 @@ document.addEventListener("click", (e) => {
   else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
   else if (act === "station") onOpenStation();
   else if (act === "station-close") onCloseStation();
+  else if (act === "fleet") onOpenFleet();
+  else if (act === "fleet-close") onCloseFleet();
+  else if (act === "fleet-build" && b.dataset.type) onDoFleetBuild(b.dataset.type, Number(b.dataset.n) || 1);
+  else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
   else if (act === "station-mv-cancel") { onStMove = null; onRenderStation(); }
   else if (act === "station-pop-close") { if (Date.now() - onStPopOpenAt >= 350) onCloseStPop(); }
   else if (act === "station-pop-upgrade" && b.dataset.u) { if (Date.now() - onStPopOpenAt >= 350) onDoStationUpgrade(Number(b.dataset.u)); }
@@ -1288,6 +1496,7 @@ async function onStartGame() {
     const okE = await onLoadEmpire();
     const okR = await onLoadRaids();
     if (onStationOpen) { await onLoadStation(); onRenderStation(); }
+    if (onFleetOpen) { await onLoadFleet(); onRenderFleet(); }
     if (okE || okR) { onPollFails = 0; }
     else {
       onPollFails++;
@@ -1303,6 +1512,7 @@ async function onStartGame() {
   // tribute input never loses focus).
   setInterval(() => {
     if (!onReady) return;
+    onFlTick();
     const el = onq("#o-raid-count");
     if (!el) return;
     const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
