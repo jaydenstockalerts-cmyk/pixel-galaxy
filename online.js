@@ -337,11 +337,13 @@ function onRaidBanner() {
 
 async function onRefresh() {
   await onLoadEmpire();
+  await onLoadStation();
   await onLoadProgress();
   await onLoadSystems();
   await onLoadRaids();
   onRenderTop();
   onRenderPanel();
+  onRenderActivity();
   onDrawGalaxy();
 }
 
@@ -526,12 +528,97 @@ function onTapGalaxy(e) {
 }
 
 // ---------- top bar + empire panel ----------
+// v3.9.20: the online ribbon is the single-player ribbon — the same four
+// resource pills (.res/.pill, RICON copy: online.js cannot use game.js
+// consts). onTab tracks the active tab in the bottom dock.
+const ON_RICON = { energy: "⚡", metal: "▣", crystal: "◆", credits: "●" };
+let onTab = "map";
 function onRenderTop() {
   const el = onq("#o-res");
   if (!el) return;
-  if (!onSpawned || !onEmpire) { el.textContent = ""; return; }
-  const c = Math.floor(onEmpire.credits || 0);
-  el.textContent = "⚡ " + c + " cr  ·  PWR " + Math.round(onEmpire.power || 0) + "  ·  " + (onEmpire.count || 0) + "/" + (onEmpire.softCap || 25) + " systems";
+  if (!onSpawned || !onEmpire) { el.innerHTML = ""; return; }
+  const st = onStation, res = (st && st.res) || {}, pps = (st && st.productionPerSec) || {}, cap = (st && st.storageCap) || 0;
+  const cr = Math.floor(onEmpire.credits || 0);
+  const crRate = (onEmpire.netPerSec || 0) * 60;
+  const pill = (key, val, rate, capV) => {
+    const pct = capV > 0 ? Math.max(0, Math.min(1, val / capV)) : 0;
+    return '<div class="pill"><span class="rlabel">' + key.toUpperCase() + '</span><span class="pline"><span class="ric dot-' + key + '">' + (ON_RICON[key] || "") + '</span><b>' + Math.floor(val) + '</b><span class="rate">' + (rate >= 0 ? "+" : "") + rate.toFixed(0) + '/min</span></span>'
+      + (capV > 0 ? '<span class="sbar"><i style="width:' + Math.round(pct * 100) + '%"></i></span><span class="cap">of ' + Math.floor(capV) + '</span>' : '')
+      + '</div>';
+  };
+  el.innerHTML = pill("energy", res.energy || 0, (pps.energy || 0) * 60, cap)
+    + pill("metal", res.metal || 0, (pps.metal || 0) * 60, cap)
+    + pill("crystal", res.crystal || 0, (pps.crystal || 0) * 60, cap)
+    + pill("credits", cr, crRate, 0);
+}
+
+// ---------- activity tray (single-player #activity) ----------
+// One line per timed job, visible on every view: building, shipyard,
+// research. Data comes from the freshest state on hand (station queue,
+// the /empire fleet summary, progress); the 1s ticker re-renders it so
+// the countdowns tick.
+function onRenderActivity() {
+  const el = onq("#o-activity");
+  if (!el) return;
+  const rows = [];
+  const bq = (onStation && onStation.bq) || [];
+  if (bq.length) {
+    const j = bq[0];
+    const bl = (onStation.bl || []).find((z) => z.u === j.u);
+    const nm = bl ? ON_ST_B[bl.t].name : "Building";
+    rows.push("🔨 " + nm + " Lv " + (bl ? bl.l + 1 : "?") + " — done in " + onStLeft(Math.max(0, j.end - Date.now())));
+  }
+  const sq = (onEmpire && onEmpire.fleet && onEmpire.fleet.sq) || [];
+  if (sq.length) {
+    const j = sq[0];
+    const nm = (ON_FL_SHIPS[j.k] && ON_FL_SHIPS[j.k].name) || j.k;
+    rows.push("🚀 " + nm + " — done in " + onStLeft(Math.max(0, j.end - Date.now())));
+  }
+  const rq = (onProgress && onProgress.rq) || null;
+  if (rq) {
+    const t = (typeof TECH !== "undefined" ? TECH : []).find((z) => z.id === rq.id);
+    rows.push("⚙ " + (t ? t.n : rq.id) + " — done in " + onStLeft(Math.max(0, rq.end - Date.now())));
+  }
+  if (!rows.length) { el.hidden = true; el.innerHTML = ""; return; }
+  el.hidden = false;
+  el.innerHTML = rows.map((r) => '<div class="trayrow">' + r + '</div>').join("");
+}
+
+// ---------- tab dock (single-player #tabs) ----------
+// Galaxy / Station / Fleet / Crew / Research switch views; Quests is
+// Phase 4, so it toasts instead of opening anything.
+function onSetTab(t) {
+  onTab = t;
+  document.querySelectorAll("#o-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.otab === t));
+}
+function onCloseAllOverlays() {
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseCrew();
+  onSetTab("map");
+  onRefresh();
+}
+function onShowTab(t) {
+  if (t === "quests") { onToast("Quests come online with Phase 4 — still to build."); return; }
+  if (t === "map") { onCloseAllOverlays(); return; }
+  if (t === "station") onOpenStation();
+  else if (t === "fleet") onOpenFleet();
+  else if (t === "research") onOpenResearch();
+  else if (t === "crew") onOpenCrew();
+}
+
+// ---------- online menu (single-player #menu) ----------
+function onOpenMenu() {
+  const m = onq("#o-menu"), bk = onq("#o-menubk");
+  if (!m) return;
+  m.hidden = false; if (bk) bk.hidden = false;
+  const g = onq("#o-menu-gal");
+  if (g) g.textContent = onGalaxyName();
+  requestAnimationFrame(() => m.classList.add("open"));
+}
+function onCloseMenu() {
+  const m = onq("#o-menu"), bk = onq("#o-menubk");
+  if (!m) return;
+  m.classList.remove("open");
+  setTimeout(() => { m.hidden = true; if (bk) bk.hidden = true; }, 220);
 }
 
 function onRenderPanel() {
@@ -612,12 +699,18 @@ function onSystemCard(s) {
     + '<small>Ring ' + s.ring + ' · ' + esc(s.type || "") + ' · Power <b>' + s.pw + '</b> · ' + esc(owner) + '</small><br>';
   if (isNexus) html += '<small>The Dark Nexus — power 5000, the endgame. Holding it is a tournament objective, not just a conquest.</small><br>';
   if (mine) {
+    // Single player: the station lives ONLY at the Home World — other
+    // systems are colonies, not stations (Jayden, Nov 18). The station
+    // button shows only on the Home World card.
+    const isHome = onEmpire && onEmpire.homeSystem === s.id;
     const garrison = s.garrison || 0;
     html += '<small>This system is yours. Defence comes from your empire power.</small>'
+      + (isHome ? '' : '<br><small>Your station is at your Home World — this system pays income and can be garrisoned.</small>')
       + '<br><small>Garrison: <b>' + garrison + '</b>' + (garrison > 0 ? ' — cuts the revolt chance by <b>' + (garrison * 0.2).toFixed(1) + '%</b>.' : ' — a garrison suppresses revolt (each point cuts the chance by 0.2%).') + '</small><br>'
       + '<input id="o-garrison-amt" type="number" min="1" placeholder="Garrison points" style="width:130px"> '
       + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>'
-      + '<br><button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button>';
+      + (isHome ? '<br><button class="obtn" data-oact="station">Enter station</button> ' : '<br>')
+      + '<button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button>';
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
@@ -925,24 +1018,9 @@ function onDrawStation() {
   }
 }
 
-function onStationResLine() {
-  if (!onStation) return "";
-  const res = onStation.res || {};
-  const pr = onStation.productionPerSec || {};
-  const fmt = (v) => Math.floor(v || 0);
-  const rate = (r) => (pr[r] ? " +" + (pr[r] * 60).toFixed(0) + "/min" : "");
-  return "Energy " + fmt(res.energy) + rate("energy")
-    + " \u00b7 Metal " + fmt(res.metal) + rate("metal")
-    + " \u00b7 Crystal " + fmt(res.crystal) + rate("crystal")
-    + " \u00b7 " + fmt(onStation.credits) + " cr"
-    + " \u00b7 cap " + (onStation.storageCap || 600);
-}
-
 // Chips overlaid on the station canvas (single-player #cap / #bq / hint /
 // mvcancel). Called on every render.
 function onStChips() {
-  const top = onq("#o-st-res");
-  if (top) top.textContent = onStationResLine();
   if (!onStation) return;
   const cap = onq("#o-st-cap");
   if (cap) cap.textContent = "Storage cap " + (onStation.storageCap || 600);
@@ -1114,6 +1192,7 @@ async function onOpenStation() {
   onStPop = null; onStPopKeyCache = ""; onStMove = null;
   const ov = onq("#o-station");
   if (ov) ov.hidden = false;
+  onSetTab("station");
   onRenderStation();
 }
 
@@ -1123,7 +1202,6 @@ function onCloseStation() {
   const ov = onq("#o-station");
   if (ov) ov.hidden = true;
   onCloseStPop();
-  onRefresh();
 }
 
 // Pan / pinch / tap on the station canvas.
@@ -1281,11 +1359,6 @@ function onResearchTime(t) { return t.t * 1000 * onTmul() * onResMul(); }
 function onRenderResearch() {
   const ov = onq("#o-research");
   if (!ov || ov.hidden) return;
-  const resEl = onq("#o-res-res");
-  if (resEl && onProgress) {
-    const res = onProgress.res || {};
-    resEl.textContent = "Energy " + Math.floor(res.energy || 0) + " · Metal " + Math.floor(res.metal || 0) + " · Crystal " + Math.floor(res.crystal || 0) + " · " + Math.floor(onProgress.credits || 0) + " cr";
-  }
   const body = onq("#o-res-body");
   if (!body) return;
   const p = onProgress;
@@ -1361,11 +1434,6 @@ function onResTick() {
 function onRenderCrew() {
   const ov = onq("#o-crew");
   if (!ov || ov.hidden) return;
-  const resEl = onq("#o-cr-res");
-  if (resEl && onProgress) {
-    const res = onProgress.res || {};
-    resEl.textContent = "Energy " + Math.floor(res.energy || 0) + " · Metal " + Math.floor(res.metal || 0) + " · Crystal " + Math.floor(res.crystal || 0) + " · " + Math.floor(onProgress.credits || 0) + " cr";
-  }
   const body = onq("#o-cr-body");
   if (!body) return;
   const p = onProgress;
@@ -1449,6 +1517,7 @@ async function onOpenResearch() {
   onResearchOpen = true;
   const ov = onq("#o-research");
   if (ov) ov.hidden = false;
+  onSetTab("research");
   onRenderResearch();
 }
 function onCloseResearch() { onResearchOpen = false; const ov = onq("#o-research"); if (ov) ov.hidden = true; }
@@ -1460,6 +1529,7 @@ async function onOpenCrew() {
   onCrewOpen = true;
   const ov = onq("#o-crew");
   if (ov) ov.hidden = false;
+  onSetTab("crew");
   onRenderCrew();
 }
 function onCloseCrew() { onCrewOpen = false; const ov = onq("#o-crew"); if (ov) ov.hidden = true; }
@@ -1506,6 +1576,7 @@ async function onOpenFleet() {
   onFleetOpen = true;
   const ov = onq("#o-fleet");
   if (ov) ov.hidden = false;
+  onSetTab("fleet");
   onRenderFleet();
 }
 
@@ -1513,7 +1584,6 @@ function onCloseFleet() {
   onFleetOpen = false;
   const ov = onq("#o-fleet");
   if (ov) ov.hidden = true;
-  onRefresh();
 }
 
 // Build n ships of a type (single-player d.build: one call per ship,
@@ -1556,11 +1626,6 @@ function onRenderFleet() {
   const ov = onq("#o-fleet");
   if (!ov || ov.hidden) return;
   const f = onFleet;
-  const resEl = onq("#o-fl-res");
-  if (resEl && f) {
-    const res = f.res || {};
-    resEl.textContent = "Energy " + Math.floor(res.energy || 0) + " · Metal " + Math.floor(res.metal || 0) + " · Crystal " + Math.floor(res.crystal || 0) + " · " + Math.floor(f.credits || 0) + " cr";
-  }
   const body = onq("#o-fl-body");
   if (!body) return;
   if (!f) { body.innerHTML = '<div class="ocard"><p>Loading your fleet…</p></div>'; return; }
@@ -1654,11 +1719,19 @@ function onFlTick() {
 
 // Panel + bar clicks (delegated).
 document.addEventListener("click", (e) => {
+  // v3.9.20: ribbon menu + tap-to-expand and the tab dock carry no
+  // data-oact of their own — handle them before the action dispatch.
+  const mb = e.target.closest ? e.target.closest("[data-omenu],[data-omclose]") : null;
+  if (mb) { if (mb.dataset.omenu) onOpenMenu(); else onCloseMenu(); return; }
+  const rb = e.target.closest ? e.target.closest("#o-res") : null;
+  if (rb) { rb.classList.toggle("expanded"); return; }
+  const tb = e.target.closest ? e.target.closest("[data-otab]") : null;
+  if (tb) { onShowTab(tb.dataset.otab); return; }
   const b = e.target.closest ? e.target.closest("[data-oact]") : null;
   if (!b) return;
   const act = b.dataset.oact;
   if (act === "spawn") onDoSpawn();
-  else if (act === "recovery") { onShowRecovery = true; onRenderPanel(); }
+  else if (act === "recovery") { onCloseMenu(); onShowRecovery = true; onRenderPanel(); }
   else if (act === "recovery-done") { onShowRecovery = false; onRenderPanel(); }
   else if (act === "recovery-copy") { onCopyText(onGetRecoveryCode(), b); }
   else if (act === "recovery-new") { onDoRecoveryNew(); }
@@ -1672,15 +1745,11 @@ document.addEventListener("click", (e) => {
   else if (act === "raid-tribute-decline" && b.dataset.raid) onDoRaidTributeDecline(b.dataset.raid);
   else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
   else if (act === "station") onOpenStation();
-  else if (act === "station-close") onCloseStation();
   else if (act === "fleet") onOpenFleet();
-  else if (act === "fleet-close") onCloseFleet();
   else if (act === "research") onOpenResearch();
-  else if (act === "research-close") onCloseResearch();
   else if (act === "research-start" && b.dataset.tech) onDoResearchStart(b.dataset.tech);
   else if (act === "crew" && b.dataset.crew) { const parts = b.dataset.crew.split(":"); onDoCrewAssign(parts[0], Number(parts[1]) || 0); }
   else if (act === "crew") onOpenCrew();
-  else if (act === "crew-close") onCloseCrew();
   else if (act === "commander" && b.dataset.id) onDoCommander(b.dataset.id);
   else if (act === "fleet-build" && b.dataset.type) onDoFleetBuild(b.dataset.type, Number(b.dataset.n) || 1);
   else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
@@ -1774,10 +1843,15 @@ async function onStartGame() {
     if (!onReady) return;
     const okE = await onLoadEmpire();
     const okR = await onLoadRaids();
-    if (onStationOpen) { await onLoadStation(); onRenderStation(); }
+    // v3.9.20: the ribbon (station resources) and the tray (research)
+    // need fresh station/progress state on every poll, not just when
+    // those views are open.
+    await onLoadStation();
+    await onLoadProgress();
+    if (onStationOpen) { onRenderStation(); }
     if (onFleetOpen) { await onLoadFleet(); onRenderFleet(); }
-    if (onResearchOpen) { await onLoadProgress(); onRenderResearch(); }
-    if (onCrewOpen) { await onLoadProgress(); onRenderCrew(); }
+    if (onResearchOpen) { onRenderResearch(); }
+    if (onCrewOpen) { onRenderCrew(); }
     if (okE || okR) { onPollFails = 0; }
     else {
       onPollFails++;
@@ -1787,14 +1861,17 @@ async function onStartGame() {
       }
     }
     onRenderTop();
+    onRenderActivity();
     if (onSelected == null) onRenderPanel();
   }, 15000);
   // Tick the raid-warning countdown live (only the number, so an open
-  // tribute input never loses focus). Also the shipyard + research bars.
+  // tribute input never loses focus). Also the shipyard + research bars,
+  // and the activity tray countdowns.
   setInterval(() => {
     if (!onReady) return;
     onFlTick();
     onResTick();
+    onRenderActivity();
     const el = onq("#o-raid-count");
     if (!el) return;
     const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
