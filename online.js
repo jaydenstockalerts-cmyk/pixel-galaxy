@@ -7,13 +7,15 @@
 "use strict";
 
 const ON_API = "https://pixel-galaxy-online.jaydenburnham.workers.dev";
-// Galaxies (Jayden, Nov 17): two servers. "test-1" is the live beta
-// galaxy people join; "staging-1" is where new features are pushed first
-// to make sure they don't break the beta. The choice lives in
-// localStorage (ON_GALAXY_KEY) and defaults to the beta. Tokens, players
-// and recovery codes are per-galaxy, so switching galaxies signs you into
-// a fresh guest on the other one.
-const ON_GALAXIES = { "test-1": "Beta Galaxy", "staging-1": "Staging Galaxy" };
+// Galaxy (Jayden, Nov 18): one shared galaxy, "test-1" (the Beta).
+// Staging ("staging-1") was removed the same day — it guarded a Beta
+// with no real players yet and doubled every verification step, while
+// both galaxies shared the same rows-read quota anyway. Its DO data is
+// untouched on the backend, so it can come back as the picker entry
+// when the beta gate lifts and real players join. Tokens, players and
+// recovery codes are per-galaxy; onGalaxy() falls back to the Beta for
+// any stored value no longer in the map (e.g. a saved "staging-1").
+const ON_GALAXIES = { "test-1": "Beta Galaxy" };
 function onGalaxy() {
   try {
     const g = localStorage.getItem(ON_GALAXY_KEY);
@@ -212,26 +214,6 @@ function onRecoveryCard() {
   html += '<br><button class="obtn ghost" data-oact="recovery-done">Done</button></div>';
   return html;
 }
-
-// Switch galaxies. Tokens/players/recovery codes are per-galaxy, so
-// switching signs you into a fresh guest on the other galaxy. Your empire
-// on the old galaxy is untouched (recover it with its recovery code).
-function onSetGalaxy(id) {
-  if (!ON_GALAXIES[id] || id === onGalaxy()) return;
-  try {
-    localStorage.setItem(ON_GALAXY_KEY, id);
-    localStorage.removeItem(ON_TOKEN_KEY);
-    localStorage.removeItem(ON_PLAYER_KEY);
-    localStorage.removeItem(ON_RECOVERY_KEY);
-  } catch (e) {}
-  onToken = null; onPlayer = null;
-  onEmpire = null; onSystems = null; onSysById = {}; onRaids = [];
-  onSpawned = false; onSelected = null; onShowRecovery = false;
-  onShowRecoverForm = false; onRecoverErr = "";
-  onRenderPanel();
-  onStartGame();
-}
-
 // ---------- data loading ----------
 let onAuthPromise = null; // in-flight guest creation (v3.9.22): two
 // concurrent onEnsureAuth calls used to mint two guests — the spawn
@@ -756,10 +738,7 @@ function onRenderPanel() {
       el.innerHTML = '<div class="ocard"><h2>Recover your empire</h2><p>Enter the recovery code you saved when you started. It works on any device.</p><input id="o-rec-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><br><button class="obtn" data-oact="recover-go">Recover empire</button> <button class="obtn ghost" data-oact="recover-cancel">Cancel</button>' + (onRecoverErr ? '<br><small style="color:#ff8a80">' + esc(onRecoverErr) + '</small>' : '') + '</div>';
       return;
     }
-    el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Battle to take systems, grow your empire, fight the five factions.</p><p><small>Galaxy:</small><br>'
-      + '<button class="obtn' + (onGalaxy() === "test-1" ? '' : ' ghost') + '" data-oact="galaxy" data-galaxy="test-1">Beta Galaxy</button> '
-      + '<button class="obtn' + (onGalaxy() === "staging-1" ? '' : ' ghost') + '" data-oact="galaxy" data-galaxy="staging-1">Staging Galaxy</button>'
-      + '<br><small>Beta is the live galaxy. Staging is where new features land first — your empire there is separate.</small></p><p><small>Name your Home World (optional — leave blank to keep the galaxy\'s name):</small><br><input id="o-spawn-name" type="text" placeholder="e.g. New Terra" maxlength="24" autocomplete="off" value="' + esc(onSpawnName) + '"></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>';
+    el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Battle to take systems, grow your empire, fight the five factions.</p><p><small>Name your Home World (optional — leave blank to keep the galaxy\'s name):</small><br><input id="o-spawn-name" type="text" placeholder="e.g. New Terra" maxlength="24" autocomplete="off" value="' + esc(onSpawnName) + '"></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>';
     return;
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
@@ -1980,7 +1959,6 @@ document.addEventListener("click", (e) => {
     }
   }
   else if (act === "station-pop-place" && b.dataset.type && onStPop && onStPop.kind === "plot") { if (Date.now() - onStPopOpenAt >= 350) onDoStationBuild(b.dataset.type, onStPop.x, onStPop.y); }
-  else if (act === "galaxy" && b.dataset.galaxy) onSetGalaxy(b.dataset.galaxy);
   else if (act === "close") { onSelected = null; onRenderPanel(); onDrawGalaxy(); }
   else if (act === "single") {
     try { localStorage.removeItem(ON_MODE_KEY); } catch (err) {}
