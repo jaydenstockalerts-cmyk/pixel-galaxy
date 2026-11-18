@@ -508,7 +508,7 @@ const sysDef=i=>i===0?dpower():garPow(i)*garMult()+colDef(i)+.5*dpower();
 // Max colony level is 5.
 const COLSPEC={mine:"metal",forge:"crystal",trade:"credits"};
 const COLSPECNAME={mine:"Mining",forge:"Forge",trade:"Trade"};
-const COL_MAX=5,COL_INC=.105,COL_DEF=15; // v3.8: was .14 — nerfed ~25% again (Jayden: production too fast, builds too quick)
+const COL_MAX=5,COL_INC=.0525,COL_DEF=15; // v3.9.26: was .105 — halved again (Jayden: production still too high, Nov 18); v3.8: was .14
 const colAt=i=>(S.col||{})[i]||null;
 const colDef=i=>{const c=colAt(i);return c?COL_DEF*c.l:0};
 const colUpCost=l=>({metal:50*l,crystal:30*l,credits:100*l});
@@ -531,8 +531,8 @@ const crewResMul=()=>1-Math.min(.5,CREW_PCT*(crewAt().res||0));
 // earns +0.14 credits/s. An isolated colony earns nothing: connected
 // territory pays, far-flung islands don't (and they are also the ones
 // that lose stability). Derived from S.won + S.col — no new field.
-const TRADE_INC=.105; // v3.8: was .14 — nerfed ~25% again
-const SYS_INC=.075; // v3.9.25: was .15 — halved (Jayden's pick, Nov 18); v3.8: was .2
+const TRADE_INC=.0525; // v3.9.26: was .105 — halved again (Jayden, Nov 18); v3.8: was .14
+const SYS_INC=.0375; // v3.9.26: was .075 — halved again (Jayden: production still too high, Nov 18); v3.9.25: was .15; v3.8: was .2
 const tradeAt=i=>{const c=colAt(i);if(!c||i===0)return 0;return hopsFromHome()[i]!==undefined?TRADE_INC:0};
 const tradeTotal=()=>S.won.reduce((a,i)=>a+tradeAt(i),0);
 const adj=(i,j)=>SYS[i].l.includes(j)||SYS[j].l.includes(i);
@@ -1248,6 +1248,7 @@ if(p)p.hidden=false;
 const _pk=popKey();if(_pk===popKeyCache)return;popKeyCache=_pk;
 const title=$("#pop-title"),hero=$("#pop-hero"),body=$("#pop-body"),acts=$("#pop-actions");
 if(!title||!hero||!body||!acts)return;
+body.scrollTop=0; // v3.9.26: a fresh popup always starts at the top (close button visible)
 const hq=hero.getContext("2d");
 if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#0a0e2a";hq.fillRect(0,0,96,96)}
 if(POP.kind==="system"){
