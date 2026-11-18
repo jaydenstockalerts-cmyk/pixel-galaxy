@@ -532,7 +532,7 @@ const crewResMul=()=>1-Math.min(.5,CREW_PCT*(crewAt().res||0));
 // territory pays, far-flung islands don't (and they are also the ones
 // that lose stability). Derived from S.won + S.col — no new field.
 const TRADE_INC=.105; // v3.8: was .14 — nerfed ~25% again
-const SYS_INC=.15; // v3.8: was .2 — nerfed ~25% again
+const SYS_INC=.075; // v3.9.25: was .15 — halved (Jayden's pick, Nov 18); v3.8: was .2
 const tradeAt=i=>{const c=colAt(i);if(!c||i===0)return 0;return hopsFromHome()[i]!==undefined?TRADE_INC:0};
 const tradeTotal=()=>S.won.reduce((a,i)=>a+tradeAt(i),0);
 const adj=(i,j)=>SYS[i].l.includes(j)||SYS[j].l.includes(i);
