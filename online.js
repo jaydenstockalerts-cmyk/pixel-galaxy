@@ -752,26 +752,46 @@ async function onDoSpawn() {
 // ---------- station (home base) — Phase 1 (Jayden, Nov 17) ----------
 // The station is the single-player home base, online: buildings produce
 // resources on the server, and this client renders the iso base with
-// art.js drawBase (via a shim for the global S it reads) plus a DOM panel
-// for building management. Fleet/crew/research/quests land later.
+// art.js drawBase (via a shim for the global S it reads). v3.9.16 rebuilt
+// the station UI to BE the single-player station view (Jayden: "it still
+// doesn't look at all like the single player") — a full-screen canvas
+// with chips, and building/plot popups in #o-st-pop that mirror the
+// single-player #pop. The old list panel is gone; buildings are managed
+// by tapping them, exactly like single player. Fleet/crew/research/
+// quests land later.
 // Building defs mirror data.js B + the single-player cost/duration
-// formulas (cost = base x 1.4^level; duration = 45s x 1.6^level). The
-// server is the authority — the client only uses these to enable/disable
-// buttons; the server re-validates every build.
+// formulas (cost = base x 1.4^level; duration = 45s x 1.6^level; a new
+// copy costs 1.5x the last). The server is the authority — the client
+// only uses these to enable/disable buttons; the server re-validates
+// every build.
 const ON_ST_B = {
-  solar: { name: "Solar Array", cost: { metal: 10 }, prod: "energy", rate: 0.525 },
-  foundry: { name: "Metal Foundry", cost: { energy: 10 }, prod: "metal", rate: 0.4125 },
-  mine: { name: "Crystal Mine", cost: { metal: 25, energy: 10 }, prod: "crystal", rate: 0.3 },
-  hub: { name: "Trade Hub", cost: { metal: 30, crystal: 20 }, prod: "credits", rate: 0.2625 },
-  hangar: { name: "Hangar", cost: { metal: 40, crystal: 30 }, prod: null },
-  command: { name: "Command Station", cost: { metal: 60, crystal: 40, credits: 20 }, prod: null },
+  solar: { name: "Solar Array", desc: "Makes energy", dist: "Power District", cost: { metal: 10 }, prod: "energy", rate: 0.525 },
+  foundry: { name: "Metal Foundry", desc: "Refines metal", dist: "Industrial District", cost: { energy: 10 }, prod: "metal", rate: 0.4125 },
+  mine: { name: "Crystal Mine", desc: "Digs crystal", dist: "Industrial District", cost: { metal: 25, energy: 10 }, prod: "crystal", rate: 0.3 },
+  hub: { name: "Trade Hub", desc: "Earns credits", dist: "Trade District", cost: { metal: 30, crystal: 20 }, prod: "credits", rate: 0.2625 },
+  hangar: { name: "Hangar", desc: "Holds 5 ship slots per level (research adds more)", dist: "Military District", cost: { metal: 40, crystal: 30 }, prod: null },
+  command: { name: "Command Station", desc: "Raises building cap, storage and fleet power", dist: "The Keep", cost: { metal: 60, crystal: 40, credits: 20 }, prod: null },
 };
 function onStCost(type, level) {
   const base = ON_ST_B[type].cost, out = {};
   for (const r in base) out[r] = Math.ceil(base[r] * Math.pow(1.4, level));
   return out;
 }
+function onStNewCost(type) {
+  // Cost of a NEW copy (single-player newCost): base x 1.5^existing copies.
+  const base = onStCost(type, 0);
+  const n = (onStation.bl || []).filter((z) => z.t === type).length;
+  const f = Math.pow(1.5, n);
+  const out = {};
+  for (const r in base) out[r] = Math.ceil(base[r] * f);
+  return out;
+}
 function onStDur(level) { return 45 * Math.pow(1.6, level); }
+function onStLeft(ms) {
+  // Single-player left(): "1m 12s" / "45s" / "1h 2m 3s".
+  const s = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  return (h ? h + "h " : "") + (h || m ? m + "m " : "") + (s % 60) + "s";
+}
 function onStCostStr(cost) {
   return Object.keys(cost).map((r) => cost[r] + " " + r).join(", ");
 }
@@ -796,12 +816,28 @@ function onStCanAfford(cost) {
   if ((cost.credits || 0) > Math.floor(onStation.credits || 0)) return false;
   return true;
 }
+function onStUnlockedCount() {
+  // Single-player unlockedCount(): plots that are not locked.
+  let n = 0;
+  const cmdLv = (onStation.b && onStation.b.command) || 1;
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) {
+    const occupied = (onStation.bl || []).some((z) => z.x === i && z.y === j);
+    if (!occupied && onStPlotReq(i, j) <= cmdLv) n++;
+  }
+  return n;
+}
+function onStEffL(b) {
+  // Effective level (single-player effL): level + 1 if an upgrade is queued.
+  return b.l + ((onStation.bq || []).some((j) => j.u === b.u) ? 1 : 0);
+}
 
 let onStation = null;       // from GET /station
 let onStationOpen = false;
-let onStCam = { cx: 32, cy: 64, zoom: 2.2 }; // match single-player STCAM: centred on the keep, zoomed in on the cluster (v3.9.14 was zoomed out to 1.2 and the base read as a huge empty grid)
-let onStPlace = null;       // building type being placed, or null
-let onStSel = null;         // selected building uid, or null
+let onStCam = { cx: 32, cy: 64, zoom: 2.2 }; // match single-player STCAM: centred on the keep, zoomed in on the cluster
+let onStPop = null;         // null | {kind:"building", u} | {kind:"plot", x, y}
+let onStPopKeyCache = "";
+let onStPopOpenAt = 0;
+let onStMove = null;        // uid of the building being moved, or null
 
 async function onLoadStation() {
   const r = await onApi("/station", "GET");
@@ -832,11 +868,11 @@ function onDrawStation() {
   if (!q) return;
   const savedS = S;
   try {
-    S = { bl: onStation.bl || [], b: onStation.b || {}, bq: onStation.bq || [], bsel: onStSel, mv: null, place: onStPlace };
+    S = { bl: onStation.bl || [], b: onStation.b || {}, bq: onStation.bq || [], bsel: (onStPop && onStPop.kind === "building") ? onStPop.u : null, mv: onStMove, place: null };
     drawBase(q, onStCam, { sx: cv.width / 2, sy: cv.height / 2 });
   } catch (err) {
-    // If drawBase throws, fall back to a plain background so the panel
-    // still works.
+    // If drawBase throws, fall back to a plain background so the popup
+    // and chips still work.
     q.fillStyle = "#c98a5a";
     q.fillRect(0, 0, cv.width, cv.height);
   } finally {
@@ -857,60 +893,127 @@ function onStationResLine() {
     + " \u00b7 cap " + (onStation.storageCap || 600);
 }
 
-function onRenderStation() {
+// Chips overlaid on the station canvas (single-player #cap / #bq / hint /
+// mvcancel). Called on every render.
+function onStChips() {
   const top = onq("#o-st-res");
   if (top) top.textContent = onStationResLine();
-  const el = onq("#o-st-panel");
-  if (!el || !onStation) return;
-  const st = onStation;
-  const cmdLv = (st.b && st.b.command) || 1;
-  const busy = (st.bq || []).length > 0;
-  const scroll = el.scrollTop;
-  let html = "";
-  if (busy) {
-    const j = st.bq[0];
-    const b = (st.bl || []).find((z) => z.u === j.u);
-    const name = b ? ON_ST_B[b.t].name : "Building";
-    const secs = Math.max(0, Math.ceil((j.end - Date.now()) / 1000));
-    html += '<div class="ocard"><small><b>Builder busy:</b> ' + esc(name) + ' Lv ' + (b ? b.l + 1 : "?") + ' \u2014 done in ' + secs + 's.</small></div>';
+  if (!onStation) return;
+  const cap = onq("#o-st-cap");
+  if (cap) cap.textContent = "Storage cap " + (onStation.storageCap || 600);
+  const bq = onq("#o-st-bq");
+  const busy = (onStation.bq || [])[0];
+  if (bq) {
+    if (busy) {
+      const b = (onStation.bl || []).find((z) => z.u === busy.u);
+      const name = b ? ON_ST_B[b.t].name : "Building";
+      const secs = Math.max(0, Math.ceil((busy.end - Date.now()) / 1000));
+      bq.textContent = "\uD83D\uDD28 " + name + " Lv " + (b ? b.l + 1 : "?") + " \u2014 done in " + onStLeft(secs * 1000) + ".";
+      bq.hidden = false;
+    } else bq.hidden = true;
   }
-  html += '<div class="ocard"><h2>Your station</h2>';
-  const bl = (st.bl || []).slice().sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : a.u - b.u));
-  for (const b of bl) {
-    const def = ON_ST_B[b.t];
-    if (!def) continue;
-    const under = b.l === 0;
-    const cap = onStLevelCap(b.t, cmdLv);
-    const atCap = b.l >= cap;
-    const cost = onStCost(b.t, b.l);
-    const afford = onStCanAfford(cost);
-    let line = "<b>" + esc(def.name) + "</b> Lv " + b.l;
-    if (def.prod && b.l > 0) line += " \u2014 +" + (def.rate * b.l * 60).toFixed(0) + " " + def.prod + "/min";
-    if (under) line += " \u2014 <i>under construction</i>";
-    else if (atCap) line += " \u2014 <i>max level \u2014 upgrade Command Station</i>";
-    html += '<div class="row"><div><small>' + line + '</small></div>'
-      + '<button class="obtn" data-oact="station-upgrade" data-u="' + b.u + '"' + ((under || atCap || busy || !afford) ? " disabled" : "") + '>Upgrade \u00b7 ' + esc(onStCostStr(cost)) + '</button></div>';
+  const mv = onq("#o-st-mvcancel");
+  if (mv) mv.hidden = onStMove == null;
+  const hint = onq("#o-st-hint");
+  if (hint) hint.textContent = onStMove != null ? "Tap a plot to move the building." : "Drag to pan \u00b7 pinch to zoom \u00b7 tap a building or open land";
+}
+
+// Popup render key (single-player popKey): identity + every value shown.
+// The popup DOM is only rebuilt when the key changes, so a poll tick
+// never rebuilds a button under the user's finger.
+function onStPopKey() {
+  if (!onStPop || !onStation) return "";
+  const cmdLv = (onStation.b && onStation.b.command) || 1;
+  if (onStPop.kind === "building") {
+    const b = (onStation.bl || []).find((z) => z.u === onStPop.u);
+    if (!b) return "gone";
+    const e = onStEffL(b), c = onStCost(b.t, e);
+    return "bld|" + b.u + "|" + b.l + "|" + e + "|" + (e >= onStLevelCap(b.t, cmdLv) ? 1 : 0) + "|" + onStCostStr(c) + "|" + (onStation.bq || []).length + "|" + (onStCanAfford(c) ? 1 : 0) + "|" + (onStMove === b.u ? 1 : 0);
   }
-  html += "</div>";
-  html += '<div class="ocard"><h2>Build</h2>';
-  if (onStPlace) {
-    html += '<small>Placing <b>' + esc(ON_ST_B[onStPlace].name) + '</b> \u2014 tap an empty plot on the station to place it.</small><br><button class="obtn ghost" data-oact="station-place-cancel">Cancel</button>';
-  } else {
-    for (const t in ON_ST_B) {
-      const def = ON_ST_B[t];
-      const n = (st.bl || []).filter((z) => z.t === t).length;
-      const mx = onStMaxCount(t, cmdLv);
-      const cost = onStCost(t, 0);
-      const afford = onStCanAfford(cost);
-      const dis = busy || n >= mx || !afford;
-      html += '<div class="row"><div><small><b>' + esc(def.name) + '</b> ' + n + "/" + mx + ' \u2014 ' + esc(onStCostStr(cost)) + ' \u00b7 ' + Math.round(onStDur(0)) + 's</small></div>'
-        + '<button class="obtn" data-oact="station-place" data-type="' + t + '"' + (dis ? " disabled" : "") + '>Place</button></div>';
+  if (onStPop.kind === "plot") {
+    const x = onStPop.x, y = onStPop.y;
+    const locked = onStPlotReq(x, y) > cmdLv;
+    return "plot|" + x + "|" + y + "|" + (locked ? 1 : 0) + "|" + onStPlotReq(x, y) + "|" + cmdLv + "|" + onStUnlockedCount() + "|" + (onStation.bq || []).length + "|" + Object.keys(ON_ST_B).map((t) => (onStation.bl || []).filter((z) => z.t === t).length + "/" + onStMaxCount(t, cmdLv) + "/" + (onStCanAfford(onStNewCost(t)) ? 1 : 0)).join(",");
+  }
+  return "?";
+}
+
+// Render the station popup (#o-st-pop), mirroring single-player popupUI
+// for a building or a plot. Only rebuilds when the render key changes.
+function onRenderStPop() {
+  const pop = onq("#o-st-pop");
+  if (!pop) return;
+  if (!onStPop || !onStation) { pop.hidden = true; onStPopKeyCache = ""; return; }
+  pop.hidden = false;
+  const key = onStPopKey();
+  if (key === onStPopKeyCache) return;
+  onStPopKeyCache = key;
+  const title = onq("#o-st-pop-title"), hero = onq("#o-st-pop-hero"), body = onq("#o-st-pop-body"), acts = onq("#o-st-pop-actions");
+  if (!title || !hero || !body || !acts) return;
+  const cmdLv = (onStation.b && onStation.b.command) || 1;
+  const hq = hero.getContext("2d");
+  if (hq) { hq.imageSmoothingEnabled = false; hq.fillStyle = "#0a0e2a"; hq.fillRect(0, 0, 96, 96); }
+  if (onStPop.kind === "building") {
+    const b = (onStation.bl || []).find((z) => z.u === onStPop.u);
+    if (!b) { onCloseStPop(); return; }
+    const t = b.t, def = ON_ST_B[t], e = onStEffL(b), max = e >= onStLevelCap(t, cmdLv), c = onStCost(t, e);
+    title.textContent = def.name + " Lv " + b.l;
+    if (hq) {
+      hq.fillStyle = "#c98a5a"; hq.fillRect(0, 0, 96, 96);
+      if (typeof buildingSprite === "function") { const sp = buildingSprite(t, b.l); hq.drawImage(sp, 24, 24, 48, 48); }
+    }
+    let st = def.desc + ". ";
+    if (b.l === 0) st = "Under construction. ";
+    else if (def.prod) st += "Makes +" + (def.rate * b.l * 60).toFixed(0) + " " + def.prod + "/min. ";
+    else if (t === "hangar") st += "Holds " + 5 * b.l + " ship slots. ";
+    else st += "Max building level " + onStLevelCap("hangar", cmdLv) + ", storage " + (onStation.storageCap || 600) + ". ";
+    body.innerHTML = "<small><b>" + esc(def.dist) + "</b> \u2014 " + esc(st) + "</small><br><small>" + (max ? (t === "command" ? "Max level." : "Upgrade the Command Station to go higher.") : "Upgrade to Lv " + (e + 1) + ": " + esc(onStCostStr(c)) + ". Time: " + onStLeft(onStDur(e) * 1000)) + "</small>";
+    acts.innerHTML = '<button data-oact="station-pop-upgrade" data-u="' + b.u + '"' + ((max || (onStation.bq || []).length >= 1 || !onStCanAfford(c)) ? " disabled" : "") + '>Upgrade</button><button data-oact="station-pop-move" data-u="' + b.u + '">' + (onStMove === b.u ? "Cancel move" : "Move") + '</button><button data-oact="station-pop-close">Close</button>';
+  } else if (onStPop.kind === "plot") {
+    const x = onStPop.x, y = onStPop.y, lk = onStPlotReq(x, y) > cmdLv, un = onStUnlockedCount();
+    const keep = (onStation.bl || []).find((z) => z.t === "command");
+    const dn = keep ? (x < keep.x - 1 ? "West \u2014 near the Military quarter" : x > keep.x + 1 ? "East \u2014 near the Industrial quarter" : y < keep.y - 1 ? "North \u2014 near the Power fields" : "South \u2014 near the Trade quarter") : "Open land";
+    title.textContent = lk ? "Locked land (" + (x + 1) + ", " + (y + 1) + ")" : "Open land (" + (x + 1) + ", " + (y + 1) + ")";
+    if (hq) { hq.fillStyle = lk ? "#6b7590" : "#c98a5a"; hq.fillRect(0, 0, 96, 96); }
+    if (lk) {
+      body.innerHTML = "<small>\uD83D\uDD12 Locked \u2014 upgrade the Command Station to Lv " + onStPlotReq(x, y) + " to unlock this plot.</small><br><small>" + un + " of 144 plots unlocked \u2014 Command Station Lv " + cmdLv + ". The city grows outward from the keep.</small>";
+      acts.innerHTML = '<button data-oact="station-pop-close" class="grow">Close</button>';
+    } else {
+      body.innerHTML = "<small>" + esc(dn) + ". " + un + " of 144 plots unlocked \u2014 Command Station Lv " + cmdLv + ". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand. Build limits rise with your Command Station: most buildings max at 1 + half your Command level (Hangar: 1 + a third).</small>" + Object.keys(ON_ST_B).map((t) => {
+        const def = ON_ST_B[t];
+        const n = (onStation.bl || []).filter((z) => z.t === t).length, mx = onStMaxCount(t, cmdLv), c = onStNewCost(t);
+        const ok = n < mx && (onStation.bq || []).length < 1 && onStCanAfford(c);
+        return '<div class="row"><div><b>' + esc(def.name) + '</b> ' + n + "/" + mx + '<br><small>' + esc(def.desc) + '<br>Cost: ' + esc(onStCostStr(c)) + '</small></div><button data-oact="station-pop-place" data-type="' + t + '"' + (ok ? "" : " disabled") + '>Place</button></div>';
+      }).join("");
+      acts.innerHTML = "";
     }
   }
-  html += "</div>";
-  el.innerHTML = html;
-  el.scrollTop = scroll;
+}
+
+function onOpenStBuilding(u) {
+  onStPop = { kind: "building", u };
+  onStPopKeyCache = "";
+  onStPopOpenAt = Date.now();
+  onRenderStPop();
+}
+function onOpenStPlot(x, y) {
+  onStPop = { kind: "plot", x, y };
+  onStPopKeyCache = "";
+  onStPopOpenAt = Date.now();
+  onRenderStPop();
+}
+function onCloseStPop() {
+  onStPop = null;
+  onStPopKeyCache = "";
+  const pop = onq("#o-st-pop");
+  if (pop) pop.hidden = true;
+}
+
+// The station's main render entry: chips + canvas + popup (if open).
+function onRenderStation() {
+  onStChips();
   onDrawStation();
+  if (onStPop) onRenderStPop();
 }
 
 async function onDoStationBuild(type, x, y) {
@@ -918,6 +1021,7 @@ async function onDoStationBuild(type, x, y) {
   if (r.status === 200) {
     onStation = r.data;
     onToast(ON_ST_B[type].name + " construction started.");
+    onCloseStPop();
     onRenderStation();
   } else {
     onToast("Could not build: " + (r.data.error || r.status) + ".");
@@ -939,12 +1043,30 @@ async function onDoStationUpgrade(u) {
   }
 }
 
+async function onDoStationMove(u, x, y) {
+  const r = await onApi("/station/move", "POST", { u, x, y });
+  if (r.status === 200) {
+    onStation = r.data;
+    onStMove = null;
+    onToast("Building moved.");
+    onRenderStation();
+  } else {
+    const err = r.data.error || r.status;
+    if (err === "plot_occupied") onToast("That spot is taken.");
+    else if (err === "plot_locked") onToast("Locked \u2014 upgrade the Command Station to Lv " + (r.data.requiredCommand || "?") + " to unlock this plot.");
+    else if (err === "would_strand") onToast("Can't move the Command Station there \u2014 your " + (ON_ST_B[r.data.type] ? ON_ST_B[r.data.type].name : "building") + " would be outside the unlocked area.");
+    else onToast("Could not move: " + err + ".");
+    await onLoadStation();
+    onRenderStation();
+  }
+}
+
 async function onOpenStation() {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
   const ok = await onLoadStation();
   if (!ok) { onToast("Could not load your station \u2014 check your connection."); return; }
   onStationOpen = true;
-  onStPlace = null; onStSel = null;
+  onStPop = null; onStPopKeyCache = ""; onStMove = null;
   const ov = onq("#o-station");
   if (ov) ov.hidden = false;
   onRenderStation();
@@ -952,9 +1074,10 @@ async function onOpenStation() {
 
 function onCloseStation() {
   onStationOpen = false;
-  onStPlace = null; onStSel = null;
+  onStPop = null; onStPopKeyCache = ""; onStMove = null;
   const ov = onq("#o-station");
   if (ov) ov.hidden = true;
+  onCloseStPop();
   onRefresh();
 }
 
@@ -1007,9 +1130,20 @@ function onCloseStation() {
   cv.addEventListener("pointercancel", up);
 })();
 
+// Backdrop tap-to-close on the station popup (single-player #pop rule).
+(function onStPopBackdrop() {
+  const pop = onq("#o-st-pop");
+  if (!pop) return;
+  pop.addEventListener("pointerup", (e) => {
+    if (e.target === pop) onCloseStPop();
+  });
+})();
+
 function onTapStation(e) {
+  // Mirrors single-player stEnd: tap a building -> its popup; tap an
+  // empty plot -> the plot popup (or the move target while moving).
   const cv = onStCv();
-  if (!cv || !onStation) return;
+  if (!cv || !onStation || onStPop) return;
   onSizeStationCanvas();
   const rect = cv.getBoundingClientRect();
   const dpr = cv.width / (rect.width || 1);
@@ -1023,20 +1157,19 @@ function onTapStation(e) {
   if (typeof isoCellFromPoint !== "function") return;
   const cell = isoCellFromPoint(wx, wy);
   const gx = cell.i, gy = cell.j;
-  if (gx < 0 || gx > 11 || gy < 0 || gy > 11) { onStSel = null; onRenderStation(); return; }
-  if (onStPlace) {
-    const occ = (onStation.bl || []).some((z) => z.x === gx && z.y === gy);
-    if (occ) { onToast("That plot is occupied."); return; }
-    const cmdLv = (onStation.b && onStation.b.command) || 1;
-    if (onStPlotReq(gx, gy) > cmdLv) { onToast("Locked \u2014 upgrade the Command Station to Lv " + onStPlotReq(gx, gy) + " to unlock this plot."); return; }
-    const type = onStPlace;
-    onStPlace = null;
-    onDoStationBuild(type, gx, gy);
+  if (gx < 0 || gx > 11 || gy < 0 || gy > 11) return;
+  const b = (onStation.bl || []).find((z) => z.x === gx && z.y === gy);
+  if (b) {
+    if (onStMove != null) { onToast("That spot is taken."); return; }
+    onOpenStBuilding(b.u);
     return;
   }
-  const b = (onStation.bl || []).find((z) => z.x === gx && z.y === gy);
-  onStSel = b ? b.u : null;
-  onRenderStation();
+  if (onStMove != null) {
+    const u = onStMove;
+    onDoStationMove(u, gx, gy);
+    return;
+  }
+  onOpenStPlot(gx, gy);
 }
 
 // Panel + bar clicks (delegated).
@@ -1060,9 +1193,23 @@ document.addEventListener("click", (e) => {
   else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
   else if (act === "station") onOpenStation();
   else if (act === "station-close") onCloseStation();
-  else if (act === "station-place" && b.dataset.type) { onStPlace = b.dataset.type; onStSel = null; onRenderStation(); }
-  else if (act === "station-place-cancel") { onStPlace = null; onRenderStation(); }
-  else if (act === "station-upgrade" && b.dataset.u) onDoStationUpgrade(Number(b.dataset.u));
+  else if (act === "station-mv-cancel") { onStMove = null; onRenderStation(); }
+  else if (act === "station-pop-close") { if (Date.now() - onStPopOpenAt >= 350) onCloseStPop(); }
+  else if (act === "station-pop-upgrade" && b.dataset.u) { if (Date.now() - onStPopOpenAt >= 350) onDoStationUpgrade(Number(b.dataset.u)); }
+  else if (act === "station-pop-move" && b.dataset.u) {
+    // Single-player Move toggle (game.js d.bmv): tap Move to arm the
+    // move, tap it again to cancel; arming closes the popup so you can
+    // tap a plot. The 350ms guard swallows the ghost click from the tap
+    // that opened the popup.
+    if (Date.now() - onStPopOpenAt < 350) { /* ghost click — ignore */ }
+    else {
+      const u = Number(b.dataset.u);
+      onStMove = onStMove === u ? null : u;
+      if (onStMove != null) onCloseStPop();
+      onRenderStation();
+    }
+  }
+  else if (act === "station-pop-place" && b.dataset.type && onStPop && onStPop.kind === "plot") { if (Date.now() - onStPopOpenAt >= 350) onDoStationBuild(b.dataset.type, onStPop.x, onStPop.y); }
   else if (act === "galaxy" && b.dataset.galaxy) onSetGalaxy(b.dataset.galaxy);
   else if (act === "close") { onSelected = null; onRenderPanel(); onDrawGalaxy(); }
   else if (act === "single") {
