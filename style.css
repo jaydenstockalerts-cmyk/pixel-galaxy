@@ -315,14 +315,14 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
    works unchanged. */
 #tech{overflow-x:auto;padding-bottom:6px}
 .techtree{display:grid;grid-template-columns:repeat(7,172px);grid-template-rows:30px repeat(5,190px);row-gap:14px;column-gap:16px;position:relative;min-width:max-content}
-#techsvg{position:absolute;inset:0;pointer-events:none;z-index:0}
+#techsvg,#o-techsvg{position:absolute;inset:0;pointer-events:none;z-index:0}
 .techlane{grid-row:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:bold;letter-spacing:.5px;border-bottom:2px solid var(--fg);padding-bottom:4px;white-space:nowrap}
-#tech .treenode{position:relative;z-index:1;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:3px;padding:6px 8px;border:2px solid var(--fg);border-radius:var(--radius-sm);background:var(--panel);font-size:11px;line-height:1.3;overflow:hidden}
-#tech .treenode .tn-head{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
-#tech .treenode .tn-head b{font-size:12px}
-#tech .treenode .techic{width:22px;height:22px;font-size:12px;margin-right:0;flex-shrink:0}
-#tech .treenode small{display:block}
-#tech .treenode button{margin-top:auto;min-height:28px;font-size:12px;padding:4px 8px}
+#tech .treenode,#o-techtree .treenode{position:relative;z-index:1;flex-direction:column;align-items:stretch;justify-content:flex-start;gap:3px;padding:6px 8px;border:2px solid var(--fg);border-radius:var(--radius-sm);background:var(--panel);font-size:11px;line-height:1.3;overflow:hidden}
+#tech .treenode .tn-head,#o-techtree .treenode .tn-head{display:flex;align-items:center;gap:4px;flex-wrap:wrap}
+#tech .treenode .tn-head b,#o-techtree .treenode .tn-head b{font-size:12px}
+#tech .treenode .techic,#o-techtree .treenode .techic{width:22px;height:22px;font-size:12px;margin-right:0;flex-shrink:0}
+#tech .treenode small,#o-techtree .treenode small{display:block}
+#tech .treenode button,#o-techtree .treenode button{margin-top:auto;min-height:28px;font-size:12px;padding:4px 8px}
 .techlink{fill:none;stroke:var(--fg);stroke-width:2;opacity:.3}
 .techlink.done{stroke:#ffb02e;opacity:1}
 
@@ -396,6 +396,7 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-res-body,#o-cr-body{flex:1;overflow-y:auto;padding:12px}
 #o-res-body .ocard,#o-cr-body .ocard{margin:0 auto 12px;max-width:640px}
 #o-res-body .techtree-wrap{overflow-x:auto;padding-bottom:4px}
+#o-res-body .ocard.otree-card{max-width:none} /* v3.9.21: the tree spans the full body width like single-player #tech (scrolls sideways on a phone); the 640px cap is for the status card only */
 #o-res-body .pbar{height:8px;background:var(--hi);border-radius:4px;overflow:hidden;margin-top:6px}
 #o-res-body .pbar div{height:100%;background:var(--ac,#ffd84a);width:0%}
 #o-st-pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);border-radius:var(--radius-sm);background:#0a0e2a;image-rendering:pixelated}
