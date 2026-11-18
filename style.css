@@ -405,3 +405,10 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-st-pop-body .stat:last-child{border-bottom:0}
 #o-st-pop-actions{display:flex;flex-direction:column;gap:6px}
 #o-st-pop-actions button{min-width:0;width:100%;min-height:48px}
+/* v3.9.26: popup panels are flex columns — the header (with the close
+   button) and the actions stay pinned; only the body scrolls. Before,
+   the whole panel scrolled as one unit, so on a phone the close button
+   scrolled off the top once the build list was longer than the screen. */
+#pop-panel,#o-st-pop-panel{display:flex;flex-direction:column;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:hidden}
+#pop-panel>.pophead,#o-st-pop-panel>.pophead,#pop-hero,#o-st-pop-hero,#pop-actions,#o-st-pop-actions{flex-shrink:0}
+#pop-body,#o-st-pop-body{flex:1 1 auto;min-height:0;overflow-y:auto}
