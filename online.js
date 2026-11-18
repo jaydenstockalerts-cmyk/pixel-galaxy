@@ -337,6 +337,7 @@ function onRaidBanner() {
 
 async function onRefresh() {
   await onLoadEmpire();
+  await onLoadProgress();
   await onLoadSystems();
   await onLoadRaids();
   onRenderTop();
@@ -561,7 +562,7 @@ function onRenderPanel() {
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
     + '<br><small><b>Next step:</b> ' + onNextStep() + '</small>'
-    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button></div>';
+    + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button></div>';
   el.innerHTML = banner + el.innerHTML;
 }
 
@@ -596,7 +597,7 @@ function onSystemCard(s) {
       const pw = { fighter: 1, cruiser: 3, capital: 8 }[k];
       base += (ships[k] || 0) * pw * (k === weak ? 1.5 : 1);
     }
-    return base * (1 + 0.2 * ((fl.commandLv || 1) - 1));
+    return base * (1 + 0.2 * ((fl.commandLv || 1) - 1)) * onPowerMult();
   })();
   const flLine = adj && !mine
     ? '<br><small>Your fleet power vs this system: <b>' + Math.round(flPowerVs) + '</b> (defence ' + s.pw + ').'
@@ -616,7 +617,7 @@ function onSystemCard(s) {
       + '<br><small>Garrison: <b>' + garrison + '</b>' + (garrison > 0 ? ' — cuts the revolt chance by <b>' + (garrison * 0.2).toFixed(1) + '%</b>.' : ' — a garrison suppresses revolt (each point cuts the chance by 0.2%).') + '</small><br>'
       + '<input id="o-garrison-amt" type="number" min="1" placeholder="Garrison points" style="width:130px"> '
       + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>'
-      + '<br><button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button>';
+      + '<br><button class="obtn" data-oact="station">Enter station</button> <button class="obtn" data-oact="fleet">Fleet</button> <button class="obtn" data-oact="research">Research</button> <button class="obtn" data-oact="crew">Crew</button>';
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
@@ -841,7 +842,7 @@ function onStMaxCount(type, cmdLv) {
   return Math.min(6, 1 + Math.floor(cmdLv / 2));
 }
 function onStLevelCap(type, cmdLv) {
-  if (type === "command") return 5;
+  if (type === "command") return onCommandMax();
   return Math.min(15, cmdLv);
 }
 function onStPlotReq(x, y) {
@@ -972,12 +973,12 @@ function onStPopKey() {
     const b = (onStation.bl || []).find((z) => z.u === onStPop.u);
     if (!b) return "gone";
     const e = onStEffL(b), c = onStCost(b.t, e);
-    return "bld|" + b.u + "|" + b.l + "|" + e + "|" + (e >= onStLevelCap(b.t, cmdLv) ? 1 : 0) + "|" + onStCostStr(c) + "|" + (onStation.bq || []).length + "|" + (onStCanAfford(c) ? 1 : 0) + "|" + (onStMove === b.u ? 1 : 0);
+    return "bld|" + b.u + "|" + b.l + "|" + e + "|" + (e >= onStLevelCap(b.t, cmdLv) ? 1 : 0) + "|" + onStCostStr(c) + "|" + (onStation.bq || []).length + "|" + onBuilderCap() + "|" + onProdMult().toFixed(2) + "|" + onTmul().toFixed(2) + "|" + onSlotBonus() + "|" + (onStCanAfford(c) ? 1 : 0) + "|" + (onStMove === b.u ? 1 : 0);
   }
   if (onStPop.kind === "plot") {
     const x = onStPop.x, y = onStPop.y;
     const locked = onStPlotReq(x, y) > cmdLv;
-    return "plot|" + x + "|" + y + "|" + (locked ? 1 : 0) + "|" + onStPlotReq(x, y) + "|" + cmdLv + "|" + onStUnlockedCount() + "|" + (onStation.bq || []).length + "|" + Object.keys(ON_ST_B).map((t) => (onStation.bl || []).filter((z) => z.t === t).length + "/" + onStMaxCount(t, cmdLv) + "/" + (onStCanAfford(onStNewCost(t)) ? 1 : 0)).join(",");
+    return "plot|" + x + "|" + y + "|" + (locked ? 1 : 0) + "|" + onStPlotReq(x, y) + "|" + cmdLv + "|" + onStUnlockedCount() + "|" + (onStation.bq || []).length + "|" + onBuilderCap() + "|" + Object.keys(ON_ST_B).map((t) => (onStation.bl || []).filter((z) => z.t === t).length + "/" + onStMaxCount(t, cmdLv) + "/" + (onStCanAfford(onStNewCost(t)) ? 1 : 0)).join(",");
   }
   return "?";
 }
@@ -1008,11 +1009,11 @@ function onRenderStPop() {
     }
     let st = def.desc + ". ";
     if (b.l === 0) st = "Under construction. ";
-    else if (def.prod) st += "Makes +" + (def.rate * b.l * 60).toFixed(0) + " " + def.prod + "/min. ";
-    else if (t === "hangar") st += "Holds " + 5 * b.l + " ship slots. ";
+    else if (def.prod) st += "Makes +" + (def.rate * b.l * onProdMult() * 60).toFixed(0) + " " + def.prod + "/min. ";
+    else if (t === "hangar") st += "Holds " + (5 + onSlotBonus()) * b.l + " ship slots. ";
     else st += "Max building level " + onStLevelCap("hangar", cmdLv) + ", storage " + (onStation.storageCap || 600) + ". ";
-    body.innerHTML = "<small><b>" + esc(def.dist) + "</b> \u2014 " + esc(st) + "</small><br><small>" + (max ? (t === "command" ? "Max level." : "Upgrade the Command Station to go higher.") : "Upgrade to Lv " + (e + 1) + ": " + esc(onStCostStr(c)) + ". Time: " + onStLeft(onStDur(e) * 1000)) + "</small>";
-    acts.innerHTML = '<button data-oact="station-pop-upgrade" data-u="' + b.u + '"' + ((max || (onStation.bq || []).length >= 1 || !onStCanAfford(c)) ? " disabled" : "") + '>Upgrade</button><button data-oact="station-pop-move" data-u="' + b.u + '">' + (onStMove === b.u ? "Cancel move" : "Move") + '</button><button data-oact="station-pop-close">Close</button>';
+    body.innerHTML = "<small><b>" + esc(def.dist) + "</b> \u2014 " + esc(st) + "</small><br><small>" + (max ? (t === "command" ? "Max level." : "Upgrade the Command Station to go higher.") : "Upgrade to Lv " + (e + 1) + ": " + esc(onStCostStr(c)) + ". Time: " + onStLeft(onStDur(e) * onTmul() * 1000)) + "</small>";
+    acts.innerHTML = '<button data-oact="station-pop-upgrade" data-u="' + b.u + '"' + ((max || (onStation.bq || []).length >= onBuilderCap() || !onStCanAfford(c)) ? " disabled" : "") + '>Upgrade</button><button data-oact="station-pop-move" data-u="' + b.u + '">' + (onStMove === b.u ? "Cancel move" : "Move") + '</button><button data-oact="station-pop-close">Close</button>';
   } else if (onStPop.kind === "plot") {
     const x = onStPop.x, y = onStPop.y, lk = onStPlotReq(x, y) > cmdLv, un = onStUnlockedCount();
     const keep = (onStation.bl || []).find((z) => z.t === "command");
@@ -1026,7 +1027,7 @@ function onRenderStPop() {
       body.innerHTML = "<small>" + esc(dn) + ". " + un + " of 144 plots unlocked \u2014 Command Station Lv " + cmdLv + ". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand. Build limits rise with your Command Station: most buildings max at 1 + half your Command level (Hangar: 1 + a third).</small>" + Object.keys(ON_ST_B).map((t) => {
         const def = ON_ST_B[t];
         const n = (onStation.bl || []).filter((z) => z.t === t).length, mx = onStMaxCount(t, cmdLv), c = onStNewCost(t);
-        const ok = n < mx && (onStation.bq || []).length < 1 && onStCanAfford(c);
+        const ok = n < mx && (onStation.bq || []).length < onBuilderCap() && onStCanAfford(c);
         return '<div class="row"><div><b>' + esc(def.name) + '</b> ' + n + "/" + mx + '<br><small>' + esc(def.desc) + '<br>Cost: ' + esc(onStCostStr(c)) + '</small></div><button data-oact="station-pop-place" data-type="' + t + '"' + (ok ? "" : " disabled") + '>Place</button></div>';
       }).join("");
       acts.innerHTML = "";
@@ -1216,6 +1217,253 @@ function onTapStation(e) {
   onOpenStPlot(gx, gy);
 }
 
+// ---------- research + crew + commanders — Phase 3 (Jayden, Nov 17) ----------
+// Mirrors the single-player Research tab (tree), Crew tab, and officer
+// list. TECH/CM come from data.js (loaded before this file); the lane
+// layout and icons mirror game.js TECHLANES/TECHICON — game.js loads
+// after online.js, so this file keeps its own copies of those two.
+let onProgress = null;      // from GET /progress
+let onResearchOpen = false;
+let onCrewOpen = false;
+let onPrevCmdLevels = {};
+
+const ON_TECHLANES = [{ k: "pw", n: "Weapons" }, { k: "eco", n: "Economy" }, { k: "cmax", n: "Command" }, { k: "bld", n: "Builders" }, { k: "slot", n: "Docks" }, { k: "keep", n: "Hull" }, { k: "jump", n: "Jump Drive" }];
+const ON_TECHICON = { pw: "⚔", eco: "⚙", keep: "🛡", slot: "▲", cmax: "👑", bld: "🔨", jump: "🌀" };
+const ON_TT = { fleet: "fleet power", econ: "production", build: "faster building and research" };
+
+function onBonuses() { return (onProgress && onProgress.bonuses) || {}; }
+function onProdMult() { return onBonuses().prod || 1; }
+function onPowerMult() { return onBonuses().power || 1; }
+function onTmul() { return onBonuses().tmul || 1; }
+function onShipMul() { return onBonuses().shipMul || 1; }
+function onResMul() { return onBonuses().resMul || 1; }
+function onSlotBonus() { return onBonuses().slotBonus || 0; }
+function onBuilderCap() { return onBonuses().builderCap || 1; }
+function onCommandMax() { return onBonuses().commandMax || 5; }
+
+// Set the progress state without toasting (used for our own actions —
+// the action's own toast covers it). Completion/level-up toasts come
+// from onLoadProgress comparing against the previous state.
+function onSetProgress(data) {
+  onProgress = data;
+  onPrevCmdLevels = {};
+  for (const c of data.commanders || []) if (c.hired) onPrevCmdLevels[c.id] = c.level;
+}
+
+async function onLoadProgress() {
+  const r = await onApi("/progress", "GET");
+  if (r.status !== 200) return false;
+  const prev = onProgress;
+  onProgress = r.data;
+  // Research completions + officer level-ups (single-player done()/gain()
+  // messages): toast once when they first appear in the state.
+  if (prev) {
+    const techs = (typeof TECH !== "undefined" ? TECH : []);
+    for (const id of (onProgress.tech || [])) {
+      if (!(prev.tech || []).includes(id)) {
+        const t = techs.find((z) => z.id === id);
+        onToast("Research complete: " + (t ? t.n : id) + ".");
+      }
+    }
+    for (const c of onProgress.commanders || []) {
+      if (c.hired && (onPrevCmdLevels[c.id] || 0) > 0 && c.level > (onPrevCmdLevels[c.id] || 0)) {
+        onToast(c.name + " reached Lv " + c.level + "!");
+      }
+    }
+  }
+  onSetProgress(onProgress);
+  return true;
+}
+
+// Research time for a tech (single-player: t seconds x tmul x crewResMul).
+function onResearchTime(t) { return t.t * 1000 * onTmul() * onResMul(); }
+
+function onRenderResearch() {
+  const ov = onq("#o-research");
+  if (!ov || ov.hidden) return;
+  const resEl = onq("#o-res-res");
+  if (resEl && onProgress) {
+    const res = onProgress.res || {};
+    resEl.textContent = "Energy " + Math.floor(res.energy || 0) + " · Metal " + Math.floor(res.metal || 0) + " · Crystal " + Math.floor(res.crystal || 0) + " · " + Math.floor(onProgress.credits || 0) + " cr";
+  }
+  const body = onq("#o-res-body");
+  if (!body) return;
+  const p = onProgress;
+  if (!p) { body.innerHTML = '<div class="ocard"><p>Loading research…</p></div>'; return; }
+  const techs = (typeof TECH !== "undefined" ? TECH : []);
+  const done = new Set(p.tech || []);
+  const rq = p.rq || null;
+  const res = p.res || {};
+  const depth = {};
+  const dep = (id) => { if (depth[id]) return depth[id]; const t = techs.find((z) => z.id === id); return depth[id] = t && t.req ? dep(t.req) + 1 : 1; };
+  techs.forEach((t) => dep(t.id));
+  const costStr = (c) => Object.keys(c).map((r) => c[r] + " " + r).join(", ");
+  const canAfford = (c) => Object.keys(c).every((r) => (r === "credits" ? Math.floor(p.credits || 0) : Math.floor(res[r] || 0)) >= c[r]);
+  let html = '<div class="ocard"><h2>Research</h2><small id="o-rq">' + (rq ? "Researching: " + ((techs.find((z) => z.id === rq.id) || {}).n || rq.id) + ' (<span id="o-rq-left"></span>). ' : "Lab idle. ") + "Completed " + (p.tech || []).length + " of " + techs.length + '.</small><div class="pbar"><div id="o-pb-res" style="width:0%"></div></div></div>';
+  html += '<div class="ocard"><div class="techtree-wrap"><div class="techtree" id="o-techtree"><svg id="o-techsvg"></svg>'
+    + ON_TECHLANES.map((L, li) => '<div class="techlane" style="grid-column:' + (li + 1) + ';grid-row:1"><span class="techic">' + (ON_TECHICON[L.k] || "✦") + "</span>" + L.n + "</div>").join("")
+    + techs.map((t) => {
+      const lane = ON_TECHLANES.findIndex((L) => L.k === t.k) + 1;
+      const dn = done.has(t.id);
+      const req = t.req ? techs.find((z) => z.id === t.req) : null;
+      const locked = !!req && !done.has(req.id);
+      const ct = "Cost: " + costStr(t.c) + ". Time: " + onStLeft(onResearchTime(t));
+      const status = dn ? "Researched." : locked ? "Requires " + req.n + ". " + ct : ct + (!canAfford(t.c) ? " Can't afford yet." : "");
+      const dis = dn || locked || !!rq || !canAfford(t.c);
+      return '<div class="row treenode' + (locked ? " locked" : "") + (dn ? " done" : "") + '" id="otr-' + t.id + '" style="grid-column:' + lane + ";grid-row:" + (depth[t.id] + 1) + '"><div class="tn-head"><span class="techic">' + (ON_TECHICON[t.k] || "✦") + "</span><b>" + esc(t.n) + "</b></div><small>" + esc(t.d) + "</small><small>" + esc(status) + '</small><button data-oact="research-start" data-tech="' + t.id + '"' + (dis ? " disabled" : "") + ">" + (dn ? "Researched" : "Research") + "</button></div>";
+    }).join("")
+    + "</div></div></div>";
+  body.innerHTML = html;
+  onDrawResearchTree();
+  onResTick();
+}
+
+// Elbow connectors between a tech and its prerequisite (single-player
+// drawTechTree), gold once the parent is researched.
+function onDrawResearchTree() {
+  try {
+    const tree = onq("#o-techtree"), svg = onq("#o-techsvg");
+    if (!tree || !svg) return;
+    const W = tree.offsetWidth, H = tree.offsetHeight;
+    if (!W || !H) return;
+    if (svg.setAttribute) { svg.setAttribute("width", W); svg.setAttribute("height", H); }
+    const techs = (typeof TECH !== "undefined" ? TECH : []);
+    const done = new Set((onProgress && onProgress.tech) || []);
+    let paths = "";
+    techs.forEach((t) => {
+      if (!t.req) return;
+      const p = onq("#otr-" + t.req), c = onq("#otr-" + t.id);
+      if (!p || !c) return;
+      if (typeof p.offsetLeft !== "number" || typeof c.offsetLeft !== "number") return;
+      const px = p.offsetLeft + p.offsetWidth / 2, py = p.offsetTop + p.offsetHeight, cx = c.offsetLeft + c.offsetWidth / 2, cy = c.offsetTop, my = (py + cy) / 2;
+      paths += '<path class="techlink' + (done.has(t.req) ? " done" : "") + '" d="M ' + px + " " + py + " V " + my + " H " + cx + " V " + cy + '"/>';
+    });
+    svg.innerHTML = paths;
+  } catch (e) {}
+}
+
+// Tick the research progress bar + countdown live while the Research
+// view is open (the 15s poll reloads the progress; this only moves
+// the bar/countdown).
+function onResTick() {
+  if (!onResearchOpen || !onProgress) return;
+  const rq = onProgress.rq;
+  const bar = onq("#o-pb-res"), left = onq("#o-rq-left");
+  if (!rq) { if (bar) bar.style.width = "0%"; return; }
+  const t = (typeof TECH !== "undefined" ? TECH : []).find((z) => z.id === rq.id);
+  const total = t ? onResearchTime(t) : 0;
+  const leftMs = Math.max(0, rq.end - Date.now());
+  if (bar) bar.style.width = total ? (Math.max(0, Math.min(100, 100 * (1 - leftMs / total)))).toFixed(0) + "%" : "0%";
+  if (left) left.textContent = onStLeft(leftMs);
+  if (leftMs <= 0) { onLoadProgress().then(() => onRenderResearch()); }
+}
+
+function onRenderCrew() {
+  const ov = onq("#o-crew");
+  if (!ov || ov.hidden) return;
+  const resEl = onq("#o-cr-res");
+  if (resEl && onProgress) {
+    const res = onProgress.res || {};
+    resEl.textContent = "Energy " + Math.floor(res.energy || 0) + " · Metal " + Math.floor(res.metal || 0) + " · Crystal " + Math.floor(res.crystal || 0) + " · " + Math.floor(onProgress.credits || 0) + " cr";
+  }
+  const body = onq("#o-cr-body");
+  if (!body) return;
+  const p = onProgress;
+  if (!p) { body.innerHTML = '<div class="ocard"><p>Loading crew…</p></div>'; return; }
+  const c = p.crew || {}, cap = p.crewCap || 0, tot = p.crewTotal || 0;
+  const desc = { mine: "Boosts building and colony production.", ship: "Ships finish faster.", res: "Research finishes faster." };
+  const icon = { mine: "⛏", ship: "🚀", res: "⚙" };
+  const row = (k, label, bonus) => {
+    const n = c[k] || 0;
+    return '<div class="row"><div><span class="crewic">' + icon[k] + "</span><b>" + label + ": " + n + " crew → +" + (n * 2) + "% " + bonus + " (+2% per crew)</b><br><small>" + desc[k] + '</small></div><div class="bg"><button data-oact="crew" data-crew="' + k + ':-1"' + (n <= 0 ? " disabled" : "") + '>−</button><button data-oact="crew" data-crew="' + k + ':+1"' + (tot >= cap ? " disabled" : "") + ">+</button></div></div>";
+  };
+  let html = '<div class="ocard"><h2>Crew</h2><small>Assign your crew to mining, shipbuilding or research. Crew grows with your Command Station.</small><br><small><b>Crew: ' + tot + " assigned / " + cap + " total (" + (cap - tot) + " idle)</b></small>"
+    + row("mine", "Mining", "production") + row("ship", "Shipbuilding", "shipyard speed") + row("res", "Research", "research speed") + "</div>";
+  // Commanders (single-player officer list): one assigned at a time.
+  html += '<div class="ocard"><h2>Commanders</h2><small>One officer can be assigned at a time — their bonus applies while assigned, and they level up as you play.</small>';
+  for (const cmd of p.commanders || []) {
+    const h = cmd.hired, on = cmd.assigned;
+    html += '<div class="row"><div><span class="cmdav cmdav-' + cmd.type + '">' + cmd.name.split(" ").pop()[0] + "</span><b>" + esc(cmd.name) + "</b> " + (h ? "Lv " + cmd.level + (on ? " (assigned)" : "") : "") + "<br><small>" + esc(cmd.desc) + "<br>" + (h ? "Bonus now: +" + cmd.bonus + "% " + ON_TT[cmd.type] + (on ? "" : " (not assigned)") : "Hire cost: " + cmd.cost + " credits") + '</small></div><button data-oact="commander" data-id="' + cmd.id + '"' + (!h && Math.floor(p.credits || 0) < cmd.cost ? " disabled" : "") + ">" + (!h ? "Hire" : on ? "Unassign" : "Assign") + "</button></div>";
+  }
+  html += "</div>";
+  body.innerHTML = html;
+}
+
+async function onDoResearchStart(id) {
+  const t = (typeof TECH !== "undefined" ? TECH : []).find((z) => z.id === id);
+  const r = await onApi("/research/start", "POST", { id });
+  if (r.status === 200) {
+    onSetProgress(r.data);
+    onToast("Research started: " + (t ? t.n : id) + ".");
+    onRenderResearch();
+    onRefresh();
+  } else {
+    const err = (r.data && r.data.error) || r.status;
+    if (err === "missing_prereq") onToast("Requires " + (r.data.reqName || "another tech") + " first.");
+    else if (err === "research_busy") onToast("Research is already in progress.");
+    else if (err === "already_researched") onToast("Already researched.");
+    else if (err === "not_enough_resources") onToast("Not enough resources.");
+    else onToast("Could not start research: " + err + ".");
+    await onLoadProgress();
+    onRenderResearch();
+  }
+}
+
+async function onDoCrewAssign(role, delta) {
+  const r = await onApi("/crew/assign", "POST", { role, delta });
+  if (r.status === 200) {
+    onSetProgress(r.data);
+    onRenderCrew();
+  } else {
+    const err = (r.data && r.data.error) || r.status;
+    if (err === "crew_full") onToast("All your crew are assigned already.");
+    else if (err === "none_assigned") onToast("No crew on that job.");
+    else onToast("Could not assign crew: " + err + ".");
+    await onLoadProgress();
+    onRenderCrew();
+  }
+}
+
+async function onDoCommander(id) {
+  const wasHired = !!((onProgress && onProgress.commanders) || []).find((c) => c.id === id && c.hired);
+  const r = await onApi("/commander", "POST", { id });
+  if (r.status === 200) {
+    onSetProgress(r.data);
+    const cmd = (r.data.commanders || []).find((c) => c.id === id);
+    if (cmd) onToast(!wasHired ? cmd.name + " joins your command." : cmd.assigned ? cmd.name + " assigned as your officer." : cmd.name + " unassigned.");
+    onRenderCrew();
+    onRefresh();
+  } else {
+    const err = (r.data && r.data.error) || r.status;
+    if (err === "not_enough_credits") onToast("Not enough credits to hire.");
+    else onToast("Could not change officer: " + err + ".");
+    await onLoadProgress();
+    onRenderCrew();
+  }
+}
+
+async function onOpenResearch() {
+  if (!onSpawned) { onToast("Found your Home World first."); return; }
+  const ok = await onLoadProgress();
+  if (!ok) { onToast("Could not load research — check your connection."); return; }
+  onResearchOpen = true;
+  const ov = onq("#o-research");
+  if (ov) ov.hidden = false;
+  onRenderResearch();
+}
+function onCloseResearch() { onResearchOpen = false; const ov = onq("#o-research"); if (ov) ov.hidden = true; }
+
+async function onOpenCrew() {
+  if (!onSpawned) { onToast("Found your Home World first."); return; }
+  const ok = await onLoadProgress();
+  if (!ok) { onToast("Could not load crew — check your connection."); return; }
+  onCrewOpen = true;
+  const ov = onq("#o-crew");
+  if (ov) ov.hidden = false;
+  onRenderCrew();
+}
+function onCloseCrew() { onCrewOpen = false; const ov = onq("#o-crew"); if (ov) ov.hidden = true; }
+
 // ---------- fleet (ships) — Phase 2 (Jayden, Nov 17) ----------
 // Mirrors the single-player Fleet tab (data.js U + DUR, fpt/dpower, the
 // build rules, and the battle ship losses). The server owns the fleet
@@ -1321,11 +1569,21 @@ function onRenderFleet() {
   const total = (ships.fighter || 0) + (ships.cruiser || 0) + (ships.capital || 0);
   const used = f.usedSlots || 0, slotCap = f.slotCap || 0;
   const q = f.sq || [];
+  // Power breakdown (single-player #fpw-sub): raw base, then each bonus
+  // that is actually active. The server's f.power is already multiplied.
+  let _base = 0;
+  for (const k of ["fighter", "cruiser", "capital"]) _base += (ships[k] || 0) * ON_FL_SHIPS[k].pw;
+  const _cb0 = 0.2 * (cmdLv - 1), _pw0 = onBonuses().pw || 0, _fl0 = onBonuses().fleetOff || 0;
+  const _parts = ["Base " + _base];
+  if (_cb0 > 0) _parts.push("Command +" + Math.round(_cb0 * 100) + "%");
+  if (_pw0 > 0) _parts.push("Research +" + Math.round(_pw0 * 100) + "%");
+  if (_fl0 > 0) _parts.push("Officer +" + Math.round(_fl0 * 100) + "%");
+  const _sub = _parts.join(" · ") + (_parts.length > 2 ? " (bonuses multiply)" : "");
   let html = '<div class="ocard"><h2>Fleet</h2>'
     + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>. Home defence <b>' + Math.round(f.defence || 0) + '</b>.</small><br>'
-    + '<small>Base ' + Math.round(f.power || 0) + ' · Command +' + Math.round(0.2 * (cmdLv - 1) * 100) + '%</small><br>'
+    + '<small>' + _sub + '</small><br>'
     + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
-    + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — 5 slots per level).</small>';
+    + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (5 + onSlotBonus()) + ' slots per level).</small>';
   if (hangarLv < 1) html += '<br><small><b>No Hangar yet</b> — build one at your station to start building ships.</small>';
   if (total === 0 && hangarLv >= 1) html += '<br><small>No ships yet — build a Fighter to start your fleet.</small>';
   html += '</div>';
@@ -1338,7 +1596,7 @@ function onRenderFleet() {
     const afford = onFlCanAfford(d.cost);
     const slotsFit = used + d.sz <= slotCap;
     const canBuild = !needsHangar && afford && slotsFit && q.length < (f.queueCap || 0);
-    html += '<div class="shiprow"><div><b>' + d.name + '</b> x' + n + '<br><small>Power ' + d.pw + ', ' + d.sz + ' slot' + (d.sz > 1 ? "s" : "") + ', ' + d.dur + 's. Strong vs ' + d.vs + ' (+50%).<br>Cost: ' + onFlCostStr(d.cost) + '<br>'
+    html += '<div class="shiprow"><div><b>' + d.name + '</b> x' + n + '<br><small>Power ' + d.pw + ', ' + d.sz + ' slot' + (d.sz > 1 ? "s" : "") + ', ' + Math.ceil(d.dur * onTmul() * onShipMul()) + 's. Strong vs ' + d.vs + ' (+50%).<br>Cost: ' + onFlCostStr(d.cost) + '<br>'
       + (needsHangar ? 'Needs Hangar Lv ' + d.hangar + '.' : '')
       + (!needsHangar && !afford ? 'Not enough resources.' : '')
       + (!needsHangar && afford && !slotsFit ? 'No free ship slots.' : '')
@@ -1349,11 +1607,14 @@ function onRenderFleet() {
       + '</div></div>';
   }
   html += '</div>';
-  // Shipyard queue with a progress bar on the first job.
+  // Shipyard queue with a progress bar on the first job. The job's total
+  // time is end - start (the server already applied the build-time and
+  // crew multipliers when it queued the ship), so the bar stays exact
+  // even if the multipliers change while it builds.
   if (q.length) {
     const first = q[0];
     const now = Date.now();
-    const dur = (ON_FL_SHIPS[first.k] || {}).dur || 9;
+    const dur = Math.max(1, (first.end - first.s) / 1000);
     const leftMs = Math.max(0, first.end - now);
     const done = Math.max(0, Math.min(100, 100 * (1 - leftMs / (dur * 1000))));
     html += '<div class="ocard"><small><b>Shipyard queue</b> (' + q.length + ')</small><br>'
@@ -1366,18 +1627,29 @@ function onRenderFleet() {
 
 // Tick the shipyard progress bar live while the Fleet view is open
 // (the 15s poll reloads the fleet; this only moves the bar/countdown).
+// When a ship launches, refresh the empire too — otherwise the top
+// header and empire panel keep showing the old power until the next
+// 15s poll (v3.9.18 live-check note). The refresh only fires when the
+// queue actually changed, so a failed reload never hammers the server.
 function onFlTick() {
   if (!onFleetOpen || !onFleet) return;
   const q = onFleet.sq || [];
   if (!q.length) return;
   const first = q[0];
-  const dur = (ON_FL_SHIPS[first.k] || {}).dur || 9;
+  const dur = Math.max(1, (first.end - first.s) / 1000);
   const leftMs = Math.max(0, first.end - Date.now());
   const left = onq("#o-fl-left");
   if (left) left.textContent = Math.ceil(leftMs / 1000) + "s";
   const bar = onq("#o-fl-bar");
   if (bar) bar.style.width = Math.max(0, Math.min(100, 100 * (1 - leftMs / (dur * 1000)))).toFixed(0) + "%";
-  if (leftMs <= 0) { onLoadFleet().then(() => onRenderFleet()); }
+  if (leftMs <= 0) {
+    const key = first.k + ":" + first.end;
+    onLoadFleet().then(() => {
+      onRenderFleet();
+      const nq = (onFleet.sq || [])[0];
+      if (!nq || (nq.k + ":" + nq.end) !== key) onRefresh();
+    });
+  }
 }
 
 // Panel + bar clicks (delegated).
@@ -1403,6 +1675,13 @@ document.addEventListener("click", (e) => {
   else if (act === "station-close") onCloseStation();
   else if (act === "fleet") onOpenFleet();
   else if (act === "fleet-close") onCloseFleet();
+  else if (act === "research") onOpenResearch();
+  else if (act === "research-close") onCloseResearch();
+  else if (act === "research-start" && b.dataset.tech) onDoResearchStart(b.dataset.tech);
+  else if (act === "crew" && b.dataset.crew) { const parts = b.dataset.crew.split(":"); onDoCrewAssign(parts[0], Number(parts[1]) || 0); }
+  else if (act === "crew") onOpenCrew();
+  else if (act === "crew-close") onCloseCrew();
+  else if (act === "commander" && b.dataset.id) onDoCommander(b.dataset.id);
   else if (act === "fleet-build" && b.dataset.type) onDoFleetBuild(b.dataset.type, Number(b.dataset.n) || 1);
   else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
   else if (act === "station-mv-cancel") { onStMove = null; onRenderStation(); }
@@ -1497,6 +1776,8 @@ async function onStartGame() {
     const okR = await onLoadRaids();
     if (onStationOpen) { await onLoadStation(); onRenderStation(); }
     if (onFleetOpen) { await onLoadFleet(); onRenderFleet(); }
+    if (onResearchOpen) { await onLoadProgress(); onRenderResearch(); }
+    if (onCrewOpen) { await onLoadProgress(); onRenderCrew(); }
     if (okE || okR) { onPollFails = 0; }
     else {
       onPollFails++;
@@ -1509,10 +1790,11 @@ async function onStartGame() {
     if (onSelected == null) onRenderPanel();
   }, 15000);
   // Tick the raid-warning countdown live (only the number, so an open
-  // tribute input never loses focus).
+  // tribute input never loses focus). Also the shipyard + research bars.
   setInterval(() => {
     if (!onReady) return;
     onFlTick();
+    onResTick();
     const el = onq("#o-raid-count");
     if (!el) return;
     const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
