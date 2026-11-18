@@ -328,16 +328,32 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 
 /* v3.9.0 ONLINE MODE + MODE SELECT — the shared galaxy. #modesel is a
    full-screen overlay (same pattern as the other modals). #online is a
-   full-screen column: top bar, galaxy canvas, bottom panel, bottom bar. */
+   full-screen column: ribbon, galaxy, activity tray, tab dock — the same
+   shell as single player (#top / #activity / #tabs). v3.9.20: the old
+   per-overlay top bars ("Back to galaxy" + resource line) and the bottom
+   #o-bar are gone; every online view shares the ribbon and the tabs. */
 #modesel{position:fixed;inset:0;z-index:30;background:rgba(7,11,31,.88);display:flex;align-items:center;justify-content:center;padding:16px}
 #modesel .bpanel{text-align:center}
 #modesel .bg{display:flex;flex-direction:column;gap:8px;margin:12px 0}
 #online{position:fixed;inset:0;z-index:10;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
 #online *{box-sizing:border-box}
-#o-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;border-bottom:2px solid var(--fg);background:var(--panel)}
-#o-top .brand{font-weight:bold;letter-spacing:1px;font-size:14px}
-#o-res{font-size:12px;text-align:right}
+#o-top{padding:calc(4px + env(safe-area-inset-top, 0px)) 8px 0}
+#o-top .hud{display:flex;align-items:center;gap:6px;margin:0;padding:4px 8px;background:var(--glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border:3px solid var(--fg);border-radius:var(--radius);box-shadow:var(--shadow-sm)}
+#o-top .brand{font-weight:bold;letter-spacing:1px;font-size:13px;white-space:nowrap}
+#o-menubtn{min-width:44px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
+@media (max-width:520px){#o-top .brand{display:none}}
+#o-menubk{position:fixed;inset:0;z-index:30;background:rgba(7,11,31,.6);border:0}
+#o-menu{position:fixed;top:0;left:0;bottom:0;z-index:31;width:min(320px,86vw);background:var(--panel);border-right:3px solid var(--fg);box-shadow:6px 0 0 var(--mid);padding:calc(12px + env(safe-area-inset-top,0px)) 12px 12px;transform:translateX(-102%);transition:transform .22s ease;display:flex;flex-direction:column;gap:6px}
+#o-menu.open{transform:translateX(0)}
+#o-main{position:relative;flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 #ocv{flex:1 1 auto;width:100%;min-height:0;touch-action:none;display:block;background:#0a0e2a}
+#o-activity{margin:6px 8px 0;display:flex;flex-direction:column;gap:6px}
+#o-activity .trayrow{background:var(--panel);border:2px solid var(--fg);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px}
+#o-tabs{display:flex;gap:2px;width:100%;background:var(--glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-top:3px solid var(--fg);padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px))}
+#o-tabs button{flex:1 1 0;min-width:0;min-height:52px;padding:4px 2px;background:none;color:var(--fg);border:2px solid transparent;border-radius:var(--radius-sm);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;font-size:11px;position:relative}
+#o-tabs button .ic{font-size:17px;line-height:1}
+#o-tabs button.on{background:var(--fg);color:var(--bg)}
+#o-tabs button:active{transform:scale(.95)}
 #o-panel{border-top:2px solid var(--fg);background:var(--panel);padding:10px 12px;max-height:38vh;overflow-y:auto;overflow-x:hidden}
 #o-panel .ocard h2{margin:0 0 4px;font-size:17px;letter-spacing:1px}
 #o-panel .ocard small{font-size:12px;line-height:1.5}
@@ -346,13 +362,10 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 .obtn.big{min-height:52px;font-size:16px}
 .obtn.ghost{background:none;color:var(--fg);border:2px solid var(--fg)}
 #o-toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:25;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:var(--radius-sm);font-weight:bold;font-size:13px;max-width:90vw;text-align:center;box-shadow:var(--shadow)}
-#o-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px calc(8px + env(safe-area-inset-bottom, 0px));border-top:2px solid var(--fg);background:var(--panel)}
-/* v3.9.14 STATION — full-screen overlay over the galaxy view, same
-   layout as #online: top bar, canvas, bottom panel. */
-#o-station{position:fixed;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+/* v3.9.14 STATION — an overlay over the galaxy view inside #o-main,
+   same layout as #online: canvas, chips, popup. */
+#o-station{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
 #o-station *{box-sizing:border-box}
-#o-st-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;border-bottom:2px solid var(--fg);background:var(--panel)}
-#o-st-res{font-size:12px;text-align:right}
 /* v3.9.16: the station canvas fills the space like single player's
    .mapwrap #st (100vw x 100dvh); chips float over it, and the popup
    (#o-st-pop) mirrors the single-player #pop exactly. */
@@ -366,13 +379,10 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-st-pop-panel{text-align:left}
 #o-st-pop-x{min-width:48px;min-height:48px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
 /* v3.9.18 (Phase 2): the Fleet view mirrors the single-player Fleet tab.
-   A full-screen overlay like the station: a top bar (Back + resources)
-   and a scrollable panel with the power breakdown, ship rows, and the
-   shipyard queue. */
-#o-fleet{position:fixed;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+   An overlay inside #o-main like the station: a scrollable panel with
+   the power breakdown, ship rows, and the shipyard queue. */
+#o-fleet{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
 #o-fleet *{box-sizing:border-box}
-#o-fl-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;border-bottom:2px solid var(--fg);background:var(--panel)}
-#o-fl-res{font-size:12px;text-align:right}
 #o-fl-body{flex:1;overflow-y:auto;padding:12px}
 #o-fl-body .ocard{margin:0 auto 12px;max-width:640px}
 #o-fl-body .shiprow{display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--hi)}
@@ -381,10 +391,8 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-fl-body .shiprow .bg button{min-width:64px}
 #o-fl-body .pbar{height:8px;background:var(--hi);border-radius:4px;overflow:hidden;margin-top:6px}
 #o-fl-body .pbar div{height:100%;background:var(--ac,#ffd84a);width:0%}
-#o-research,#o-crew{position:fixed;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+#o-research,#o-crew{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
 #o-research *,#o-crew *{box-sizing:border-box}
-#o-res-top,#o-cr-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;border-bottom:2px solid var(--fg);background:var(--panel)}
-#o-res-res,#o-cr-res{font-size:12px;text-align:right}
 #o-res-body,#o-cr-body{flex:1;overflow-y:auto;padding:12px}
 #o-res-body .ocard,#o-cr-body .ocard{margin:0 auto 12px;max-width:640px}
 #o-res-body .techtree-wrap{overflow-x:auto;padding-bottom:4px}
@@ -396,4 +404,3 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-st-pop-body .stat:last-child{border-bottom:0}
 #o-st-pop-actions{display:flex;flex-direction:column;gap:6px}
 #o-st-pop-actions button{min-width:0;width:100%;min-height:48px}
-#o-gal{font-size:11px;color:var(--ink-2)}
