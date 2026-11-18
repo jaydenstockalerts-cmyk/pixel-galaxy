@@ -347,4 +347,15 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 .obtn.ghost{background:none;color:var(--fg);border:2px solid var(--fg)}
 #o-toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:25;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:var(--radius-sm);font-weight:bold;font-size:13px;max-width:90vw;text-align:center;box-shadow:var(--shadow)}
 #o-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;border-top:2px solid var(--fg);background:var(--panel)}
+/* v3.9.14 STATION — full-screen overlay over the galaxy view, same
+   layout as #online: top bar, canvas, bottom panel. */
+#o-station{position:fixed;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+#o-station *{box-sizing:border-box}
+#o-st-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px;border-bottom:2px solid var(--fg);background:var(--panel)}
+#o-st-res{font-size:12px;text-align:right}
+#ostcv{flex:1 1 auto;width:100%;min-height:0;touch-action:none;display:block}
+#o-st-panel{border-top:2px solid var(--fg);background:var(--panel);padding:10px 12px;max-height:38vh;overflow-y:auto;overflow-x:hidden}
+#o-st-panel .ocard h2{margin:0 0 4px;font-size:17px;letter-spacing:1px}
+#o-st-panel .ocard small{font-size:12px;line-height:1.5}
+#o-st-panel .row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 0}
 #o-gal{font-size:11px;color:var(--ink-2)}
