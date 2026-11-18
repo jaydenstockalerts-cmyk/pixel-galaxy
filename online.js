@@ -584,7 +584,7 @@ function onSystemCard(s) {
     html += '<small>This system is yours. Defence comes from your empire power.</small>'
       + '<br><small>Garrison: <b>' + garrison + '</b>' + (garrison > 0 ? ' — cuts the revolt chance by <b>' + (garrison * 0.2).toFixed(1) + '%</b>.' : ' — a garrison suppresses revolt (each point cuts the chance by 0.2%).') + '</small><br>'
       + '<input id="o-garrison-amt" type="number" min="1" placeholder="Garrison points" style="width:130px"> '
-      + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>';
+      + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>'
       + '<br><button class="obtn" data-oact="station">Enter station</button>';
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
@@ -799,7 +799,7 @@ function onStCanAfford(cost) {
 
 let onStation = null;       // from GET /station
 let onStationOpen = false;
-let onStCam = { cx: 0, cy: 72, zoom: 1.2 };
+let onStCam = { cx: 32, cy: 64, zoom: 2.2 }; // match single-player STCAM: centred on the keep, zoomed in on the cluster (v3.9.14 was zoomed out to 1.2 and the base read as a huge empty grid)
 let onStPlace = null;       // building type being placed, or null
 let onStSel = null;         // selected building uid, or null
 
@@ -887,7 +887,7 @@ function onRenderStation() {
     let line = "<b>" + esc(def.name) + "</b> Lv " + b.l;
     if (def.prod && b.l > 0) line += " \u2014 +" + (def.rate * b.l * 60).toFixed(0) + " " + def.prod + "/min";
     if (under) line += " \u2014 <i>under construction</i>";
-    else if (atCap) line += " \u2014 <i>max level</i>";
+    else if (atCap) line += " \u2014 <i>max level \u2014 upgrade Command Station</i>";
     html += '<div class="row"><div><small>' + line + '</small></div>'
       + '<button class="obtn" data-oact="station-upgrade" data-u="' + b.u + '"' + ((under || atCap || busy || !afford) ? " disabled" : "") + '>Upgrade \u00b7 ' + esc(onStCostStr(cost)) + '</button></div>';
   }
