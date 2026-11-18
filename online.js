@@ -277,7 +277,7 @@ async function onLoadSystems() {
 // flips to resolved, toast the outcome once.
 async function onLoadRaids() {
   const r = await onApi("/raids", "GET");
-  if (r.status !== 200 || !Array.isArray(r.data.raids)) return;
+  if (r.status !== 200 || !Array.isArray(r.data.raids)) return false;
   onToastRevolts(r.data.revolts);
   const prev = onPrevRaidStatus;
   for (const raid of r.data.raids) {
@@ -295,6 +295,7 @@ async function onLoadRaids() {
     prev[raid.id] = raid.status;
   }
   onRaids = r.data.raids;
+  return true;
 }
 
 // Seconds left on a raid warning (resolvesAt is a server timestamp).
@@ -842,10 +843,22 @@ async function onStartGame() {
   // 5s — the 5s poll plus a per-call full galaxy scan burned the DO
   // free-tier rows-read limit; the server now caches the galaxy map, and
   // the slower poll is cheap insurance against hitting the limit again.)
-  setInterval(async () => {
+  // Backoff: if the backend is down (poll failing), stop hammering it —
+  // a dead backend still burns rows on every invocation, and a tight
+  // retry loop is how a quota gets eaten right after a reset.
+  let onPollFails = 0;
+  const onPoll = setInterval(async () => {
     if (!onReady) return;
-    await onLoadEmpire();
-    await onLoadRaids();
+    const okE = await onLoadEmpire();
+    const okR = await onLoadRaids();
+    if (okE || okR) { onPollFails = 0; }
+    else {
+      onPollFails++;
+      if (onPollFails >= 3) {
+        clearInterval(onPoll);
+        onToast("Server unreachable — polling paused. Reload to retry.");
+      }
+    }
     onRenderTop();
     if (onSelected == null) onRenderPanel();
   }, 15000);
