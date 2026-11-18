@@ -422,9 +422,10 @@ function onDrawGalaxy() {
       q.arc(p.x, p.y, Math.max(1.5, r * Math.min(3, onCam.zoom)) + 5, 0, Math.PI * 2);
       q.stroke();
     }
-    // v3.9.3: gold ring around systems you can claim right now (neutral +
-    // adjacent to your empire) so the next move is obvious at a glance.
-    if (onSpawned && !mine && !isNexus && !s.ownerType && onIsAdjacent(s)) {
+    // v3.9.13: gold ring around systems you can attack right now (adjacent
+    // neutral or faction systems — battle to take them, like single
+    // player) so the next move is obvious at a glance.
+    if (onSpawned && !mine && !isNexus && s.ownerType !== "player" && onIsAdjacent(s)) {
       q.strokeStyle = "#ffd84a";
       q.lineWidth = 2;
       q.beginPath();
@@ -438,12 +439,12 @@ function onDrawGalaxy() {
   q.textAlign = "center";
   onSystems.forEach(s => {
     const mine = owned.has(s.id);
-    // v3.9.3: zoomed in (zoom >= 3), also label systems you can claim now.
-    const claimable = onSpawned && !mine && s.id !== 0 && !s.ownerType && onIsAdjacent(s);
-    if (s.id !== 0 && !mine && s.id !== onSelected && !(onCam.zoom >= 3 && claimable)) return;
+    // v3.9.13: zoomed in (zoom >= 3), also label systems you can attack now.
+    const attackable = onSpawned && !mine && s.id !== 0 && s.ownerType !== "player" && onIsAdjacent(s);
+    if (s.id !== 0 && !mine && s.id !== onSelected && !(onCam.zoom >= 3 && attackable)) return;
     const p = onWorldToScreen(s.x, s.y);
     if (p.x < -40 || p.x > w + 40 || p.y < -40 || p.y > h + 40) return;
-    q.fillStyle = (s.id === 0 || claimable) ? "#ffd84a" : "#6ee7f5";
+    q.fillStyle = (s.id === 0 || attackable) ? "#ffd84a" : "#6ee7f5";
     q.fillText(s.name, p.x, p.y - 10);
   });
 }
@@ -541,7 +542,7 @@ function onRenderPanel() {
       el.innerHTML = '<div class="ocard"><h2>Recover your empire</h2><p>Enter the recovery code you saved when you started. It works on any device.</p><input id="o-rec-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><br><button class="obtn" data-oact="recover-go">Recover empire</button> <button class="obtn ghost" data-oact="recover-cancel">Cancel</button>' + (onRecoverErr ? '<br><small style="color:#ff8a80">' + esc(onRecoverErr) + '</small>' : '') + '</div>';
       return;
     }
-    el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Claim systems, grow your empire, fight the five factions.</p><p><small>Galaxy:</small><br>'
+    el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Battle to take systems, grow your empire, fight the five factions.</p><p><small>Galaxy:</small><br>'
       + '<button class="obtn' + (onGalaxy() === "test-1" ? '' : ' ghost') + '" data-oact="galaxy" data-galaxy="test-1">Beta Galaxy</button> '
       + '<button class="obtn' + (onGalaxy() === "staging-1" ? '' : ' ghost') + '" data-oact="galaxy" data-galaxy="staging-1">Staging Galaxy</button>'
       + '<br><small>Beta is the live galaxy. Staging is where new features land first — your empire there is separate.</small></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>';
@@ -559,7 +560,7 @@ function onRenderPanel() {
     + (e.garrisonUpkeepPerSec ? ' · Garrisons <b>−' + e.garrisonUpkeepPerSec.toFixed(2) + '/s</b>' : '')
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
-    + '<br><small><b>Next step:</b> tap a system with a <b>gold ring</b> — those are next to your empire and ready to claim. Green dots are the outer rim, your spawn ground.</small>'
+    + '<br><small><b>Next step:</b> tap a system with a <b>gold ring</b> — those are next to your empire and ready to attack. Green dots are the outer rim, your spawn ground.</small>'
     + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button></div>';
   el.innerHTML = banner + el.innerHTML;
 }
@@ -585,38 +586,26 @@ function onSystemCard(s) {
       + '<input id="o-garrison-amt" type="number" min="1" placeholder="Garrison points" style="width:130px"> '
       + '<button class="obtn" data-oact="garrison">Station garrison (2 cr/pt)</button>';
   } else if (s.ownerType === "faction") {
-    if (!adj) html += '<small>Not adjacent to your empire — claim systems next to yours to reach it.</small>';
+    if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small><br>'
       + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>';
   } else if (s.ownerType === "player") {
     html += '<small>Owned by another player.</small>';
-    if (!adj) html += '<br><small>Not adjacent to your empire — claim systems next to yours to reach it.</small>';
+    if (!adj) html += '<br><small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<br><small>Adjacent. Raiding gives the defender <b>90 seconds</b> to respond — they may offer tribute, and you can accept or decline it. A Home World cannot be taken, only raided for resources.</small><br>'
       + '<div class="bg"><button class="obtn" data-oact="raid" data-stance="allout">Raid · All-out</button> <button class="obtn" data-oact="raid" data-stance="balanced">Raid · Balanced</button> <button class="obtn" data-oact="raid" data-stance="cautious">Raid · Cautious</button></div>';
   } else {
-    // Neutral — claimable.
-    const cost = s.pw * 2;
-    if (!adj) html += '<small>Not adjacent to your empire — claim systems next to yours to reach it.</small>';
-    else if (power < s.pw) html += '<small>Too strong — your power ' + Math.round(power) + ' is below its ' + s.pw + '. Grow your empire first.</small>';
-    else if (credits < cost) html += '<small>Claim costs <b>' + cost + ' credits</b> — you have ' + Math.floor(credits) + '.</small>';
-    else html += '<small>Claimable — costs <b>' + cost + ' credits</b>.</small><br><button class="obtn" data-oact="claim">Claim for ' + cost + ' credits</button>';
+    // Neutral — battle to take it, like single player (Jayden, Nov 17).
+    // No credit cost, no power gate: the battle itself decides it.
+    if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
+    else html += '<small>Neutral system, power <b>' + s.pw + '</b>. Attack to take it — win and it is yours, plus its loot.</small><br>'
+      + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>';
   }
   html += '<br><button class="obtn ghost" data-oact="close">Close</button></div>';
   return html;
 }
 
 // ---------- actions ----------
-async function onDoClaim(id) {
-  const r = await onApi("/claim", "POST", { systemId: id });
-  if (r.status === 200) {
-    onToast("Claimed " + ((r.data.claimed || {}).name || "system") + ".");
-    await onRefresh();
-  } else {
-    onToast("Claim failed: " + (r.data.error || r.status) + ".");
-    await onRefresh();
-  }
-}
-
 async function onDoAttack(id, stance) {
   const r = await onApi("/attack", "POST", { systemId: id, stance: stance || "balanced" });
   if (r.status === 200) {
@@ -771,7 +760,6 @@ document.addEventListener("click", (e) => {
   else if (act === "recover") { onShowRecoverForm = true; onRecoverErr = ""; onRenderPanel(); }
   else if (act === "recover-cancel") { onShowRecoverForm = false; onRecoverErr = ""; onRenderPanel(); }
   else if (act === "recover-go") { onDoRecover(); }
-  else if (act === "claim" && onSelected != null) onDoClaim(onSelected);
   else if (act === "attack" && onSelected != null) onDoAttack(onSelected, b.dataset.stance || "balanced");
   else if (act === "raid" && onSelected != null) onDoRaid(onSelected, b.dataset.stance || "balanced");
   else if (act === "raid-tribute" && b.dataset.raid) onDoRaidTribute(b.dataset.raid);
