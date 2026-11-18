@@ -817,12 +817,16 @@ function onStCanAfford(cost) {
   return true;
 }
 function onStUnlockedCount() {
-  // Single-player unlockedCount(): plots that are not locked.
+  // Single-player unlockedCount(): plots that are not locked. An occupied
+  // plot counts as unlocked (single-player plotLocked is false for a plot
+  // with a building on it), so count every plot whose requirement the
+  // Command Station meets — occupied or not. At Command Lv 1 that is the
+  // 3x3 around the keep: 9 of 144. (v3.9.16 counted only EMPTY unlocked
+  // plots, so it read 5 of 144 — the live check caught it.)
   let n = 0;
   const cmdLv = (onStation.b && onStation.b.command) || 1;
   for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) {
-    const occupied = (onStation.bl || []).some((z) => z.x === i && z.y === j);
-    if (!occupied && onStPlotReq(i, j) <= cmdLv) n++;
+    if (onStPlotReq(i, j) <= cmdLv) n++;
   }
   return n;
 }
