@@ -1896,6 +1896,26 @@ function onTapStation(e) {
   const ox = cv.width / 2 - onStCam.cx * sc;
   const oy = cv.height / 2 - onStCam.cy * sc;
   const wx = (px - ox) / sc, wy = (py - oy) / sc;
+  // v3.9.43 (playtest v3.9.29 bug 9): hit-test buildings FRONT-TO-BACK
+  // (highest x+y first — the draw order, so the last drawn, visually
+  // topmost, building wins) against their iso silhouette
+  // (isoBuildingHit), exactly like single-player stEnd, and only then
+  // fall back to the ground cell. The old code mapped every tap
+  // straight to its ground cell, so a tap on the keep's dome opened
+  // the empty plot north of it, and a tap on the keep's visible body
+  // where the Crystal Mine's tall sprite overlaps it opened the MINE
+  // (the mine's ground cell sits under the keep's body) — the player
+  // saw the keep, tapped the keep, and got the mine. The Hangar
+  // dome's full height is tappable now too (art.js visTop fix).
+  if (typeof isoBuildingHit === "function") {
+    let hit = null;
+    [...(onStation.bl || [])].sort((a, b) => (b.x + b.y) - (a.x + a.y)).some((b) => { if (isoBuildingHit(wx, wy, b, sc)) { hit = b; return true; } return false; });
+    if (hit) {
+      if (onStMove != null) { onToast("That spot is taken."); return; }
+      onOpenStBuilding(hit.u);
+      return;
+    }
+  }
   if (typeof isoCellFromPoint !== "function") return;
   const cell = isoCellFromPoint(wx, wy);
   const gx = cell.i, gy = cell.j;
