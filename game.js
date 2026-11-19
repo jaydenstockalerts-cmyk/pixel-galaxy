@@ -431,7 +431,7 @@ const tsum=k=>TECH.filter(x=>S.tech.includes(x.id)&&x.k===k).reduce((a,x)=>a+x.v
 const lv=id=>Math.min(10,1+Math.floor(Math.sqrt((S.cx[id]||0)/2)));
 const cb=t=>{const id=S.slot;return id&&CM[id].t===t?CM[id].b*lv(id):0}; // v3.5.4: ONE commander only — the single assigned officer is the only buff; cb returns 0 for the other two types
 const tmul=()=>1-Math.min(.5,cb("build"));
-const scap=()=>(5+tsum("slot"))*S.b.hangar;
+const scap=()=>(7+tsum("slot"))*S.b.hangar;
 const qcap=()=>5+2*S.b.hangar;
 function gain(n){const id=S.slot;if(!id)return; /* v3.5.4: one commander — it gains XP from every event (conquest, raid, build, research, colony), since there is no second officer to split XP with */const b=lv(id);S.cx[id]=(S.cx[id]||0)+n;const a=lv(id);if(a>b){const m=CM[id].n+" reached Lv "+a+"!";if(HOLD)setTimeout(()=>msg(m),400);else msg(m)}} // v3.3: officers announce their level-ups — the fleet commander used to go up silently
 const cap=()=>50+500*S.b.command; // v3.9.28: base halved (100 -> 50) but per-level kept at 500 — the literal 50+250 halving made c2/c3/w4/w5/l3 unresearchable (c2 needs 3,000 crystal, cap at max Command 7 would be 1,800); Jayden Nov 18: adjust so the game still works. Lv1 cap 550, Lv7 3,550, Lv10 5,050, Lv13 6,550 — every tech reachable.
@@ -1215,7 +1215,7 @@ $("#bi-name").textContent=B[t].n+" Lv "+sel.l+(e>sel.l?" (+"+(e-sel.l)+" queued)
 let st=B[t].d+". ";
 if(sel.l===0)st="Under construction. ";
 else if(pr)st+="Makes +"+(B[t].p[pr]*sel.l*m*(1+tsum("eco"))*(1+cb("econ"))*60).toFixed(0)+" "+pr+"/min. ";
-else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*sel.l+" ship slots. ";
+else if(t==="hangar")st+="Holds "+(7+tsum("slot"))*sel.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 $("#bi-stats").textContent=st+hint;
 $("#bi-cost").textContent=max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000);
@@ -1295,7 +1295,7 @@ if(hq){hq.fillStyle="#c98a5a";hq.fillRect(0,0,96,96);const sp=buildingSprite(t,b
 let st=B[t].d+". ";
 if(b.l===0)st="Under construction. ";
 else if(pr)st+="Makes +"+(B[t].p[pr]*b.l*m*(1+tsum("eco"))*(1+cb("econ"))*60).toFixed(0)+" "+pr+"/min. ";
-else if(t==="hangar")st+="Holds "+(5+tsum("slot"))*b.l+" ship slots. ";
+else if(t==="hangar")st+="Holds "+(7+tsum("slot"))*b.l+" ship slots. ";
 else st+="Max building level "+lvlCap("hangar")+", storage "+fmt(cap())+". ";
 const DISTNAME={solar:"Power District",foundry:"Industrial District",mine:"Industrial District",hub:"Trade District",hangar:"Military District",command:"The Keep"};body.innerHTML="<small><b>"+(DISTNAME[t]||"")+"</b> — "+st+"</small><br><small>"+(max?(t==="command"?"Max level.":"Upgrade the Command Station to go higher."):"Upgrade to Lv "+(e+1)+": "+cstr(c)+". Time: "+left(dur(e)*1000))+"</small>";
 acts.innerHTML='<button data-bup="1" '+((max||S.bq.length>=bqcap()||!can(c))?"disabled":"")+'>Upgrade</button><button data-bmv="1">'+(S.mv===b.u?"Cancel move":"Move")+'</button><button data-pclose="1">Close</button>';
