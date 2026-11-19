@@ -108,9 +108,12 @@ const ON_PROD_LABEL = { credits: "Credits", energy: "Energy", metal: "Metal", cr
 // conquest production (local state, re-renders the card); act
 // "setprod" changes an owned system's production immediately.
 function onProdPickerHtml(cur, act) {
-  return '<div class="bg"><small>Produces: </small>' + ["credits", "energy", "metal", "crystal"].map((r) =>
+  // v3.9.38: compact 2x2 grid of small buttons (the old full-width obtns
+  // pushed Crystal off the bottom of the sheet) — the label spans the
+  // full row, the four resource buttons fill the 2x2 below it.
+  return '<div class="prodpick"><small class="prodpick-label">Produces:</small>' + ["credits", "energy", "metal", "crystal"].map((r) =>
     '<button class="obtn' + (cur === r ? ' sel' : '') + '" data-oact="' + act + '" data-prod="' + r + '">' + ON_PROD_LABEL[r] + '</button>'
-  ).join(" ") + '</div>';
+  ).join("") + '</div>';
 }
 let onSpawned = false;
 let onRaids = [];        // from /raids (pending/tribute_offered/resolved)
@@ -908,12 +911,22 @@ function onCloseMenu() {
 function onRenderPanel() {
   const el = onq("#o-panel");
   if (!el) return;
+  // v3.9.38: the Battle report lives in #o-outcome (a top banner above the
+  // tab overlays), not in the panel — the Fleet/Research/Quests overlays
+  // (z-index 15) covered the panel, so its Dismiss button was untappable
+  // from any tab but Galaxy. Rendered here (before every early return)
+  // so the report is always current, and hidden when there is none.
+  const oc = onq("#o-outcome");
+  if (oc) { const o = onRaidOutcomeCard() + onTransitOutcomeCard(); oc.innerHTML = o; oc.hidden = !o; }
+  // v3.9.38: the system card is a centered popup (#o-syspop), not a panel
+  // card — hide it whenever nothing is selected.
+  if (onSelected == null) { const p = onq("#o-syspop"); if (p) p.hidden = true; }
   // v3.9.26: the panel is a 38vh scroller and innerHTML swaps never
   // reset its scroll position — a new card opened mid-scroll, showing
   // its middle ("empire power." with the top cut off). Reset to the
   // top whenever the card identity changes.
   const panelKey = onShowRecovery ? "recovery" : onShowResetConfirm ? "reset" : !onSpawned ? (onShowRecoverForm ? "recover-form" : "welcome") : (onSelected != null ? "sys:" + onSelected : "empire");
-  if (panelKey !== onLastPanelKey) { el.scrollTop = 0; onLastPanelKey = panelKey; }
+  if (panelKey !== onLastPanelKey) { el.scrollTop = 0; onLastPanelKey = panelKey; const pb = onq("#o-syspop-body"); if (pb) pb.scrollTop = 0; }
   if (onShowRecovery) { el.innerHTML = onRecoveryCard(); return; }
   if (onShowResetConfirm) { el.innerHTML = '<div class="ocard"><h2>Reset credits to 10?</h2><p>This sets your credits to 10 — the fresh-spawn amount. It wipes the balance you banked under the old economy, and it can\'t be undone.</p><button class="obtn" data-oact="reset-credits-go">Reset credits</button> <button class="obtn ghost" data-oact="reset-credits-cancel">Cancel</button></div>'; return; }
   if (!onSpawned) {
@@ -926,12 +939,24 @@ function onRenderPanel() {
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
   const banner = onRaidBanner();
-  const outcome = onRaidOutcomeCard() + onTransitOutcomeCard();
   // v3.9.22: record what the panel currently shows, so the poll can
   // tell when a raid or the selected system changed underneath it.
   onLastBannerSig = onBannerSig();
   onLastSelSig = onSelSig();
-  if (sel) { el.innerHTML = banner + outcome + onSystemCard(sel); return; }
+  // v3.9.38: the selected system renders into the centered #o-syspop
+  // popup (title + X in the pinned header, card content in the scrolling
+  // body). The panel falls through to the empire card behind the dimming
+  // overlay. The poll re-renders the popup body whenever the sig changes
+  // (ownership flips to Yours after a victory without reopening), and
+  // the 1s ticker ticks the transit countdown live.
+  if (sel) {
+    const pop = onq("#o-syspop");
+    if (pop) {
+      pop.hidden = false;
+      const t = onq("#o-syspop-title"); if (t) t.textContent = sel.name;
+      const b = onq("#o-syspop-body"); if (b) b.innerHTML = onSystemCard(sel);
+    }
+  }
   const e = onEmpire || {};
   const over = Math.max(0, (e.count || 0) - (e.softCap || 25));
   el.innerHTML = '<div class="ocard"><h2>Your empire</h2><small>' + esc(onGalaxyName()) + '</small>'
@@ -945,7 +970,7 @@ function onRenderPanel() {
     + '<br><small>Map: <span style="color:#ff7a29">orange dots</span> are other players\' empires; <span style="color:#ffd84a">gold rings</span> mark systems you can attack.</small>'
     + (onShowRename ? '<br><small>Rename your Home World (1–24 characters):</small><br><input id="o-rename-name" type="text" maxlength="24" autocomplete="off" value="' + esc(onRenameName) + '"> <button class="obtn" data-oact="rename-save">Save name</button> <button class="obtn ghost" data-oact="rename-cancel">Cancel</button>' : '')
     + '</div>';
-  el.innerHTML = banner + outcome + el.innerHTML;
+  el.innerHTML = banner + el.innerHTML;
 }
 
 // Next best step (single-player nextStep(), corrected order — v3.9.35
@@ -1131,8 +1156,10 @@ function onSystemCard(s) {
   if (mine) owner = "Yours";
   else if (s.ownerType === "faction") owner = FAC_NAME[s.owner] || s.owner;
   else if (s.ownerType === "player") owner = "Another player";
-  let html = '<div class="ocard"><h2>' + esc(s.name) + '</h2>'
-    + '<small>Ring ' + s.ring + ' · ' + esc(s.type || "") + ' · Power <b>' + s.pw + '</b> · ' + esc(owner) + '</small><br>';
+  // v3.9.38: the card renders into the centered #o-syspop popup — the
+  // popup header carries the system name + X, so the card itself has no
+  // outer ocard wrapper and no h2.
+  let html = '<small>Ring ' + s.ring + ' · ' + esc(s.type || "") + ' · Power <b>' + s.pw + '</b> · ' + esc(owner) + '</small><br>';
   if (isNexus) html += '<small>The Dark Nexus — power 5000, the endgame. Holding it is a tournament objective, not just a conquest.</small><br>';
   if (mine) {
     // Single player: the station lives ONLY at the Home World — other
@@ -1166,7 +1193,7 @@ function onSystemCard(s) {
     if (!inReach) html += '<small>' + reachNote + '</small>';
     else html += '<small>' + (adj ? 'Adjacent to your empire.' : '2 jumps away — Jump Drive.') + ' Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
       + '<small>Travel time: ' + Math.ceil(onTravelMs(s.id) / 1000) + 's from Home World.</small><br>'
-      + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + onTransitSecs() + 's.</small>'
+      + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + '<span id="o-sys-transit-left">' + onTransitSecs() + 's</span>.</small>'
         : onProdPickerHtml(onAttackProd, "prod") + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
   } else if (s.ownerType === "player") {
     html += '<small>Owned by another player.</small>';
@@ -1179,10 +1206,10 @@ function onSystemCard(s) {
     if (!inReach) html += '<small>' + reachNote + '</small>';
     else html += '<small>Neutral system, power <b>' + s.pw + '</b>.' + (adj ? '' : ' 2 jumps away — Jump Drive.') + ' Attack to take it — win and it is yours, plus its loot.</small>' + flLine + '<br>'
       + '<small>Travel time: ' + Math.ceil(onTravelMs(s.id) / 1000) + 's from Home World.</small><br>'
-      + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + onTransitSecs() + 's.</small>'
+      + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + '<span id="o-sys-transit-left">' + onTransitSecs() + 's</span>.</small>'
         : onProdPickerHtml(onAttackProd, "prod") + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
   }
-  html += '<br><button class="obtn ghost" data-oact="close">Close</button></div>';
+  html += '<br><button class="obtn ghost" data-oact="close">Close</button>';
   return html;
 }
 
@@ -1674,7 +1701,10 @@ function onRenderStPop() {
         const ok = n < mx && (onStation.bq || []).length < onBuilderCap() && onStCanAfford(c);
         return '<div class="row"><div><b>' + esc(def.name) + '</b> ' + n + "/" + mx + '<br><small>' + esc(def.desc) + '<br>Cost: ' + esc(onStCostStr(c)) + '</small></div><button data-oact="station-pop-place" data-type="' + t + '"' + (ok ? "" : " disabled") + '>Place</button></div>';
       }).join("");
-      acts.innerHTML = "";
+      // v3.9.38: the unlocked-plot popup gets a Close button — its only
+      // close was the X, and the v3.9.26 pinning bug proved the X can go
+      // missing behind the ribbon.
+      acts.innerHTML = '<button data-oact="station-pop-close" class="grow">Close</button>';
     }
   }
 }
@@ -2599,6 +2629,12 @@ async function onStartGame() {
     onRenderTop(); // v3.9.22: the ribbon accrues live between polls
     onStChips();   // v3.9.22: the build countdown went stale off-ticker
     onTutCheck();  // v3.9.35: tutorial steps auto-advance off the 1s tick
+    // v3.9.38: the transit countdown in the open system popup ticks live
+    // (the playtest found it frozen at the render-time value — the poll
+    // sig never changes while a transit is flying, so the card is not
+    // re-rendered until it resolves).
+    const tsl = onq("#o-sys-transit-left");
+    if (tsl) tsl.textContent = onTransitSecs() + "s";
     const el = onq("#o-raid-count");
     if (!el) return;
     const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
