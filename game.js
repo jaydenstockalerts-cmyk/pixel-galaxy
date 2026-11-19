@@ -4,7 +4,8 @@ function ac(){try{if(!AC)AC=new (window.AudioContext||window.webkitAudioContext)
 function tone(f,d,ty,v,t0,f2){const a=ac();if(!a||S.mute)return;const o=a.createOscillator(),g=a.createGain(),t=a.currentTime+(t0||0);o.type=ty||"square";o.frequency.setValueAtTime(f,t);if(f2)o.frequency.exponentialRampToValueAtTime(f2,t+d);g.gain.setValueAtTime(v||.04,t);g.gain.exponentialRampToValueAtTime(.0001,t+d);o.connect(g);g.connect(a.destination);o.start(t);o.stop(t+d+.02)}
 function boom(){const a=ac();if(!a||S.mute)return;const n=Math.floor(a.sampleRate*.3),b=a.createBuffer(1,n,a.sampleRate),c=b.getChannelData(0);for(let i=0;i<n;i++)c[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),g=a.createGain();s.buffer=b;g.gain.value=.08;s.connect(g);g.connect(a.destination);s.start()}
 function sfx(k){const m={click:()=>tone(520,.04),ok:()=>{tone(660,.08);tone(880,.12,"square",.04,.08)},laser:()=>tone(900,.12,"sawtooth",.025,0,200),boom:boom,win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.15,"square",.045,i*.12)),lose:()=>[392,330,262,196].forEach((f,i)=>tone(f,.2,"triangle",.06,i*.15)),alert:()=>{tone(880,.1);tone(660,.1,"square",.05,.15);tone(880,.1,"square",.05,.3)},claim:()=>[784,988,1319].forEach((f,i)=>tone(f,.12,"square",.045,i*.09))};if(m[k])m[k]()}
-const fresh=()=>({res:{energy:40,metal:40,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:null,own:{},rv:{c:{cy:Date.now()},v:{cy:Date.now()},k:{cy:Date.now()},a:{cy:Date.now()},m:{cy:Date.now()}},gar:{},col:{},war:{},dip:{},pair:{},end:{},stab:{},pairCy:Date.now(),stabCy:Date.now(),min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now(),stance:"balanced",transit:null,raidWarn:null});
+// v3.9.28: fresh metal 40 -> 60 — the mine now costs 50 metal (economy package), so a 40 start could not afford the tutorial's first build.
+const fresh=()=>({res:{energy:40,metal:60,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:null,own:{},rv:{c:{cy:Date.now()},v:{cy:Date.now()},k:{cy:Date.now()},a:{cy:Date.now()},m:{cy:Date.now()}},gar:{},col:{},war:{},dip:{},pair:{},end:{},stab:{},pairCy:Date.now(),stabCy:Date.now(),min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now(),stance:"balanced",transit:null,raidWarn:null});
 // v2.4: S.gar maps system id -> {fighter,cruiser,capital} stationed
 // there; S.war maps faction id -> 1 once it has taken one of your
 // systems (drives the standings board's "At war" status). S.rv clocks
@@ -175,9 +176,10 @@ function setUIHidden(h){
 // build — MAXC is 1 per building at Command Lv 1, so the first build
 // is a Crystal Mine (quest q1 pays for it) and the second Solar Array
 // (quest q5d) waits for Command Lv 2.
-// NOTE (step 6 cost): the Command Station upgrade costs 84 metal,
-// 56 crystal, 28 credits — that is cost("command",1), the BASE cost
-// (60/40/20) x1.4 for Lv 1→2, exactly what the upgrade popup shows.
+// NOTE (step 6 cost): the Command Station upgrade costs 168 metal,
+// 112 crystal, 56 credits — that is cost("command",1), the BASE cost
+// (120/80/40) x1.4 for Lv 1→2, exactly what the upgrade popup shows.
+// (v3.9.28: base doubled by the economy package; was 84/56/28.)
 // Do NOT "fix" the step-6 body back to the base cost (live v3.0);
 // if B.command.c ever changes, update the body to cost("command",1).
 const TUT_KEY="pixelgalaxy-tutorial-v3-done";
@@ -186,15 +188,15 @@ const TUT_STEPS=[
 {t:"Welcome, Commander",tab:"map",b:"Your job: build up your home station, train a fleet, and conquer systems all the way to the Dark Nexus, the big boss at the far edge of the galaxy. This guide walks you through it, step by step. You can skip it any time, or tap Later to hide it and pick up where you left off."},
 {t:"Your resources",tab:"map",hl:"#res",b:"Energy, metal, crystal and credits live at the top. Buildings make them every second — a Solar Array makes energy, a Metal Foundry makes metal, a Crystal Mine digs crystal. Each one has a storage limit: upgrade the Command Station to store more. Tap the bar to see the details."},
 {t:"Your station",tab:"station",hl:'section[data-pg="station"] .mapwrap',b:"This is your home station. Tap a building to see what it does, or tap open land to build something new. Plots unlock as you upgrade the Command Station — the city grows outward from the keep in the middle."},
-{t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 25 metal and 10 energy and takes about half a minute — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
+{t:"Build a Crystal Mine",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 50 metal and 20 energy and takes about half a minute — watch the tray above the bottom bar while it builds.",done:()=>S.b.mine>=1},
 {t:"Quests pay you",tab:"quests",hl:"#quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",bAlt:"Quests are jobs with rewards. Tap Claim on any quest you see to collect its reward — free resources are the fastest way to grow early on.",bAltWhen:()=>{const q=Q.find(z=>z.id==="q1");return !q||S.q.includes("q1")||!q.ok()},done:()=>S.q.length>TUT.baseQ||(S.q.length>0&&!Q.some(q=>!S.q.includes(q.id)&&q.ok()))},
-{t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 84 metal, 56 crystal and 28 credits. If that's more than you have right now, that's normal — keep building and come back to it.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
+{t:"The Command Station",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 168 metal, 112 crystal and 56 credits. If that's more than you have right now, that's normal — keep building and come back to it.",seen:()=>POP&&POP.kind==="building"&&((S.bl.find(z=>z.u===POP.u)||{}).t==="command"),done:()=>TUT.seen&&!POP},
 {t:"The galaxy",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Tap the Pirate Outpost. Every system shows the fleet power you need to take it, and which ship type counters it — fighters beat swarm fleets, so the Outpost is your first target.",seen:()=>POP&&POP.kind==="system"&&S.sel===1,done:()=>TUT.seen&&!POP},
-{t:"Build a Hangar",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Fighters live in a Hangar, and a Hangar needs 30 crystal. Your mine digs about 9 crystal a minute — watch the crystal number at the top climb. When it hits 30, tap open land and build the Hangar.",done:()=>S.b.hangar>=1},
-{t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 10 energy and 5 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
+{t:"Build a Hangar",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Fighters live in a Hangar, and a Hangar needs 60 crystal. Your mine digs about 4 or 5 crystal a minute — watch the crystal number at the top climb. When it hits 60, tap open land and build the Hangar.",done:()=>S.b.hangar>=1},
+{t:"Build 4 Fighters",tab:"fleet",hl:"#ships",act:true,b:"A Fighter costs 20 energy and 10 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against the Outpost's 5. Build two first, then open Quests and claim 'Launch your first ship' (20 credits, 60 energy) and build two more.",done:()=>S.ships.fighter>=4},
 {t:"Conquer the Pirate Outpost",tab:"map",hl:'section[data-pg="map"] .mapwrap',act:true,b:"Go to the Galaxy tab, tap the Pirate Outpost, and tap Attack. With 4 Fighters you should win — and you'll loot metal and credits. If you lose, rebuild and try again. Claim the 80-credit quest reward afterwards: you'll need it for research.",done:()=>S.won.includes(1)},
-{t:"Build a Trade Hub",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Credits are the slow resource. A Trade Hub earns about 8 credits a minute, forever. Tap open land and build one — it costs 30 metal and 20 crystal.",done:()=>S.b.hub>=1},
-{t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 18 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 150 credits and 80 crystal and takes three minutes. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
+{t:"Build a Trade Hub",tab:"station",hl:'section[data-pg="station"] .mapwrap',act:true,build:1,b:"Credits are the slow resource. A Trade Hub earns about 4 credits a minute, forever. Tap open land and build one — it costs 60 metal and 40 crystal.",done:()=>S.b.hub>=1},
+{t:"Research Laser Cannons",tab:"research",hl:"#tr-w1",act:true,b:"The Research tab lists all 18 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 300 credits and 120 crystal and takes three minutes. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>(S.rq&&S.rq.id==="w1")||S.tech.includes("w1")},
 {t:"Your empire and your rivals",tab:"empire",hl:"#emp-rivals",b:"This is the Empire page — open it any time from the menu, top left. Five rival factions are expanding on their own clock. This board shows their systems, power, and whether you're at war. You win by holding 13 systems, or by conquering the Dark Nexus, the big boss at the far edge of the galaxy. Rival raids start after about 10 minutes of play: a strong home fleet, plus garrisons on your systems, repels them."},
 {t:"Colonies and garrisons",tab:"map",hl:'section[data-pg="map"] .mapwrap',b:"A system you conquer becomes a colony. Pick a focus — Mining, Forge or Trade — and it earns for you. It also adds defence. Station ships there as a garrison: tap a system you own to see its Garrison section. Garrisons defend at full strength, and half your home fleet rushes to help."},
 {t:"Diplomacy and the wider galaxy",tab:"map",sec:1,hl:'section[data-pg="map"] .mapwrap',b:"You don't have to fight everyone. On the Empire page you can pay tribute (300 credits) for a 30-minute truce, sign a pact (500), or ally (1000) — and rivals make deals with each other too. Beyond the jump gates lies Sector 2: you can scout it for free, but attacks there need Jump Drive research. Colonies connected to Home World also pay trade credits."},
@@ -432,7 +434,7 @@ const tmul=()=>1-Math.min(.5,cb("build"));
 const scap=()=>(5+tsum("slot"))*S.b.hangar;
 const qcap=()=>5+2*S.b.hangar;
 function gain(n){const id=S.slot;if(!id)return; /* v3.5.4: one commander — it gains XP from every event (conquest, raid, build, research, colony), since there is no second officer to split XP with */const b=lv(id);S.cx[id]=(S.cx[id]||0)+n;const a=lv(id);if(a>b){const m=CM[id].n+" reached Lv "+a+"!";if(HOLD)setTimeout(()=>msg(m),400);else msg(m)}} // v3.3: officers announce their level-ups — the fleet commander used to go up silently
-const cap=()=>100+500*S.b.command;
+const cap=()=>50+500*S.b.command; // v3.9.28: base halved (100 -> 50) but per-level kept at 500 — the literal 50+250 halving made c2/c3/w4/w5/l3 unresearchable (c2 needs 3,000 crystal, cap at max Command 7 would be 1,800); Jayden Nov 18: adjust so the game still works. Lv1 cap 550, Lv7 3,550, Lv10 5,050, Lv13 6,550 — every tech reachable.
 const lvlCap=id=>id==="command"?5+tsum("cmax"):Math.min(15,S.b.command); // v3.2 pacing: a building can never exceed the Command Station's level (Hobbit Keep rule) — at Lv1 you build, you don't upgrade
 const effL=b=>b.l+S.bq.filter(j=>j.u===b.u).length;
 const cnt=t=>S.bl.filter(x=>x.t===t).length;
@@ -505,7 +507,7 @@ const sysDef=i=>i===0?dpower():garPow(i)*garMult()+colDef(i)+.5*dpower();
 // Max colony level is 5.
 const COLSPEC={mine:"metal",forge:"crystal",trade:"credits"};
 const COLSPECNAME={mine:"Mining",forge:"Forge",trade:"Trade"};
-const COL_MAX=5,COL_INC=.0525,COL_DEF=15; // v3.9.26: was .105 — halved again (Jayden: production still too high, Nov 18); v3.8: was .14
+const COL_MAX=5,COL_INC=.02625,COL_DEF=15; // v3.9.28: was .0525 — halved again (economy package, Jayden Nov 18); v3.9.26: was .105; v3.8: was .14
 const colAt=i=>(S.col||{})[i]||null;
 const colDef=i=>{const c=colAt(i);return c?COL_DEF*c.l:0};
 const colUpCost=l=>({metal:50*l,crystal:30*l,credits:100*l});
@@ -519,8 +521,8 @@ const colDur=l=>60*l;
 // earns +0.14 credits/s. An isolated colony earns nothing: connected
 // territory pays, far-flung islands don't (and they are also the ones
 // that lose stability). Derived from S.won + S.col — no new field.
-const TRADE_INC=.0525; // v3.9.26: was .105 — halved again (Jayden, Nov 18); v3.8: was .14
-const SYS_INC=.0375; // v3.9.26: was .075 — halved again (Jayden: production still too high, Nov 18); v3.9.25: was .15; v3.8: was .2
+const TRADE_INC=.02625; // v3.9.28: was .0525 — halved again (economy package, Jayden Nov 18); v3.9.26: was .105; v3.8: was .14
+const SYS_INC=.01875; // v3.9.28: was .0375 — halved again (economy package, Jayden Nov 18); v3.9.26: was .075; v3.9.25: was .15; v3.8: was .2
 const tradeAt=i=>{const c=colAt(i);if(!c||i===0)return 0;return hopsFromHome()[i]!==undefined?TRADE_INC:0};
 const tradeTotal=()=>S.won.reduce((a,i)=>a+tradeAt(i),0);
 const adj=(i,j)=>SYS[i].l.includes(j)||SYS[j].l.includes(i);
