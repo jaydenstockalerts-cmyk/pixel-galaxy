@@ -1251,12 +1251,12 @@ async function onDoResetCredits() {
 // only uses these to enable/disable buttons; the server re-validates
 // every build.
 const ON_ST_B = {
-  solar: { name: "Solar Array", desc: "Makes energy", dist: "Power District", cost: { metal: 10 }, prod: "energy", rate: 0.525 },
-  foundry: { name: "Metal Foundry", desc: "Refines metal", dist: "Industrial District", cost: { energy: 10 }, prod: "metal", rate: 0.4125 },
-  mine: { name: "Crystal Mine", desc: "Digs crystal", dist: "Industrial District", cost: { metal: 25, energy: 10 }, prod: "crystal", rate: 0.3 },
-  hub: { name: "Trade Hub", desc: "Earns credits", dist: "Trade District", cost: { metal: 30, crystal: 20 }, prod: "credits", rate: 0.2625 },
-  hangar: { name: "Hangar", desc: "Holds 5 ship slots per level (research adds more)", dist: "Military District", cost: { metal: 40, crystal: 30 }, prod: null },
-  command: { name: "Command Station", desc: "Raises building cap, storage and fleet power", dist: "The Keep", cost: { metal: 60, crystal: 40, credits: 20 }, prod: null },
+  solar: { name: "Solar Array", desc: "Makes energy", dist: "Power District", cost: { metal: 20 }, prod: "energy", rate: 0.13125 },
+  foundry: { name: "Metal Foundry", desc: "Refines metal", dist: "Industrial District", cost: { energy: 20 }, prod: "metal", rate: 0.103125 },
+  mine: { name: "Crystal Mine", desc: "Digs crystal", dist: "Industrial District", cost: { metal: 50, energy: 20 }, prod: "crystal", rate: 0.075 },
+  hub: { name: "Trade Hub", desc: "Earns credits", dist: "Trade District", cost: { metal: 60, crystal: 40 }, prod: "credits", rate: 0.065625 },
+  hangar: { name: "Hangar", desc: "Holds 5 ship slots per level (research adds more)", dist: "Military District", cost: { metal: 80, crystal: 60 }, prod: null },
+  command: { name: "Command Station", desc: "Raises building cap, storage and fleet power", dist: "The Keep", cost: { metal: 120, crystal: 80, credits: 40 }, prod: null },
 };
 function onStCost(type, level) {
   const base = ON_ST_B[type].cost, out = {};
@@ -1901,9 +1901,9 @@ let onFleetOpen = false;
 // Ship defs (mirror FLEET_SHIPS in the backend's fleet.js). Cost is paid
 // from the station resources (energy/metal/crystal) plus empire credits.
 const ON_FL_SHIPS = {
-  fighter: { name: "Fighter", pw: 1, sz: 1, hangar: 1, cost: { energy: 10, credits: 5 }, dur: 9, vs: "swarm" },
-  cruiser: { name: "Cruiser", pw: 3, sz: 2, hangar: 2, cost: { metal: 25, crystal: 10, credits: 10 }, dur: 24, vs: "armored" },
-  capital: { name: "Capital Ship", pw: 8, sz: 4, hangar: 4, cost: { metal: 80, crystal: 50, credits: 40 }, dur: 60, vs: "fortress" },
+  fighter: { name: "Fighter", pw: 1, sz: 1, hangar: 1, cost: { energy: 20, credits: 10 }, dur: 9, vs: "swarm" },
+  cruiser: { name: "Cruiser", pw: 3, sz: 2, hangar: 2, cost: { metal: 50, crystal: 20, credits: 20 }, dur: 24, vs: "armored" },
+  capital: { name: "Capital Ship", pw: 8, sz: 4, hangar: 4, cost: { metal: 160, crystal: 100, credits: 80 }, dur: 60, vs: "fortress" },
 };
 
 function onFlCostStr(cost) {
