@@ -457,6 +457,7 @@ async function onRefresh() {
   await onLoadProgress();
   await onLoadSystems();
   await onLoadRaids();
+  await onLoadQuests();
   onRenderTop();
   onRenderPanel();
   onRenderActivity();
@@ -833,9 +834,9 @@ function onRenderActivity() {
 }
 
 // ---------- tab dock (single-player #tabs) ----------
-// Galaxy / Station / Fleet / Research switch views (v3.9.27: Crew is
-// gone — Jayden removed crew assignment; commanders live on Research
-// now); Quests is Phase 4, so it toasts instead of opening anything.
+// Galaxy / Station / Fleet / Research / Quests switch views (v3.9.27:
+// Crew is gone — Jayden removed crew assignment; commanders live on
+// Research now. v3.9.31: Quests opens its panel, like single player).
 // v3.9.26: every view is a full-screen overlay at the same z-index, so
 // the DOM order decides what paints on top — switching tabs used to
 // leave the old view visible (research is last in the DOM, so
@@ -850,20 +851,20 @@ function onSetTab(t) {
   document.querySelectorAll("#o-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.otab === t));
 }
 function onCloseAllOverlays() {
-  onCloseStation(); onCloseFleet(); onCloseResearch();
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests();
   onSetTab("map");
   onRefresh();
 }
 function onShowTab(t) {
-  if (t === "quests") { onToast("Quests come online with Phase 4 — still to build."); return; }
   onTabGen++;
   if (t === "map") { onCloseAllOverlays(); return; }
-  onCloseStation(); onCloseFleet(); onCloseResearch();
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests();
   onSetTab(t);
   const gen = onTabGen;
   if (t === "station") onOpenStation(gen);
   else if (t === "fleet") onOpenFleet(gen);
   else if (t === "research") onOpenResearch(gen);
+  else if (t === "quests") onOpenQuests(gen);
 }
 
 // ---------- online menu (single-player #menu) ----------
@@ -2128,6 +2129,81 @@ function onFlTick() {
   }
 }
 
+// ---------- quests (Phase 4, v3.9.31) ----------
+// Mirrors single-player #quests: all 18 quests with their reward and
+// state; the server computes the state (GET /quests) and validates every
+// claim (POST /quests/claim). The tab button carries a badge with the
+// claimable count.
+let onQuests = null;      // from GET /quests: [{id, title, reward, status}]
+let onQuestsOpen = false;
+function onQuestRewardText(reward) {
+  return Object.keys(reward || {}).map((r) => reward[r] + " " + r).join(" + ");
+}
+async function onLoadQuests() {
+  if (!onSpawned) return false;
+  const r = await onApi("/quests", "GET");
+  if (r.status !== 200) return false;
+  onQuests = r.data.quests || [];
+  onQuestBadge();
+  if (onQuestsOpen) onRenderQuests();
+  return true;
+}
+function onQuestBadge() {
+  const badge = onq("#o-q-badge");
+  if (!badge) return;
+  const n = (onQuests || []).filter((q) => q.status === "claimable").length;
+  badge.hidden = n < 1;
+  badge.textContent = String(n);
+}
+async function onOpenQuests(gen) {
+  if (!onSpawned) { onToast("Found your Home World first."); return; }
+  onQuestsOpen = true;
+  const ov = onq("#o-quests");
+  if (ov) ov.hidden = false;
+  onSetTab("quests");
+  onRenderQuests();
+  const ok = await onLoadQuests();
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok && !onQuests) { onToast("Could not load your quests \u2014 check your connection."); onCloseQuests(); onSetTab("map"); return; }
+  onRenderQuests();
+}
+function onCloseQuests() {
+  onQuestsOpen = false;
+  const ov = onq("#o-quests");
+  if (ov) ov.hidden = true;
+}
+function onRenderQuests() {
+  const ov = onq("#o-quests");
+  if (!ov || ov.hidden) return;
+  const body = onq("#o-q-body");
+  if (!body) return;
+  if (!onQuests) { body.innerHTML = '<div class="ocard"><p>Loading your quests\u2026</p></div>'; return; }
+  const rows = onQuests.map((q) => {
+    const reward = onQuestRewardText(q.reward);
+    const state = q.status === "claimed"
+      ? "<span>Claimed \u2713</span>"
+      : q.status === "claimable"
+        ? '<button class="obtn" data-oact="quest-claim" data-qid="' + q.id + '">Claim</button>'
+        : "<span>Not yet</span>";
+    return '<div class="row"><div><b>' + esc(q.title) + '</b><br><small>Reward: ' + esc(reward) + '</small></div>' + state + "</div>";
+  }).join("");
+  body.innerHTML = '<div class="ocard"><h2>Quests</h2><p><small>Complete a quest, then claim its reward here.</small></p>' + rows + "</div>";
+}
+async function onDoQuestClaim(id) {
+  const r = await onApi("/quests/claim", "POST", { questId: id });
+  if (r.status === 200 && r.data.quests) {
+    onQuests = r.data.quests;
+    onQuestBadge();
+    onToast("Quest complete: +" + (r.data.rewardText || onQuestRewardText(r.data.reward)) + "!");
+    onRenderQuests();
+    await onRefresh();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast(err === "already_claimed" ? "Already claimed." : err === "not_complete" ? "Not complete yet." : "Claim failed: " + err + ".");
+    await onLoadQuests();
+  }
+}
+
 // Panel inputs (delegated): the 15s poll rebuilds the panel, which would
 // wipe a half-typed name — keep the typed value in a module var and
 // restore it on render (v3.9.23).
@@ -2187,6 +2263,7 @@ document.addEventListener("click", (e) => {
   else if (act === "commander" && b.dataset.id) onDoCommander(b.dataset.id);
   else if (act === "fleet-build" && b.dataset.type) onDoFleetBuild(b.dataset.type, Number(b.dataset.n) || 1);
   else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
+  else if (act === "quest-claim" && b.dataset.qid) onDoQuestClaim(b.dataset.qid);
   else if (act === "station-mv-cancel") { onStMove = null; onRenderStation(); }
   else if (act === "station-pop-close") { if (Date.now() - onStPopOpenAt >= 350) onCloseStPop(); }
   else if (act === "station-pop-upgrade" && b.dataset.u) { if (Date.now() - onStPopOpenAt >= 350) onDoStationUpgrade(Number(b.dataset.u)); }
@@ -2293,6 +2370,8 @@ async function onStartGame() {
     // v3.9.22: ship launches need onLoadFleet even when the Fleet view
     // is closed, or their completion toast never fires.
     await onLoadFleet();
+    // v3.9.31: the Quests tab badge (claimable count) stays live.
+    await onLoadQuests();
     // v3.9.22: the map is only refetched when ownership actually
     // changed — /systems is 1,000 rows, so polling it every 15s would
     // burn the shared DO rows-read quota (5.76M/day per player).
