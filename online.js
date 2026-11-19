@@ -417,7 +417,7 @@ function onSelSig() {
   if (onSelected == null) return "none";
   const s = onSysById[onSelected];
   const tr = onEmpire && onEmpire.transit ? onEmpire.transit.id : "-";
-  return s ? [s.id, s.owner, s.ownerType, s.pw, s.garrison, s.type, "tr:" + tr].join(":") : "gone:" + onSelected;
+  return s ? [s.id, s.owner, s.ownerType, s.pw, s.garrison, s.type, s.prod || "", "tr:" + tr].join(":") : "gone:" + onSelected;
 }
 
 // The raid banner: a defender warning (with tribute offer) and/or an
@@ -1047,6 +1047,12 @@ async function onDoSetProduction(id, prod) {
       if (ei >= 0) Object.assign(onEmpire.systems[ei], sys);
     }
     onToast(sys.name + " now produces " + (ON_PROD_LABEL[sys.prod] || sys.prod) + ".");
+    // v3.9.27 fix (live-check find): the toast fires before onRefresh,
+    // and onRefresh runs 4 sequential loads (~1-2s) before the panel
+    // rebuilds — the open card sat on the old value until reopened.
+    // The local caches above already hold the new choice, so re-render
+    // the panel from them at once; onRefresh still converges the rest.
+    onRenderPanel();
     await onRefresh();
   } else {
     onToast("Could not change production: " + (r.data.error || r.status) + ".");
