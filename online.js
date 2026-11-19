@@ -178,7 +178,6 @@ let onShowResetConfirm = false; // show the "reset credits to 10" confirm card (
 let onSpawnName = "";   // custom Home World name typed on the welcome card
 let onShowRename = false; // show the "rename Home World" input in the empire card
 let onRenameName = "";  // rename input value, kept while typing (v3.9.23)
-let onGarrisonAmt = ""; // garrison input value, kept while typing (v3.9.26)
 
 function onSaveRecoveryCode(code) {
   if (!code) return;
@@ -417,7 +416,7 @@ function onSelSig() {
   if (onSelected == null) return "none";
   const s = onSysById[onSelected];
   const tr = onEmpire && onEmpire.transit ? onEmpire.transit.id : "-";
-  return s ? [s.id, s.owner, s.ownerType, s.pw, s.garrison, s.type, s.prod || "", "tr:" + tr].join(":") : "gone:" + onSelected;
+  return s ? [s.id, s.owner, s.ownerType, s.pw, JSON.stringify(s.garrison || {}), s.type, s.prod || "", "tr:" + tr].join(":") : "gone:" + onSelected;
 }
 
 // The raid banner: a defender warning (with tribute offer) and/or an
@@ -779,7 +778,6 @@ function onRenderTop() {
   if (e.sysPerSec != null && e.hubPerSec != null) {
     inc += 'Credits: systems ' + pm(e.sysPerSec) + ' · Trade Hub ' + pm(e.hubPerSec);
     if ((e.upkeepPerSec || 0) > 0) inc += ' · upkeep −' + ((e.upkeepPerSec || 0) * 60).toFixed(1) + '/min';
-    if ((e.garrisonUpkeepPerSec || 0) > 0) inc += ' · garrisons −' + ((e.garrisonUpkeepPerSec || 0) * 60).toFixed(1) + '/min';
     inc += ' · net ' + pm(e.netPerSec || 0);
   } else {
     inc += 'Credits: net ' + pm(e.netPerSec || 0);
@@ -917,7 +915,6 @@ function onRenderPanel() {
     + '<small>Credits <b>' + Math.floor(e.credits || 0) + '</b> · Power <b>' + Math.round(e.power || 0) + '</b> · Systems <b>' + (e.count || 0) + ' / ' + (e.softCap || 25) + '</b></small><br>'
     + '<small>Income <b>+' + (e.grossPerSec != null ? e.grossPerSec.toFixed(2) : "?") + '/s</b>'
     + (e.upkeepPerSec ? ' · Upkeep <b>−' + e.upkeepPerSec.toFixed(2) + '/s</b>' : '')
-    + (e.garrisonUpkeepPerSec ? ' · Garrisons <b>−' + e.garrisonUpkeepPerSec.toFixed(2) + '/s</b>' : '')
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
     + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
     + '<br><small><b>Next step:</b> ' + onNextStep() + '</small>'
@@ -978,20 +975,24 @@ function onSystemCard(s) {
     // systems are colonies, not stations (Jayden, Nov 18). The station
     // button shows only on the Home World card.
     const isHome = onEmpire && onEmpire.homeSystem === s.id;
-    const garrison = s.garrison || 0;
-    // v3.9.26: the Fleet/Research/Station buttons duplicated the
-    // bottom tabs — Jayden: those live ONLY in the bottom tabs. The
-    // garrison controls are spelled out plainly now (the old "Station
-    // garrison (2 cr/pt)" button read as station-related and never
-    // mentioned the upkeep; the 130px input clipped its own label).
-    html += '<small>This system is yours. Defence comes from your empire power.</small>'
+    // v3.9.30: garrisons are ships now (single-player style) — Send 1 /
+    // Recall 1 per type, straight from the home fleet. No text box, no
+    // credit cost, no upkeep. Each stationed ship cuts this system's
+    // revolt chance: Fighter -1%, Cruiser -3%, Capital -8%. (Raids do
+    // NOT use garrisons — the card no longer claims any defence from them.)
+    const gs = s.garrison || {};
+    const homeShips = (onEmpire && onEmpire.fleet && onEmpire.fleet.ships) || {};
+    const garRows = isHome ? "" : ["fighter", "cruiser", "capital"].map((k) => {
+      const d = ON_FL_SHIPS[k], n = gs[k] || 0, home = homeShips[k] || 0;
+      return '<div class="row"><div><b>' + d.name + '</b> ×' + n + ' stationed<br><small>Home fleet: ' + home + '</small></div><div class="bg">'
+        + '<button class="obtn" data-oact="garrison-send" data-type="' + k + '"' + (home < 1 ? " disabled" : "") + '>Send 1</button>'
+        + '<button class="obtn" data-oact="garrison-recall" data-type="' + k + '"' + (n < 1 ? " disabled" : "") + '>Recall 1</button>'
+        + '</div></div>';
+    }).join("");
+    html += '<small>This system is yours.</small>'
       + (isHome ? '' : '<br><small>Your station is at your Home World — this system pays income and can be garrisoned.</small>')
-      + (isHome ? '' : '<br><small>Produces: <b>' + esc(ON_PROD_LABEL[s.prod] || "Credits") + '</b> (+2.3/min) — one resource per system, changeable any time.</small>' + onProdPickerHtml(s.prod || "credits", "setprod"))
-      + '<br><small>Garrison: <b>' + garrison + '</b> — troops stationed here defend this system and cut its revolt chance by 0.2% per point.</small>'
-      + '<br><small>Costs 2 credits per point now, plus 0.05 credits/sec per point upkeep.</small>'
-      + '<br><label for="o-garrison-amt"><small>Garrison points to add:</small></label>'
-      + '<input id="o-garrison-amt" type="number" min="1" placeholder="e.g. 10" value="' + esc(onGarrisonAmt) + '">'
-      + '<button class="obtn" data-oact="garrison">Add garrison</button>';
+      + (isHome ? '' : '<br><small>Produces: <b>' + esc(ON_PROD_LABEL[s.prod] || "Credits") + '</b> (+' + (ON_SYS_INC * 60).toFixed(1) + '/min) — one resource per system, changeable any time.</small>' + onProdPickerHtml(s.prod || "credits", "setprod"))
+      + (isHome ? '' : '<br><small><b>Garrison</b> — ships stationed here keep this system loyal: Fighter -1%, Cruiser -3%, Capital -8% revolt chance each.</small>' + garRows);
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
@@ -1103,19 +1104,18 @@ async function onDoRaidTributeAccept(raidId) {
   }
 }
 
-// Station a garrison on one of your systems (2 credits per point).
-// A garrison suppresses revolt: each point cuts the revolt chance by 0.2%.
-async function onDoGarrison(id) {
-  const inp = onq("#o-garrison-amt");
-  const amount = inp ? Math.floor(Number(inp.value) || 0) : 0;
-  if (amount <= 0) { onToast("Enter how many garrison points to station."); return; }
-  const r = await onApi("/garrison", "POST", { systemId: id, amount });
+// Move ONE ship between the home fleet and a system's garrison
+// (v3.9.30: garrisons are ships, single-player style — Send 1 / Recall 1).
+async function onDoGarrisonShip(id, type, action) {
+  const r = await onApi("/garrison", "POST", { systemId: id, ship: type, action });
   if (r.status === 200) {
-    onGarrisonAmt = "";
-    onToast("Garrison of " + (r.data.garrison || amount) + " stationed on " + ((r.data.system || {}).name || "the system") + ".");
+    const name = (ON_FL_SHIPS[type] && ON_FL_SHIPS[type].name) || type;
+    onToast(action === "send"
+      ? ("1 " + name + " sent to " + ((r.data.system || {}).name || "the system") + ".")
+      : ("1 " + name + " recalled to your home fleet."));
     await onRefresh();
   } else {
-    onToast("Could not station a garrison: " + (r.data.error || r.status) + ".");
+    onToast("Could not " + (action === "send" ? "station" : "recall") + " that ship: " + (r.data.error || r.status) + ".");
     await onRefresh();
   }
 }
@@ -1919,6 +1919,10 @@ let onFleetOpen = false;
 
 // Ship defs (mirror FLEET_SHIPS in the backend's fleet.js). Cost is paid
 // from the station resources (energy/metal/crystal) plus empire credits.
+// Per-system production, per second (v3.9.30: the owned-system card
+// hardcoded the old 2.3/min figure — the real rate is SYS_INC, 1.1/min).
+const ON_SYS_INC = 0.01875;
+
 const ON_FL_SHIPS = {
   fighter: { name: "Fighter", pw: 1, sz: 1, hangar: 1, cost: { energy: 20, credits: 10 }, dur: 9, vs: "swarm" },
   cruiser: { name: "Cruiser", pw: 3, sz: 2, hangar: 2, cost: { metal: 50, crystal: 20, credits: 20 }, dur: 24, vs: "armored" },
@@ -2038,8 +2042,18 @@ function onRenderFleet() {
   if (_pw0 > 0) _parts.push("Research +" + Math.round(_pw0 * 100) + "%");
   if (_fl0 > 0) _parts.push("Officer +" + Math.round(_fl0 * 100) + "%");
   const _sub = _parts.join(" · ") + (_parts.length > 2 ? " (bonuses multiply)" : "");
+  // v3.9.30: garrisoned ships are listed here — they used to vanish from
+  // the Fleet tab entirely (single-player #gar).
+  const _gar = [];
+  for (const _s of ((onEmpire && onEmpire.systems) || [])) {
+    if (_s.id === (onEmpire && onEmpire.homeSystem)) continue;
+    const _gs = _s.garrison || {};
+    const _parts = ["fighter", "cruiser", "capital"].filter((k) => (_gs[k] || 0) > 0).map((k) => (_gs[k] || 0) + "× " + ON_FL_SHIPS[k].name);
+    if (_parts.length) _gar.push(_parts.join(", ") + " at " + _s.name);
+  }
   let html = '<div class="ocard"><h2>Fleet</h2>'
-    + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>. Home defence <b>' + Math.round(f.defence || 0) + '</b>.</small><br>'
+    + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>.</small><br>'
+    + (_gar.length ? '<small>Garrisoned: ' + _gar.join("; ") + '.</small><br>' : '')
     + '<small>' + _sub + '</small><br>'
     + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
     + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (5 + onSlotBonus()) + ' slots per level).</small>'
@@ -2122,7 +2136,6 @@ document.addEventListener("input", (e) => {
   if (!t || !t.id) return;
   if (t.id === "o-spawn-name") onSpawnName = t.value;
   if (t.id === "o-rename-name") onRenameName = t.value;
-  if (t.id === "o-garrison-amt") onGarrisonAmt = t.value;
 });
 
 // Panel + bar clicks (delegated).
@@ -2165,7 +2178,8 @@ document.addEventListener("click", (e) => {
   else if (act === "rename") { const home = onEmpire && onEmpire.homeSystem != null ? onSysById[onEmpire.homeSystem] : null; onRenameName = home ? home.name : ""; onShowRename = true; onRenderPanel(); }
   else if (act === "rename-save") onDoRename();
   else if (act === "rename-cancel") { onShowRename = false; onRenameName = ""; onRenderPanel(); }
-  else if (act === "garrison" && onSelected != null) onDoGarrison(onSelected);
+  else if (act === "garrison-send" && onSelected != null && b.dataset.type) onDoGarrisonShip(onSelected, b.dataset.type, "send");
+  else if (act === "garrison-recall" && onSelected != null && b.dataset.type) onDoGarrisonShip(onSelected, b.dataset.type, "recall");
   else if (act === "station") onShowTab("station");
   else if (act === "fleet") onShowTab("fleet");
   else if (act === "research") onShowTab("research");
