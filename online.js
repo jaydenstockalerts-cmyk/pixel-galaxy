@@ -746,7 +746,11 @@ function onRenderTop() {
   // server. Station resources pause at the cap, like single player.
   const dtE = onEmpireAt ? Math.max(0, Math.min(8 * 3600, (Date.now() - onEmpireAt) / 1000)) : 0;
   const dtS = onStationAt ? Math.max(0, Math.min(8 * 3600, (Date.now() - onStationAt) / 1000)) : 0;
-  const cr = Math.floor((onEmpire.credits || 0) + (onEmpire.netPerSec || 0) * dtE);
+  // v3.9.29: credits obey the storage cap too (server accrue caps them,
+  // single player caps all four) — pause at/above the cap, never pull an
+  // overflow down, and show the cap on the pill like the other three.
+  const crBase = onEmpire.credits || 0, crNet = onEmpire.netPerSec || 0;
+  const cr = Math.floor(cap > 0 && crNet >= 0 && crBase >= cap ? crBase : (cap > 0 ? Math.min(cap, Math.max(0, crBase + crNet * dtE)) : Math.max(0, crBase + crNet * dtE)));
   // v3.9.27: the station's productionPerSec does NOT include the
   // per-system production choices — those accrue server-side in
   // settleStation and arrive here as sysPerRes (per second). Fold them
@@ -791,7 +795,7 @@ function onRenderTop() {
   el.innerHTML = pill("energy", acc.energy, ((pps.energy || 0) + (sysR.energy || 0)) * 60, cap)
     + pill("metal", acc.metal, ((pps.metal || 0) + (sysR.metal || 0)) * 60, cap)
     + pill("crystal", acc.crystal, ((pps.crystal || 0) + (sysR.crystal || 0)) * 60, cap)
-    + pill("credits", cr, crRate, 0) + inc;
+    + pill("credits", cr, crRate, cap) + inc;
 }
 
 // ---------- activity tray (single-player #activity) ----------
@@ -1522,6 +1526,13 @@ function onCloseStPop() {
   onStPopKeyCache = "";
   const pop = onq("#o-st-pop");
   if (pop) pop.hidden = true;
+  // v3.9.29: redraw the station the moment the popup closes. The canvas
+  // is only repainted on open / poll / actions, and a resize (e.g. the
+  // phone toolbar showing or hiding while the popup is up) clears it —
+  // so closing the popup could leave a blank station until the next
+  // 15s poll. Single player re-renders on popup close too (closePopup
+  // calls update()).
+  onRenderStation();
 }
 
 // The station's main render entry: chips + canvas + popup (if open).
@@ -1578,14 +1589,19 @@ async function onDoStationMove(u, x, y) {
 
 async function onOpenStation(gen) {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
-  const ok = await onLoadStation();
-  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
-  if (!ok) { onToast("Could not load your station \u2014 check your connection."); onSetTab("map"); return; }
+  // v3.9.29: open synchronously from cached data FIRST — the old shape
+  // awaited the fetch before unhiding, so every tab switch flashed the
+  // bare galaxy map for ~a second. The fresh load follows in the
+  // background and re-renders when it lands.
   onStationOpen = true;
   onStPop = null; onStPopKeyCache = ""; onStMove = null;
   const ov = onq("#o-station");
   if (ov) ov.hidden = false;
   onSetTab("station");
+  onRenderStation();
+  const ok = await onLoadStation();
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok && !onStation) { onToast("Could not load your station \u2014 check your connection."); onCloseStation(); onSetTab("map"); return; }
   onRenderStation();
 }
 
@@ -1880,13 +1896,16 @@ async function onDoCommander(id) {
 
 async function onOpenResearch(gen) {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
-  const ok = await onLoadProgress();
-  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
-  if (!ok) { onToast("Could not load research — check your connection."); onSetTab("map"); return; }
+  // v3.9.29: open synchronously first (see onOpenStation) — the render
+  // shows "Loading research…" from cached state until the fetch lands.
   onResearchOpen = true;
   const ov = onq("#o-research");
   if (ov) ov.hidden = false;
   onSetTab("research");
+  onRenderResearch();
+  const ok = await onLoadProgress();
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok && !onProgress) { onToast("Could not load research — check your connection."); onCloseResearch(); onSetTab("map"); return; }
   onRenderResearch();
 }
 function onCloseResearch() { onResearchOpen = false; const ov = onq("#o-research"); if (ov) ov.hidden = true; }
@@ -1942,13 +1961,16 @@ async function onLoadFleet() {
 
 async function onOpenFleet(gen) {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
-  const ok = await onLoadFleet();
-  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
-  if (!ok) { onToast("Could not load your fleet \u2014 check your connection."); onSetTab("map"); return; }
+  // v3.9.29: open synchronously first (see onOpenStation) — the render
+  // shows "Loading your fleet…" from cached state until the fetch lands.
   onFleetOpen = true;
   const ov = onq("#o-fleet");
   if (ov) ov.hidden = false;
   onSetTab("fleet");
+  onRenderFleet();
+  const ok = await onLoadFleet();
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok && !onFleet) { onToast("Could not load your fleet \u2014 check your connection."); onCloseFleet(); onSetTab("map"); return; }
   onRenderFleet();
 }
 
