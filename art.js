@@ -257,7 +257,30 @@ function isoBuildingHit(wx,wy,b,k){
     const visTop=c.y-ph-s.h+3+spriteTopFrac(b)*s.h; // drawn canvas top (+3u overlap shift) + visible-content offset; flag pole starts at row 0, so 22 for the Lv1 keep
     const hw=wy<yTop+12?10:21;
     if(Math.abs(wx-c.x)<=hw&&wy>=visTop&&wy<=yBot)return true;
-  } else if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=yTop&&wy<=yBot)return true;
+  } else if(b.t==="foundry"){
+    // v3.9.43: the foundry keeps the OLD +14 top — its top band is
+    // hollow at the centre (cooling tower left, smokestacks right,
+    // empty middle), so a rect stretched to the visible top would
+    // swallow taps on the empty plot behind it (plot (1,1)'s centre
+    // sits under the foundry's hollow top). The stack tops stay
+    // untappable, as before — no regression, just no change here.
+    if(Math.abs(wx-c.x)<=s.w/2-4&&wy>=yTop&&wy<=yBot)return true;
+  } else {
+    // v3.9.43 (playtest v3.9.29 bug 9): the body rect now starts at the
+    // VISIBLE content top (same formula as the keep's visTop), not 14u
+    // below the sprite top — the old line cut off the top of every
+    // non-command sprite, so the Hangar dome only answered taps on its
+    // lower part and the Mine's crystal top was dead too. Only extends
+    // upward, never tightens: solar's visible top sits BELOW the old
+    // line, so min() keeps its rect exactly as it was. In the newly
+    // exposed band the rect tapers to +/-10 (the keep's dome-band
+    // width), so the Hangar dome's narrow peak and the Mine's
+    // mast/crystal select, but the transparent corners above a
+    // building's shoulders still fall through to the plot behind.
+    const visTop=c.y-ph-s.h+3+spriteTopFrac(b)*s.h;
+    const top=Math.min(yTop,visTop), hw=wy<yTop?10:s.w/2-4;
+    if(Math.abs(wx-c.x)<=hw&&wy>=top&&wy<=yBot)return true;
+  }
   // v2.3: the HIT zone stays the plot-sized ground diamond (40x20,
   // keep 44x22) — a generous tap target on phones — even though the
   // DRAWN plinth is now a small 24x12 basalt platform. Hit-testing
