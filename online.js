@@ -107,13 +107,39 @@ const ON_PROD_LABEL = { credits: "Credits", energy: "Energy", metal: "Metal", cr
 // Four toggle buttons for a production choice. act "prod" picks the
 // conquest production (local state, re-renders the card); act
 // "setprod" changes an owned system's production immediately.
-function onProdPickerHtml(cur, act) {
+function onProdPickerHtml(cur, act, label) {
   // v3.9.38: compact 2x2 grid of small buttons (the old full-width obtns
   // pushed Crystal off the bottom of the sheet) — the label spans the
   // full row, the four resource buttons fill the 2x2 below it.
-  return '<div class="prodpick"><small class="prodpick-label">Produces:</small>' + ["credits", "energy", "metal", "crystal"].map((r) =>
+  return '<div class="prodpick"><small class="prodpick-label">' + (label || "Produces:") + '</small>' + ["credits", "energy", "metal", "crystal"].map((r) =>
     '<button class="obtn' + (cur === r ? ' sel' : '') + '" data-oact="' + act + '" data-prod="' + r + '">' + ON_PROD_LABEL[r] + '</button>'
   ).join("") + '</div>';
+}
+// Colonies (v3.9.42, Jayden: conquered systems ARE colonies now — the
+// production choice is the colony's focus). Costs/durations mirror
+// single-player colUpCost/colDur exactly: Lv L -> L+1 costs 50L metal,
+// 30L crystal, 100L credits and takes 60L seconds. Max Lv 5.
+const ON_COLONY_MAX = 5;
+function onColUpCost(lv) { return { metal: 50 * lv, crystal: 30 * lv, credits: 100 * lv }; }
+function onColUpDur(lv) { return 60 * lv; } // seconds
+function onColCanAfford(cost) {
+  const res = (onStation && onStation.res) || {};
+  for (const r in cost) {
+    const have = r === "credits" ? ((onEmpire && onEmpire.credits) || 0) : (res[r] || 0);
+    if (have < cost[r]) return false;
+  }
+  return true;
+}
+// The colony upgrade row on an owned system's card: cost + time + button,
+// an in-progress state while the timer runs, and a maxed-out state at Lv 5.
+function onColonyUpgradeHtml(s) {
+  const lv = s.colonyLevel || 1;
+  if (lv >= ON_COLONY_MAX) return '<br><small>Colony Lv ' + ON_COLONY_MAX + ' — fully upgraded.</small>';
+  if (s.colonyUpgradeTo != null) {
+    return '<br><small>Upgrading to Lv ' + s.colonyUpgradeTo + ' — done in ' + onStLeft(Math.max(0, (s.colonyUpgradeDoneAt || 0) - Date.now())) + '.</small>';
+  }
+  const cost = onColUpCost(lv), dur = onColUpDur(lv);
+  return '<div class="row"><div><b>Upgrade colony</b><br><small>Cost: ' + onFlCostStr(cost) + ' · ' + onStLeft(dur * 1000) + '</small></div><button class="obtn" data-oact="colony-upgrade"' + (onColCanAfford(cost) ? '' : ' disabled') + '>Upgrade</button></div>';
 }
 let onSpawned = false;
 let onRaids = [];        // from /raids (pending/tribute_offered/resolved)
@@ -437,7 +463,7 @@ function onSelSig() {
   if (onSelected == null) return "none";
   const s = onSysById[onSelected];
   const tr = onEmpire && onEmpire.transit ? onEmpire.transit.id : "-";
-  return s ? [s.id, s.owner, s.ownerType, s.pw, JSON.stringify(s.garrison || {}), JSON.stringify(s.defence || {}), s.type, s.prod || "", "tr:" + tr].join(":") : "gone:" + onSelected;
+  return s ? [s.id, s.owner, s.ownerType, s.pw, JSON.stringify(s.garrison || {}), JSON.stringify(s.defence || {}), s.type, s.prod || "", s.colonyLevel || 0, s.colonyUpgradeTo || 0, s.colonyUpgradeDoneAt || 0, "tr:" + tr].join(":") : "gone:" + onSelected;
 }
 
 // The raid banner: a defender warning (with tribute offer) and/or an
@@ -453,7 +479,7 @@ function onRaidBanner() {
       const isHome = raid.isHomeWorld;
       html += '<div class="ocard" style="border-color:#ff8a80"><h2>⚠ Raid incoming!</h2>'
         + '<p>Another player is raiding <b>' + esc(raid.systemName || "your system") + '</b>. '
-        + (raid.defence ? 'Your defence here: <b>' + raid.defence.total + '</b> (garrison ' + raid.defence.garrison + ' + fleet ' + raid.defence.fleet + '). ' : '')
+        + (raid.defence ? 'Your defence here: <b>' + raid.defence.total + '</b> (garrison ' + raid.defence.garrison + ((raid.defence.colony || 0) > 0 ? ' + colony ' + raid.defence.colony : '') + ' + fleet ' + raid.defence.fleet + '). ' : '')
         + (isHome ? 'Your Home World <b>cannot be taken</b>, but they can steal resources. ' : '')
         + 'You have <b id="o-raid-count">' + secs + 's</b> to respond.</p>'
         + (raid.status === "tribute_offered"
@@ -1183,11 +1209,11 @@ function onSystemCard(s) {
     }).join("");
     html += '<small>This system is yours.</small>'
       + (isHome ? '' : '<br><small>Your station is at your Home World — this system pays income and can be garrisoned.</small>')
-      + (isHome ? '' : '<br><small>Produces: <b>' + esc(ON_PROD_LABEL[s.prod] || "Credits") + '</b> (+' + (ON_SYS_INC * 60).toFixed(1) + '/min) — one resource per system, changeable any time.</small>' + onProdPickerHtml(s.prod || "credits", "setprod"))
+      + (isHome ? '' : '<br><small><b>Colony Lv ' + (s.colonyLevel || 1) + '</b> — earns <b>+' + (ON_SYS_INC * 60 * (s.colonyLevel || 1)).toFixed(1) + ' ' + esc(ON_PROD_LABEL[s.prod] || "Credits") + '/min</b>, +15 defence per level.</small>' + onColonyUpgradeHtml(s) + onProdPickerHtml(s.prod || "credits", "setprod", "Colony focus:"))
       + (isHome ? '' : '<br><small><b>Garrison</b> — ships stationed here keep this system loyal: Fighter -1%, Cruiser -3%, Capital -8% revolt chance each.</small>' + garRows)
       + (s.defence ? (isHome
           ? '<br><small><b>Home defence: ' + s.defence.total + '</b> (your full fleet ×1.2).</small>'
-          : '<br><small><b>Defence here: ' + s.defence.total + '</b> (garrison ' + s.defence.garrison + ' + fleet ' + s.defence.fleet + ').</small>')
+          : '<br><small><b>Defence here: ' + s.defence.total + '</b> (garrison ' + s.defence.garrison + ((s.defence.colony || 0) > 0 ? ' + colony ' + s.defence.colony : '') + ' + fleet ' + s.defence.fleet + ').</small>')
         : '');
   } else if (s.ownerType === "faction") {
     if (!inReach) html += '<small>' + reachNote + '</small>';
@@ -1229,6 +1255,30 @@ async function onDoAttack(id, stance) {
   } else {
     onToast("Attack failed: " + (r.data.error || r.status) + ".");
     await onRefresh();
+  }
+}
+
+// Start a colony upgrade (v3.9.42). The server charges the cost and
+// returns the updated system (upgrade pending); the level rises when
+// the timer ends and the poll re-renders the card (onSelSig carries
+// the upgrade state). Caches are patched like set-production so the
+// card shows the pending upgrade at once.
+async function onDoColonyUpgrade(id) {
+  const r = await onApi("/colony/upgrade", "POST", { systemId: id });
+  if (r.status === 200 && r.data.system) {
+    const sys = r.data.system;
+    if (onSysById[sys.id]) Object.assign(onSysById[sys.id], sys);
+    const li = onSystems.findIndex((z) => z.id === sys.id);
+    if (li >= 0) Object.assign(onSystems[li], sys);
+    if (onEmpire && Array.isArray(onEmpire.systems)) {
+      const ei = onEmpire.systems.findIndex((z) => z.id === sys.id);
+      if (ei >= 0) Object.assign(onEmpire.systems[ei], sys);
+    }
+    onToast("Colony upgrade started — Lv " + (sys.colonyUpgradeTo || "?") + " in " + onStLeft((r.data.durationSec || 0) * 1000) + ".");
+    onRenderPanel();
+    await onRefresh();
+  } else {
+    onToast("Could not upgrade the colony: " + (r.data.error || r.status) + ".");
   }
 }
 
@@ -2275,7 +2325,7 @@ function onRenderFleet() {
     if (_s.id === (onEmpire && onEmpire.homeSystem)) continue;
     const _gs = _s.garrison || {};
     const _parts = ["fighter", "cruiser", "capital"].filter((k) => (_gs[k] || 0) > 0).map((k) => (_gs[k] || 0) + "× " + ON_FL_SHIPS[k].name);
-    if (_parts.length) _gar.push(_parts.join(", ") + " at " + _s.name);
+    if (_parts.length) _gar.push(_parts.join(", ") + " at " + _s.name + " (Colony Lv " + (_s.colonyLevel || 1) + ")");
   }
   let html = '<div class="ocard"><h2>Fleet</h2>'
     + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>.</small><br>'
@@ -2477,6 +2527,7 @@ document.addEventListener("click", (e) => {
   else if (act === "attack" && onSelected != null) onDoAttack(onSelected, b.dataset.stance || "balanced");
   else if (act === "prod" && b.dataset.prod) { onAttackProd = b.dataset.prod; onRenderPanel(); }
   else if (act === "setprod" && onSelected != null && b.dataset.prod) onDoSetProduction(onSelected, b.dataset.prod);
+  else if (act === "colony-upgrade" && onSelected != null) onDoColonyUpgrade(onSelected);
   else if (act === "raid" && onSelected != null) onDoRaid(onSelected, b.dataset.stance || "balanced");
   else if (act === "raid-tribute" && b.dataset.raid) onDoRaidTribute(b.dataset.raid);
   else if (act === "raid-tribute-accept" && b.dataset.raid) onDoRaidTributeAccept(b.dataset.raid);
