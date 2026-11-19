@@ -289,6 +289,7 @@ async function onLoadEmpire() {
         if (msg) { onToast(msg); onLastTransitOutcome = { msg, at: Date.now(), transitId: rep.id }; }
       }
     }
+    onMaybeTut();
     return true;
   }
   if (r.status === 409 && r.data.error === "not_spawned") { onEmpire = null; onSpawned = false; return true; }
@@ -463,6 +464,7 @@ async function onRefresh() {
   onRenderPanel();
   onRenderActivity();
   onDrawGalaxy();
+  onTutCheck();
 }
 
 // ---------- galaxy canvas ----------
@@ -665,6 +667,7 @@ function onSetZoom(z, px, py) {
     const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     moved += Math.abs(dx) + Math.abs(dy);
+    if (moved > 10 || pts.size === 2) onMarkGestureLearned(); // v3.9.35: pan/pinch dismisses the gesture hint (SP rule)
     if (pts.size === 1) {
       const rect = cv.getBoundingClientRect();
       const dpr = cv.width / (rect.width || 1);
@@ -927,15 +930,152 @@ function onRenderPanel() {
   el.innerHTML = banner + outcome + el.innerHTML;
 }
 
-// Next best step (single-player nextStep()): a Hangar, then ships, then
-// attack a gold-ringed system.
+// Next best step (single-player nextStep(), corrected order — v3.9.35
+// playtest fix): a Hangar needs 60 crystal (0/min income at spawn) and
+// fighters need credits (0/min), so the real order is Mine, then Hub,
+// then Hangar, then ships, then attack a gold-ringed system. The v3.9.35
+// tutorial teaches this order, and this line matches it.
 function onNextStep() {
   const f = (onEmpire && onEmpire.fleet) || null;
   if (!f) return 'tap a system with a <b>gold ring</b> — those are next to your empire and ready to attack. Green dots are the outer rim, your spawn ground.';
+  if ((onQuests || []).some((q) => q.status === "claimable")) return 'a quest is ready to claim — check the <b>Quests</b> tab.';
+  const b = (onStation && onStation.b) || {};
+  if (!b.mine) return 'build a <b>Crystal Mine</b> to start earning crystal.';
+  if (!b.hub) return 'build a <b>Trade Hub</b> to start earning credits.';
   if ((f.hangarLv || 0) < 1) return 'build a <b>Hangar</b> at your station to start building ships.';
   const total = ((f.ships || {}).fighter || 0) + ((f.ships || {}).cruiser || 0) + ((f.ships || {}).capital || 0);
   if (total === 0) return 'build a <b>Fighter</b> in Fleet to start your fleet.';
   return 'tap a system with a <b>gold ring</b> — those are next to your empire and ready to attack. Green dots are the outer rim, your spawn ground.';
+}
+
+
+// ---------- online tutorial (v3.9.35) ----------
+// Adapts the single-player 16-step tutorial (game.js TUT_STEPS) for the
+// shared galaxy. Same structure and step flow — welcome, resources,
+// station, mine, quests, hub, hangar, fighters, conquest, command,
+// research, commander, empire/rivals, colonies/garrison, raids/tribute,
+// ready — with two deliberate differences:
+//  - Order is Mine -> Hub -> Hangar (the v3.9.29 playtest proved the
+//    old "Hangar first" guidance wrong: a Hangar needs 60 crystal at
+//    0/min income, and fighters need credits at 0/min). onNextStep()
+//    above teaches the same order once the tutorial is done.
+//  - The diplomacy step is DROPPED (no online diplomacy) and replaced
+//    with a raids/tribute step; "Conquer the Pirate Outpost" becomes
+//    "Conquer your first system"; the colony-focus step is the planet
+//    production choice picker at conquest.
+// Completion is stored server-side (empires.tutorial_done, POST
+// /tutorial/done) so a finished player never replays it on another
+// device. Skip marks it done (single-player rule); Later hides it and
+// resumes the saved step (localStorage, same as single player).
+const ON_TUT_STEP_KEY = "pixelgalaxy-tutorial-online-v3-step";
+const ON_TUT_COL_KEY = "pixelgalaxy-tut-online-collapsed";
+const ON_TUT_STEPS = [
+{t:"Welcome, Commander",tab:"map",b:"Your job: build up your home station, train a fleet, and conquer systems all the way to the Dark Nexus, the big boss at the far edge of the galaxy — one massive shared galaxy, 1,000 systems, every spawn exactly 15 jumps from the Nexus. This guide walks you through it, step by step. You can skip it any time, or tap Later to hide it and pick up where you left off."},
+{t:"Your resources",tab:"map",hl:"#o-res",b:"Energy, metal, crystal and credits live at the top. Buildings make them every second — a Solar Array makes energy, a Metal Foundry makes metal, a Crystal Mine digs crystal, a Trade Hub earns credits. Each one has a storage limit: upgrade the Command Station to store more. Tap the bar to see the details."},
+{t:"Your station",tab:"station",hl:"#o-station",b:"This is your home station. Tap a building to see what it does, or tap open land to build something new. Plots unlock as you upgrade the Command Station — the city grows outward from the keep in the middle."},
+{t:"Build a Crystal Mine",tab:"station",hl:"#o-station",act:true,b:"Let's build. Tap any open plot, then tap Crystal Mine. It costs 50 metal and 20 energy and takes about half a minute — watch the tray while it builds. Crystal is what everything else needs, so the mine comes first.",done:()=>((onStation && onStation.b && onStation.b.mine) || 0) >= 1},
+{t:"Quests pay you",tab:"quests",hl:"#o-quests",act:true,b:"Quests are jobs with rewards. You just earned one for the Crystal Mine — tap Claim to collect 40 metal. Free resources are the fastest way to grow early on.",bAlt:"Quests are jobs with rewards. Tap Claim on any quest you see to collect its reward — free resources are the fastest way to grow early on.",bAltWhen:()=>{const q=(onQuests||[]).find((z)=>z.id==="q1");return !q||q.status==="claimed"||q.status!=="claimable";},done:()=>onTutClaimed()>onTut.baseQ||(onTutClaimed()>0&&!(onQuests||[]).some((q)=>q.status==="claimable"))},
+{t:"Build a Trade Hub",tab:"station",hl:"#o-station",act:true,b:"Credits are the slow resource — fighters cost credits, and a Hangar needs crystal. A Trade Hub earns about 4 credits a minute, forever. Tap open land and build one — it costs 60 metal and 40 crystal. Your mine is digging the crystal now.",done:()=>((onStation && onStation.b && onStation.b.hub) || 0) >= 1},
+{t:"Build a Hangar",tab:"station",hl:"#o-station",act:true,b:"Fighters live in a Hangar, and a Hangar needs 60 crystal. Your mine digs about 4 or 5 crystal a minute — watch the crystal number at the top climb. When it hits 60, tap open land and build the Hangar.",done:()=>((onStation && onStation.b && onStation.b.hangar) || 0) >= 1},
+{t:"Build 4 Fighters",tab:"fleet",hl:"#o-fleet",act:true,b:"A Fighter costs 20 energy and 10 credits, and counts as 1.5 power against swarm fleets — 4 of them give you 6 power against a rim system's 5. Build two first, then open Quests and claim 'Launch your first ship' (30 credits, 60 energy) and build two more.",done:()=>(((onEmpire && onEmpire.fleet && onEmpire.fleet.ships) || {}).fighter || 0) >= 4},
+{t:"Conquer your first system",tab:"map",hl:"#ocv",act:true,b:"Go to the Galaxy tab, tap a system with a gold ring, and tap Attack. With 4 Fighters you should win — and you'll loot metal and credits. If you lose, rebuild and try again. Claim the 80-credit quest reward afterwards: you'll need it for research.",done:()=>((onEmpire && onEmpire.count) || 0) >= 2},
+{t:"The Command Station",tab:"station",hl:"#o-station",act:true,b:"Tap the keep in the middle of your station. Upgrading it raises building limits and storage, and unlocks more plots. An upgrade is a timed job — it shows in the tray above the bottom bar, just like the mine did. It costs 168 metal, 112 crystal and 56 credits. If that's more than you have right now, that's normal — keep building and come back to it.",seen:()=>!!(onStPop && onStPop.kind === "building" && (((onStation && onStation.bl) || []).find((z)=>z.u===onStPop.u) || {}).t === "command"),done:()=>onTut.seen && !onStPop},
+{t:"Research Laser Cannons",tab:"research",hl:"#o-research",act:true,b:"The Research tab lists all 18 technologies. Locked ones are greyed out and say what they need — Laser Cannons is ready now. It costs 300 credits and 120 crystal and takes three minutes. If the button is greyed out, wait for your Trade Hub to earn credits, or claim unclaimed quest rewards.",done:()=>((onProgress && onProgress.tech) || []).includes("w1") || (onProgress && onProgress.rq && onProgress.rq.id === "w1")},
+{t:"Hire a commander",tab:"research",hl:"#o-research",act:true,b:"Commanders live on the Research tab, below the tech tree. Hiring one costs credits and boosts your whole empire — more fleet power, faster builds, or better research, depending on who you pick. Hire any commander to finish this step.",done:()=>((onProgress && onProgress.commanders) || []).some((c)=>c.hired)},
+{t:"Your empire and your rivals",tab:"empire",b:"This is your Empire card — it is always on the Galaxy tab when nothing is selected. Five rival factions hold territory out there. They don't expand like they do in single player, but systems inside their areas can revolt and flip back, and other players can raid you. There is no win screen here — the galaxy is endless. Grow, conquer, and hold what you take."},
+{t:"Colonies and garrisons",tab:"map",hl:"#ocv",b:"A system you conquer becomes a colony. Pick what it produces — credits, energy, metal or crystal — and it earns for you, more as its colony level grows. It also adds defence. Station ships there as a garrison: tap a system you own to see its Garrison section. Garrisons defend at full strength, and half your home fleet rushes to help."},
+{t:"Raids and tribute",tab:"map",hl:"#ocv",b:"Other players can raid your systems, and you can raid theirs. A raid gives you a 90-second warning — you can offer tribute to buy it off, or fight it out. If you lose a system, it's theirs; if they raid your Home World, they loot 10% of your credits (capped at 500) but can never take it. A strong home fleet, plus garrisons on your systems, repels them."},
+{t:"You're ready, Commander",tab:"map",b:"That's the whole loop: build, research, conquer, repeat — all the way to the Dark Nexus. If you ever forget something, 'How to play' in the menu brings this guide back. Good luck out there."}
+];
+function onTutClaimed() { return (onQuests || []).filter((q) => q.status === "claimed").length; }
+let onTut = { i: 0, open: false, seen: false, manual: false, baseQ: 0, doneAtEntry: false };
+let onTutShown = false; // shown once per session (onMaybeTut guard)
+let onTutLift = -1;
+function onTutSaveStep() { try { localStorage.setItem(ON_TUT_STEP_KEY, String(onTut.i)); } catch (e) {} }
+function onTutLoadStep() { try { const n = parseInt(localStorage.getItem(ON_TUT_STEP_KEY) || "0", 10); return isFinite(n) ? Math.max(0, Math.min(ON_TUT_STEPS.length - 1, n)) : 0; } catch (e) { return 0; } }
+function onTutClearHl() { try { document.querySelectorAll(".tut-hl").forEach((e) => e.classList.remove("tut-hl")); } catch (e) {} }
+function onTutSetCollapsed(c) { const el = onq("#o-tut"); if (el) el.classList.toggle("collapsed", !!c); const b = onq("#o-tut-col"); if (b) b.textContent = c ? "⌃" : "⌄"; try { localStorage.setItem(ON_TUT_COL_KEY, c ? "1" : "0"); } catch (e) {} }
+function onTutNarrow() { try { return (window.innerWidth || 999) <= 560; } catch (e) { return false; } }
+function onTutLayout() {
+  if (!onTut.open) return;
+  // While a station popup or a system card is open, collapse the tutorial
+  // card to a slim bar (single-player tutLayout) — the popup/card sits
+  // above the card and used to cover its top half.
+  const tp = onq("#o-tut"); if (tp) tp.classList.toggle("pop-open", !!onStPop || onSelected != null);
+  const a = onq("#o-activity");
+  const lift = (a && !a.hidden) ? Math.round(a.offsetHeight || 0) + 20 : 24;
+  if (lift !== onTutLift) { onTutLift = lift; const el = onq("#o-tut"); if (el) el.style.bottom = "calc(var(--dock-h) + " + lift + "px)"; }
+}
+function onTutRender() {
+  const el = onq("#o-tut"); if (!el) return;
+  const stp = ON_TUT_STEPS[onTut.i];
+  if (stp.tab === "empire") { if (onTab !== "map") onShowTab("map"); }
+  else if (stp.tab && stp.tab !== onTab) onShowTab(stp.tab);
+  onTutClearHl();
+  if (stp.hl) { const h = onq(stp.hl); if (h) h.classList.add("tut-hl"); }
+  const t = onq("#o-tut-title"), b = onq("#o-tut-body"), s = onq("#o-tut-step"), d = onq("#o-tut-dots"), nx = onq("#o-tut-next"), bk = onq("#o-tut-back");
+  if (t) t.textContent = stp.t;
+  if (b) b.textContent = (stp.bAlt && stp.bAltWhen && stp.bAltWhen()) ? stp.bAlt : stp.b;
+  if (s) s.textContent = "Step " + (onTut.i + 1) + " of " + ON_TUT_STEPS.length + " · " + stp.t;
+  // doneAtEntry: was this step already complete when we arrived?
+  // Forward entry + already done => completes immediately (old saves
+  // skip ahead). Backward entry + already done => stay put (the player
+  // is re-reading; Next moves on). Same rule as single player.
+  onTut.doneAtEntry = false; if (stp.done) { try { onTut.doneAtEntry = !!stp.done(); } catch (e) { onTut.doneAtEntry = false; } }
+  if (d) d.innerHTML = ON_TUT_STEPS.map((_, k) => '<span class="dot' + (k === onTut.i ? " on" : "") + '"></span>').join("");
+  if (nx) nx.textContent = onTut.i === ON_TUT_STEPS.length - 1 ? "Done" : (stp.act && !onTut.doneAtEntry) ? "Skip this step" : "Next ›";
+  if (bk) bk.disabled = onTut.i === 0;
+  el.classList.toggle("mini", !!stp.act);
+  let col; try { const p = localStorage.getItem(ON_TUT_COL_KEY); col = p === "1" ? true : p === "0" ? false : onTutNarrow(); } catch (e) { col = onTutNarrow(); }
+  el.classList.toggle("collapsed", col); const cb = onq("#o-tut-col"); if (cb) cb.textContent = col ? "⌃" : "⌄";
+  onTutSaveStep();
+  onTutLift = -1; onTutLayout();
+}
+function onTutAdvance() { if (onTut.i >= ON_TUT_STEPS.length - 1) { onCloseTut(true); return; } onTut.i++; onTut.seen = false; onTut.manual = false; onTut.baseQ = onTutClaimed(); onTutRender(); }
+function onTutBack() { if (onTut.i > 0) { onTut.i--; onTut.seen = false; onTut.manual = true; onTut.baseQ = onTutClaimed(); onTutRender(); } }
+let onTutSkipMsg = 0; // throttle the auto-skip notice (at most once per 4s)
+function onTutCheck() {
+  if (!onTut.open) return;
+  onTutLayout();
+  const stp = ON_TUT_STEPS[onTut.i];
+  if (!stp || !stp.done) return;
+  if (stp.seen && !onTut.seen) { try { if (stp.seen()) onTut.seen = true; } catch (e) {} }
+  let d = false; try { d = !!stp.done(); } catch (e) { d = false; }
+  if (d && !(onTut.manual && onTut.doneAtEntry)) { if (Date.now() - onTutSkipMsg > 4000) { onTutSkipMsg = Date.now(); onToast("Tutorial skipped ahead — those steps were already done."); } onTutAdvance(); }
+}
+function onShowTut(i) { onTut = { i: Math.max(0, Math.min(ON_TUT_STEPS.length - 1, i || 0)), open: true, seen: false, manual: false, baseQ: onTutClaimed(), doneAtEntry: false }; const el = onq("#o-tut"); if (el) el.hidden = false; onTutRender(); }
+function onCloseTut(done) {
+  onTut.open = false; onTut.seen = false;
+  const el = onq("#o-tut"); if (el) { el.hidden = true; el.classList.remove("mini"); el.style.bottom = ""; }
+  onTutClearHl(); onTutLift = -1;
+  if (done) {
+    // Server-side completion (a finished player never replays it on
+    // another device). Fire-and-forget; set the local flag too so the
+    // next poll can't re-show it before the round-trip lands.
+    if (onEmpire) onEmpire.tutorialDone = 1;
+    try { localStorage.removeItem(ON_TUT_STEP_KEY); } catch (e) {}
+    onApi("/tutorial/done", "POST").catch(() => {});
+  }
+}
+function onMaybeTut() {
+  if (onTutShown || onTut.open || !onSpawned || !onEmpire) return;
+  if ((onEmpire.tutorialDone || 0) === 1) return;
+  onTutShown = true;
+  onShowTut(onTutLoadStep());
+}
+
+// ---------- gesture hint (v3.9.35 amendment) ----------
+// Single player dismisses the "Drag to pan · pinch to zoom" chips the
+// first time the player actually pans or pinches on either map, and they
+// stay gone (localStorage "pixelgalaxy-gesture-hint"). Online kept its
+// station hint line up permanently. Mirror single player: panning or
+// pinching on EITHER online map marks it learned, and the station hint
+// hides (same key, same mechanism).
+function onGestureHintDone() { try { return localStorage.getItem("pixelgalaxy-gesture-hint") === "1"; } catch (e) { return false; } }
+function onMarkGestureLearned() {
+  if (onGestureHintDone()) return;
+  try { localStorage.setItem("pixelgalaxy-gesture-hint", "1"); } catch (e) {}
+  const hg = onq("#o-st-hint"); if (hg) hg.hidden = true;
 }
 
 function onSystemCard(s) {
@@ -1441,6 +1581,7 @@ function onStChips() {
   if (mv) mv.hidden = onStMove == null;
   const hint = onq("#o-st-hint");
   if (hint) hint.textContent = onStMove != null ? "Tap a plot to move the building." : "Drag to pan \u00b7 pinch to zoom \u00b7 tap a building or open land";
+  if (hint) hint.hidden = onGestureHintDone(); // v3.9.35: hint goes away permanently once the player has panned/pinched (SP rule)
 }
 
 // Popup render key (single-player popKey): identity + every value shown.
@@ -1643,6 +1784,7 @@ function onCloseStation() {
     const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
     moved += Math.abs(dx) + Math.abs(dy);
+    if (moved > 10 || pts.size === 2) onMarkGestureLearned(); // v3.9.35: pan/pinch dismisses the gesture hint (SP rule)
     if (pts.size === 1) {
       const rect = cv.getBoundingClientRect();
       const dpr = cv.width / (rect.width || 1);
@@ -2231,10 +2373,20 @@ document.addEventListener("click", (e) => {
   if (rb) { rb.classList.toggle("expanded"); return; }
   const tb = e.target.closest ? e.target.closest("[data-otab]") : null;
   if (tb) { onShowTab(tb.dataset.otab); return; }
+  const tutb = e.target.closest ? e.target.closest("[data-otutnext],[data-otutback],[data-otutlater],[data-otutskip],[data-otutcol]") : null;
+  if (tutb) {
+    if (tutb.dataset.otutnext !== undefined) onTutAdvance();
+    else if (tutb.dataset.otutback !== undefined) onTutBack();
+    else if (tutb.dataset.otutlater !== undefined) onCloseTut(false);
+    else if (tutb.dataset.otutskip !== undefined) onCloseTut(true);
+    else if (tutb.dataset.otutcol !== undefined) onTutSetCollapsed(!(onq("#o-tut") && onq("#o-tut").classList.contains("collapsed")));
+    return;
+  }
   const b = e.target.closest ? e.target.closest("[data-oact]") : null;
   if (!b) return;
   const act = b.dataset.oact;
   if (act === "spawn") onDoSpawn();
+  else if (act === "howto") { onCloseMenu(); onShowTut(0); }
   else if (act === "recovery") { onCloseMenu(); onShowRecovery = true; onRenderPanel(); }
   else if (act === "reset-credits") { onCloseMenu(); onShowResetConfirm = true; onRenderPanel(); }
   else if (act === "reset-credits-cancel") { onShowResetConfirm = false; onRenderPanel(); }
@@ -2419,6 +2571,7 @@ async function onStartGame() {
     onRenderActivity();
     onRenderTop(); // v3.9.22: the ribbon accrues live between polls
     onStChips();   // v3.9.22: the build countdown went stale off-ticker
+    onTutCheck();  // v3.9.35: tutorial steps auto-advance off the 1s tick
     const el = onq("#o-raid-count");
     if (!el) return;
     const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
