@@ -919,9 +919,9 @@ function onRenderPanel() {
   el.innerHTML = '<div class="ocard"><h2>Your empire</h2><small>' + esc(onGalaxyName()) + '</small>'
     + '<small>Credits <b>' + Math.floor(e.credits || 0) + '</b> · Power <b>' + Math.round(e.power || 0) + '</b> · Systems <b>' + (e.count || 0) + ' / ' + (e.softCap || 25) + '</b></small><br>'
     + '<small>Income <b>+' + (e.grossPerSec != null ? e.grossPerSec.toFixed(2) : "?") + '/s</b>'
-    + (e.upkeepPerSec ? ' · Upkeep <b>−' + e.upkeepPerSec.toFixed(2) + '/s</b>' : '')
+    + (e.upkeepPerSec ? ' · Upkeep <b>−' + (e.upkeepPerSec * 60).toFixed(1) + '/min</b>' : '')
     + ' · Net <b>' + (e.netPerSec != null ? (e.netPerSec >= 0 ? "+" : "") + e.netPerSec.toFixed(2) + '/s' : "?") + '</b></small>'
-    + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep rises and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b>.</small>' : '')
+    + (over > 0 ? '<br><small>Over the soft cap by <b>' + over + '</b> — upkeep <b>−' + ((e.upkeepPerSec || 0) * 60).toFixed(1) + ' credits/min</b> and rebellion risk is <b>' + Math.round((e.rebellionRisk || 0) * 100) + '%</b> (3% per extra system).</small>' : '')
     + '<br><small><b>Next step:</b> ' + onNextStep() + '</small>'
     + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn ghost" data-oact="rename">Rename Home World</button>'
     + '<br><small>Map: <span style="color:#ff7a29">orange dots</span> are other players\' empires; <span style="color:#ffd84a">gold rings</span> mark systems you can attack.</small>'
