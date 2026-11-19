@@ -1260,7 +1260,7 @@ const ON_ST_B = {
   foundry: { name: "Metal Foundry", desc: "Refines metal", dist: "Industrial District", cost: { energy: 20 }, prod: "metal", rate: 0.103125 },
   mine: { name: "Crystal Mine", desc: "Digs crystal", dist: "Industrial District", cost: { metal: 50, energy: 20 }, prod: "crystal", rate: 0.075 },
   hub: { name: "Trade Hub", desc: "Earns credits", dist: "Trade District", cost: { metal: 60, crystal: 40 }, prod: "credits", rate: 0.065625 },
-  hangar: { name: "Hangar", desc: "Holds 5 ship slots per level (research adds more)", dist: "Military District", cost: { metal: 80, crystal: 60 }, prod: null },
+  hangar: { name: "Hangar", desc: "Holds 7 ship slots per level (research adds more)", dist: "Military District", cost: { metal: 80, crystal: 60 }, prod: null },
   command: { name: "Command Station", desc: "Raises building cap, storage and fleet power", dist: "The Keep", cost: { metal: 120, crystal: 80, credits: 40 }, prod: null },
 };
 function onStCost(type, level) {
@@ -1485,7 +1485,7 @@ function onRenderStPop() {
     let st = def.desc + ". ";
     if (b.l === 0) st = "Under construction. ";
     else if (def.prod) st += "Makes +" + (def.rate * b.l * onProdMult() * 60).toFixed(0) + " " + def.prod + "/min. ";
-    else if (t === "hangar") st += "Holds " + (5 + onSlotBonus()) * b.l + " ship slots. ";
+    else if (t === "hangar") st += "Holds " + (7 + onSlotBonus()) * b.l + " ship slots. ";
     else st += "Max building level " + onStLevelCap("hangar", cmdLv) + ", storage " + (onStation.storageCap || 600) + ". ";
     body.innerHTML = "<small><b>" + esc(def.dist) + "</b> \u2014 " + esc(st) + "</small><br><small>" + (max ? (t === "command" ? "Max level." : "Upgrade the Command Station to go higher.") : "Upgrade to Lv " + (e + 1) + ": " + esc(onStCostStr(c)) + ". Time: " + onStLeft(onStDur(e) * onTmul() * 1000)) + "</small>";
     acts.innerHTML = '<button data-oact="station-pop-upgrade" data-u="' + b.u + '"' + ((max || (onStation.bq || []).length >= onBuilderCap() || !onStCanAfford(c)) ? " disabled" : "") + '>Upgrade</button><button data-oact="station-pop-move" data-u="' + b.u + '">' + (onStMove === b.u ? "Cancel move" : "Move") + '</button><button data-oact="station-pop-close">Close</button>';
@@ -2057,7 +2057,7 @@ function onRenderFleet() {
     + (_gar.length ? '<small>Garrisoned: ' + _gar.join("; ") + '.</small><br>' : '')
     + '<small>' + _sub + '</small><br>'
     + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
-    + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (5 + onSlotBonus()) + ' slots per level).</small>'
+    + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (7 + onSlotBonus()) + ' slots per level).</small>'
     // v3.9.26: fleets drain energy like single player — 0.05/s per
     // occupied slot (launched ships only), read per minute.
     + (((f.energyUpkeepPerSec || 0) > 0) ? '<br><small>Ship upkeep: <b>−' + ((f.energyUpkeepPerSec || 0) * 60).toFixed(1) + ' energy/min</b> (0.05/s per ship slot).</small>' : '');
