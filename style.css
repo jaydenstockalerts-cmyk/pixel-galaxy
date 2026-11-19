@@ -282,6 +282,24 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #tut.pop-open #tut-body,#tut.pop-open #tut-dots,#tut.pop-open .tutbtns,#tut.collapsed #tut-body,#tut.collapsed #tut-dots,#tut.collapsed .tutbtns{display:none}
 #tut.pop-open .tutcard,#tut.collapsed .tutcard{padding:6px 12px}
 #tut.pop-open #tut-step,#tut.collapsed #tut-step{margin:0}
+/* --- v3.9.35: online tutorial card — same overlay card as single
+     player, online ids. Same collapse rules (popup/card open, or the
+     chevron): slim bar with the body, dots and buttons hidden. --- */
+#o-tut{position:fixed;left:0;right:0;bottom:calc(var(--dock-h) + 24px);z-index:18;display:flex;justify-content:center;padding:0 16px;pointer-events:none}
+#o-tut .tutcard{pointer-events:auto;width:100%;max-width:440px;margin:0;animation:popIn .18s ease}
+#o-tut-skip{min-width:0;min-height:36px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#o-tut-col{min-width:0;min-height:36px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg);font-size:18px;line-height:1}
+#o-tut-body{margin:8px 0}
+#o-tut-dots{display:flex;gap:6px;justify-content:center;margin:6px 0 10px}
+#o-tut-dots .dot{width:9px;height:9px;border-radius:50%;border:2px solid var(--fg);background:transparent}
+#o-tut-dots .dot.on{background:var(--fg)}
+#o-tut-step{display:block;text-align:center;font-size:12px;opacity:.75;margin:2px 0 0}
+#o-tut.mini .tutcard{padding:10px 12px}
+#o-tut.mini #o-tut-body{font-size:14px;margin:6px 0}
+#o-tut.mini #o-tut-dots{margin:4px 0 6px}
+#o-tut.pop-open #o-tut-body,#o-tut.pop-open #o-tut-dots,#o-tut.pop-open .tutbtns,#o-tut.collapsed #o-tut-body,#o-tut.collapsed #o-tut-dots,#o-tut.collapsed .tutbtns{display:none}
+#o-tut.pop-open .tutcard,#o-tut.collapsed .tutcard{padding:6px 12px}
+#o-tut.pop-open #o-tut-step,#o-tut.collapsed #o-tut-step{margin:0}
 /* --- v3.2.5: the tutorial card is collapsible (Jayden, phone, step 10:
      the full card covered most of the Galaxy map, so he could not see
      or tap the Pirate Outpost while following the step). The chevron
