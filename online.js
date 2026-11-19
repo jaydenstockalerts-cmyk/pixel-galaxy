@@ -416,7 +416,7 @@ function onSelSig() {
   if (onSelected == null) return "none";
   const s = onSysById[onSelected];
   const tr = onEmpire && onEmpire.transit ? onEmpire.transit.id : "-";
-  return s ? [s.id, s.owner, s.ownerType, s.pw, JSON.stringify(s.garrison || {}), s.type, s.prod || "", "tr:" + tr].join(":") : "gone:" + onSelected;
+  return s ? [s.id, s.owner, s.ownerType, s.pw, JSON.stringify(s.garrison || {}), JSON.stringify(s.defence || {}), s.type, s.prod || "", "tr:" + tr].join(":") : "gone:" + onSelected;
 }
 
 // The raid banner: a defender warning (with tribute offer) and/or an
@@ -432,6 +432,7 @@ function onRaidBanner() {
       const isHome = raid.isHomeWorld;
       html += '<div class="ocard" style="border-color:#ff8a80"><h2>⚠ Raid incoming!</h2>'
         + '<p>Another player is raiding <b>' + esc(raid.systemName || "your system") + '</b>. '
+        + (raid.defence ? 'Your defence here: <b>' + raid.defence.total + '</b> (garrison ' + raid.defence.garrison + ' + fleet ' + raid.defence.fleet + '). ' : '')
         + (isHome ? 'Your Home World <b>cannot be taken</b>, but they can steal resources. ' : '')
         + 'You have <b id="o-raid-count">' + secs + 's</b> to respond.</p>'
         + (raid.status === "tribute_offered"
@@ -979,8 +980,9 @@ function onSystemCard(s) {
     // v3.9.30: garrisons are ships now (single-player style) — Send 1 /
     // Recall 1 per type, straight from the home fleet. No text box, no
     // credit cost, no upkeep. Each stationed ship cuts this system's
-    // revolt chance: Fighter -1%, Cruiser -3%, Capital -8%. (Raids do
-    // NOT use garrisons — the card no longer claims any defence from them.)
+    // revolt chance: Fighter -1%, Cruiser -3%, Capital -8%.
+    // v3.9.34: garrisons DO defend against raids now (SP sysDef) — the
+    // Defence line below shows the number the battle resolves against.
     const gs = s.garrison || {};
     const homeShips = (onEmpire && onEmpire.fleet && onEmpire.fleet.ships) || {};
     const garRows = isHome ? "" : ["fighter", "cruiser", "capital"].map((k) => {
@@ -993,7 +995,11 @@ function onSystemCard(s) {
     html += '<small>This system is yours.</small>'
       + (isHome ? '' : '<br><small>Your station is at your Home World — this system pays income and can be garrisoned.</small>')
       + (isHome ? '' : '<br><small>Produces: <b>' + esc(ON_PROD_LABEL[s.prod] || "Credits") + '</b> (+' + (ON_SYS_INC * 60).toFixed(1) + '/min) — one resource per system, changeable any time.</small>' + onProdPickerHtml(s.prod || "credits", "setprod"))
-      + (isHome ? '' : '<br><small><b>Garrison</b> — ships stationed here keep this system loyal: Fighter -1%, Cruiser -3%, Capital -8% revolt chance each.</small>' + garRows);
+      + (isHome ? '' : '<br><small><b>Garrison</b> — ships stationed here keep this system loyal: Fighter -1%, Cruiser -3%, Capital -8% revolt chance each.</small>' + garRows)
+      + (s.defence ? (isHome
+          ? '<br><small><b>Home defence: ' + s.defence.total + '</b> (your full fleet ×1.2).</small>'
+          : '<br><small><b>Defence here: ' + s.defence.total + '</b> (garrison ' + s.defence.garrison + ' + fleet ' + s.defence.fleet + ').</small>')
+        : '');
   } else if (s.ownerType === "faction") {
     if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
     else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
@@ -2054,6 +2060,7 @@ function onRenderFleet() {
   }
   let html = '<div class="ocard"><h2>Fleet</h2>'
     + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>.</small><br>'
+    + '<small>Home defence: <b>' + Math.round(f.defence || 0) + '</b> (fleet power ' + Math.round(f.power || 0) + ' ×1.2).</small><br>'
     + (_gar.length ? '<small>Garrisoned: ' + _gar.join("; ") + '.</small><br>' : '')
     + '<small>' + _sub + '</small><br>'
     + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
