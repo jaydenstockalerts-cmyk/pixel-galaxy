@@ -63,7 +63,7 @@ const POS0={solar:[1,1],foundry:[2,1],mine:[3,1],hub:[4,1],hangar:[5,1],command:
 const Q=[
 {id:"q1",t:"Build a Crystal Mine",ok:()=>S.b.mine>=1,r:{metal:40}},
 {id:"q2",t:"Build a Hangar",ok:()=>S.b.hangar>=1,r:{crystal:40,metal:40}},
-{id:"q3",t:"Launch your first ship",ok:()=>allShips()>=1,r:{energy:60,credits:20}},
+{id:"q3",t:"Launch your first ship",ok:()=>allShips()>=1,r:{energy:60,credits:30}},
 {id:"q4",t:"Conquer the Pirate Outpost",ok:()=>S.won.includes(1),r:{credits:80}},
 {id:"q5",t:"Upgrade the Command Station to Lv 2",ok:()=>S.b.command>=2,r:{metal:100,crystal:60}},
 {id:"q5d",t:"Build a second Solar Array",ok:()=>cnt("solar")>=2,r:{metal:80}},
