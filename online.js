@@ -153,6 +153,23 @@ function onIsAdjacent(sys) {
   const owned = onOwnedIds();
   return (sys.links || []).some(id => owned.has(id));
 }
+function onHasJumpDrive() { return ((onProgress && onProgress.tech) || []).includes("j1"); }
+// v3.9.37: Jump Drive extends attack/raid reach to 2 jumps from your
+// empire; without it, only adjacent (1-jump) systems are attackable.
+// A 2-jump target must go through a linked intermediate — a neighbour
+// whose own links touch an owned system.
+function onIsTwoJumps(sys) {
+  if (onIsAdjacent(sys)) return false;
+  const owned = onOwnedIds();
+  return (sys.links || []).some((nb) => {
+    const mid = onSysById[nb];
+    return mid && (mid.links || []).some((x) => owned.has(x));
+  });
+}
+function onIsInReach(sys) {
+  if (onIsAdjacent(sys)) return true;
+  return onHasJumpDrive() && onIsTwoJumps(sys);
+}
 
 function onToast(msg) {
   const el = onq("#o-toast");
@@ -551,8 +568,9 @@ function onDrawGalaxy() {
     }
     // v3.9.13: gold ring around systems you can attack right now (adjacent
     // neutral or faction systems — battle to take them, like single
-    // player) so the next move is obvious at a glance.
-    if (onSpawned && !mine && !isNexus && s.ownerType !== "player" && onIsAdjacent(s)) {
+    // player) so the next move is obvious at a glance. v3.9.37: with Jump
+    // Drive researched, 2-jump systems ring too.
+    if (onSpawned && !mine && !isNexus && s.ownerType !== "player" && onIsInReach(s)) {
       q.strokeStyle = "#ffd84a";
       q.lineWidth = 2;
       q.beginPath();
@@ -576,7 +594,7 @@ function onDrawGalaxy() {
     // v3.9.26: zoomed in (zoom >= 4), also label systems you can attack
     // now — adjacent neutrals/factions (gold) and adjacent player
     // empires (orange: another real player's systems, raid targets).
-    const attackable = onSpawned && !mine && s.id !== 0 && onIsAdjacent(s);
+    const attackable = onSpawned && !mine && s.id !== 0 && onIsInReach(s);
     if (s.id !== 0 && !mine && s.id !== onSelected && !(onCam.zoom >= 4 && attackable)) return;
     const p = onWorldToScreen(s.x, s.y);
     if (p.x < -40 || p.x > w + 40 || p.y < -40 || p.y > h + 40) return;
@@ -1083,6 +1101,10 @@ function onSystemCard(s) {
   const mine = owned.has(s.id);
   const isNexus = s.id === 0;
   const adj = onIsAdjacent(s);
+  const inReach = onIsInReach(s);
+  const reachNote = !inReach
+    ? (onIsTwoJumps(s) ? '2 jumps away — research <b>Jump Drive</b> to reach it.' : 'Not adjacent to your empire — take systems next to yours to reach them.')
+    : '';
   const e = onEmpire || {};
   const power = e.power || 0, credits = e.credits || 0;
   // Fleet power vs this system's type (single-player fpt): the ship type
@@ -1100,7 +1122,7 @@ function onSystemCard(s) {
     }
     return base * (1 + 0.2 * ((fl.commandLv || 1) - 1)) * onPowerMult();
   })();
-  const flLine = adj && !mine
+  const flLine = inReach && !mine
     ? '<br><small>Your fleet power vs this system: <b>' + Math.round(flPowerVs) + '</b> (defence ' + s.pw + ').'
       + (flPowerVs <= 0 ? ' You have no ships — build a Hangar and Fighters in Fleet first.' : '')
       + '</small>'
@@ -1141,21 +1163,21 @@ function onSystemCard(s) {
           : '<br><small><b>Defence here: ' + s.defence.total + '</b> (garrison ' + s.defence.garrison + ' + fleet ' + s.defence.fleet + ').</small>')
         : '');
   } else if (s.ownerType === "faction") {
-    if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
-    else html += '<small>Adjacent to your empire. Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
+    if (!inReach) html += '<small>' + reachNote + '</small>';
+    else html += '<small>' + (adj ? 'Adjacent to your empire.' : '2 jumps away — Jump Drive.') + ' Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
       + '<small>Travel time: ' + Math.ceil(onTravelMs(s.id) / 1000) + 's from Home World.</small><br>'
       + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + onTransitSecs() + 's.</small>'
         : onProdPickerHtml(onAttackProd, "prod") + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
   } else if (s.ownerType === "player") {
     html += '<small>Owned by another player.</small>';
-    if (!adj) html += '<br><small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
-    else html += '<br><small>Adjacent. Raiding gives the defender <b>90 seconds</b> to respond — they may offer tribute, and you can accept or decline it. A Home World cannot be taken, only raided for resources.</small><br>'
+    if (!inReach) html += '<br><small>' + reachNote + '</small>';
+    else html += '<br><small>' + (adj ? 'Adjacent.' : '2 jumps away — Jump Drive.') + ' Raiding gives the defender <b>90 seconds</b> to respond — they may offer tribute, and you can accept or decline it. A Home World cannot be taken, only raided for resources.</small><br>'
       + '<div class="bg"><button class="obtn" data-oact="raid" data-stance="allout">Raid · All-out</button> <button class="obtn" data-oact="raid" data-stance="balanced">Raid · Balanced</button> <button class="obtn" data-oact="raid" data-stance="cautious">Raid · Cautious</button></div>';
   } else {
     // Neutral — battle to take it, like single player (Jayden, Nov 17).
     // No credit cost, no power gate: the battle itself decides it.
-    if (!adj) html += '<small>Not adjacent to your empire — take systems next to yours to reach them.</small>';
-    else html += '<small>Neutral system, power <b>' + s.pw + '</b>. Attack to take it — win and it is yours, plus its loot.</small>' + flLine + '<br>'
+    if (!inReach) html += '<small>' + reachNote + '</small>';
+    else html += '<small>Neutral system, power <b>' + s.pw + '</b>.' + (adj ? '' : ' 2 jumps away — Jump Drive.') + ' Attack to take it — win and it is yours, plus its loot.</small>' + flLine + '<br>'
       + '<small>Travel time: ' + Math.ceil(onTravelMs(s.id) / 1000) + 's from Home World.</small><br>'
       + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + onTransitSecs() + 's.</small>'
         : onProdPickerHtml(onAttackProd, "prod") + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
@@ -1948,7 +1970,12 @@ function onRenderResearch() {
       const ct = "Cost: " + costStr(t.c) + ". Time: " + onStLeft(onResearchTime(t));
       const status = dn ? "Researched." : locked ? "Requires " + req.n + ". " + ct : ct + (!canAfford(t.c) ? " Can't afford yet." : "");
       const dis = dn || locked || !!rq || !canAfford(t.c);
-      return '<div class="row treenode' + (locked ? " locked" : "") + (dn ? " done" : "") + '" id="otr-' + t.id + '" style="grid-column:' + lane + ";grid-row:" + (depth[t.id] + 1) + '"><div class="tn-head"><span class="techic">' + (ON_TECHICON[t.k] || "✦") + "</span><b>" + esc(t.n) + "</b></div><small>" + esc(t.d) + "</small><small>" + esc(status) + '</small><button data-oact="research-start" data-tech="' + t.id + '"' + (dis ? " disabled" : "") + ">" + (dn ? "Researched" : "Research") + "</button></div>";
+      // v3.9.37: the online Jump Drive extends attack reach to 2 jumps —
+      // data.js keeps its Sector 2 description for single player, so the
+      // online tree overrides the description here (same text as the
+      // backend progress.js j1).
+      const desc = t.id === "j1" ? "Attack systems up to 2 jumps from your empire" : t.d;
+      return '<div class="row treenode' + (locked ? " locked" : "") + (dn ? " done" : "") + '" id="otr-' + t.id + '" style="grid-column:' + lane + ";grid-row:" + (depth[t.id] + 1) + '"><div class="tn-head"><span class="techic">' + (ON_TECHICON[t.k] || "✦") + "</span><b>" + esc(t.n) + "</b></div><small>" + esc(desc) + "</small><small>" + esc(status) + '</small><button data-oact="research-start" data-tech="' + t.id + '"' + (dis ? " disabled" : "") + ">" + (dn ? "Researched" : "Research") + "</button></div>";
     }).join("")
     + "</div></div></div>";
   // Commanders (v3.9.27: crew is gone — the officer list moved here
