@@ -353,6 +353,7 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-tabs button .ic{font-size:17px;line-height:1}
 #o-tabs button.on{background:var(--fg);color:var(--bg)}
 #o-tabs button:active{transform:scale(.95)}
+#o-tabs button .qbadge{position:absolute;top:2px;right:6px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--warn);color:#fff;font-size:10px;line-height:16px;text-align:center;font-weight:700}
 #o-panel{border-top:2px solid var(--fg);background:var(--panel);padding:10px 12px;max-height:38vh;overflow-y:auto;overflow-x:hidden}
 #o-panel .ocard h2{margin:0 0 4px;font-size:17px;letter-spacing:1px}
 #o-panel .ocard small{font-size:12px;line-height:1.5}
@@ -392,6 +393,10 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-fl-body .pbar{height:8px;background:var(--hi);border-radius:4px;overflow:hidden;margin-top:6px}
 #o-fl-body .pbar div{height:100%;background:var(--ac,#ffd84a);width:0%}
 #o-research{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+#o-quests{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+#o-quests *{box-sizing:border-box}
+#o-q-body{flex:1;overflow-y:auto;padding:12px}
+#o-q-body .ocard{margin:0 auto 12px;max-width:640px}
 #o-research *{box-sizing:border-box}
 #o-res-body,#o-cr-body{flex:1;overflow-y:auto;padding:12px}
 #o-res-body .ocard,#o-cr-body .ocard{margin:0 auto 12px;max-width:640px}
