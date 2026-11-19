@@ -16,6 +16,10 @@ for(let j=0;j<H;j++)for(let i=0;i<W;i++){const c=o[j][flip?W-1-i:i];if(c){q.fill
 // ~115px above the panels at Fit zoom, live v2.1).
 let _top=H;for(let j=0;j<H;j++){let _a=false;for(let i=0;i<W;i++)if(o[j][i]){_a=true;break}if(_a){_top=j;break}}
 cv._top=_top;
+// v3.9.44: per-row drawn-pixel extents (INNER pixels m, not the outline
+// o) — isoBuildingHit's visible-sprite row test. One entry per canvas
+// row: [first,last] drawn column, or null for an empty row.
+cv._rows=[];for(let j=0;j<H;j++){let a=-1,b=-1;for(let i=0;i<W;i++)if(m[j][i]){if(a<0)a=i;b=i}cv._rows.push(a<0?null:[a,b])}
 return cv}
 const bev=(R,x,y,w,h,l,m,d)=>{R(x,y,w,h,m);R(x,y,w,1,l);R(x,y,1,h,l);R(x,y+h-1,w,1,d);R(x+w-1,y,1,h,d)};
 const win=(R,x,y,lit)=>{R(x,y,5,6,"d");R(x+1,y+1,3,4,lit?"y":"b");R(x+1,y+1,1,1,lit?"w":"c");R(x+3,y+4,1,1,lit?"z":"B")};
@@ -218,7 +222,8 @@ function shade(hex,f){const n=parseInt(hex.slice(1),16);return"rgb("+Math.round(
 // Lv1 Solar Array's panels start at grid row 19, so ~40% of the
 // canvas above them is empty. Labels (and the shield hit circle)
 // anchor to the VISIBLE content top, not the canvas top.
-function spriteTopFrac(b){const t=tier(b.l),sp=b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC));return (sp._top||0)/sp.height}
+function spriteCanvas(b){const t=tier(b.l);return b.l>0?memo(b.t+t,()=>spr(44,44,R=>BS[b.t](R,t))):memo("scaf",()=>spr(44,44,SC))}
+function spriteTopFrac(b){const sp=spriteCanvas(b);return (sp._top||0)/sp.height}
 function isoBuildingHit(wx,wy,b,k){
   // v1.7 KEEP HITBOX TAPER: the keep's dome is narrow, so the sprite
   // BODY test tapers for command only — the dome zone (the top ~12u
@@ -280,6 +285,32 @@ function isoBuildingHit(wx,wy,b,k){
     const visTop=c.y-ph-s.h+3+spriteTopFrac(b)*s.h;
     const top=Math.min(yTop,visTop), hw=wy<yTop?10:s.w/2-4;
     if(Math.abs(wx-c.x)<=hw&&wy>=top&&wy<=yBot)return true;
+  }
+  // v3.9.44 (live v3.9.43 check: taps on the keep's radar dish and the
+  // hub's dish/flags fell through): VISIBLE-SPRITE row test. The
+  // analytic rects above are narrower than the drawn sprites — the
+  // keep's dish sticks out to |dx| 17 past the +/-10 dome taper, the
+  // hub's flags/dish and the solar upper panels (tier 1+) past the
+  // +/-10 top band, the foundry stacks/tower past the old +14 line,
+  // and every building's side edges past the +/-14 body rect — so
+  // taps on visible sprite pixels fell through to the plot behind.
+  // If the tap's canvas row has drawn pixels spanning the tap's x,
+  // it is on the sprite. OR-ed with the rects above, so it can only
+  // ADD hits: no pinned "falls through" probe can break — the
+  // foundry hollow centre (0,48) stays dead (its row's span is the
+  // stacks, wx 9.4..17.2), the dome corner (12,18) stays dead (its
+  // row's span is the finial), and ground left of the dome (17,34)
+  // stays dead (its row's inner span starts at wx 17.4). Inner
+  // pixels only (m), NOT the 1px outline (o): the outline would flip
+  // (17,34) (its row's outline starts at wx 16.5). The row span
+  // covers the small gaps between two parts of one sprite in the
+  // same row (dish-to-dome, stack-to-stack) — at most ~3u, interior
+  // to the building's silhouette.
+  const sp=spriteCanvas(b);
+  if(sp&&sp._rows){
+    const topW=c.y-ph-s.h+(k!==undefined?Math.max(2,3*k)/k:3);
+    const rh=s.h/46, rw=s.w/46, j=Math.floor((wy-topW)/rh);
+    if(j>=0&&j<46){const rb=sp._rows[j];if(rb){const x0=c.x-s.w/2+rb[0]*rw,x1=c.x-s.w/2+(rb[1]+1)*rw;if(wx>=x0&&wx<=x1)return true}}
   }
   // v2.3: the HIT zone stays the plot-sized ground diamond (40x20,
   // keep 44x22) — a generous tap target on phones — even though the
