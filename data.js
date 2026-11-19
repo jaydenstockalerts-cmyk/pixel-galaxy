@@ -4,7 +4,7 @@ solar:{n:"Solar Array",d:"Makes energy",c:{metal:20},p:{energy:.13125}},
 foundry:{n:"Metal Foundry",d:"Refines metal",c:{energy:20},p:{metal:.103125}},
 mine:{n:"Crystal Mine",d:"Digs crystal",c:{metal:50,energy:20},p:{crystal:.075}},
 hub:{n:"Trade Hub",d:"Earns credits",c:{metal:60,crystal:40},p:{credits:.065625}},
-hangar:{n:"Hangar",d:"Holds 5 ship slots per level (research adds more)",c:{metal:80,crystal:60},p:{}},
+hangar:{n:"Hangar",d:"Holds 7 ship slots per level (research adds more)",c:{metal:80,crystal:60},p:{}},
 command:{n:"Command Station",d:"Raises building cap, storage and fleet power",c:{metal:120,crystal:80,credits:40},p:{}}
 };
 const U={
