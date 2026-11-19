@@ -394,9 +394,34 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-st-wrap .mapchip.capchip{display:block;top:8px;right:8px}
 #o-st-wrap .mapchip.bqchip{left:8px;bottom:8px;max-width:60vw}
 #o-st-wrap .mapchip.mvcancel{right:8px;bottom:8px;cursor:pointer;font:inherit}
-#o-st-pop{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
+/* v3.9.38: #o-st-pop is position:absolute inside #o-main (it was
+   position:fixed, so the panel centred in the full viewport and its top
+   — the pinned header with the X — ended up behind the ribbon on a tall
+   popup on Jayden's phone). Same pattern as #o-fleet / #o-research, so
+   the header + X are always visible within the main area. */
+#o-st-pop{position:absolute;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
 #o-st-pop-panel{text-align:left}
 #o-st-pop-x{min-width:48px;min-height:48px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
+/* v3.9.38: the online system card is a centered popup like single-player
+   #pop (Jayden: the bottom sheet took half the screen and cut the Crystal
+   button off). Full-screen dimming overlay, centered panel, header with
+   the system name + X, scrollable body — the card's own actions (Attack,
+   setprod, garrison, Close) live inside the body. */
+#o-syspop{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
+#o-syspop-panel{text-align:left;width:100%;max-width:480px;display:flex;flex-direction:column;max-height:85vh;max-height:85dvh;overflow:hidden}
+#o-syspop-x{min-width:48px;min-height:48px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
+/* v3.9.38: the Battle report must be tappable from every tab — the Fleet /
+   Research / Quests overlays (z-index 15) cover the panel the report used
+   to live in. #o-outcome is a top banner above them (same geometry as
+   #raidwarn, z-index 25 like the toast). */
+#o-outcome{position:fixed;top:calc(var(--hud-h) + 10px + env(safe-area-inset-top,0px));left:8px;right:8px;z-index:25}
+#o-outcome .ocard{margin:0}
+/* v3.9.38: the production picker is a compact 2x2 grid of small buttons
+   (the old full-width obtns pushed Crystal off the bottom of the sheet).
+   The label spans the full row; the four resource buttons fill the 2x2. */
+#o-syspop-body .prodpick{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:6px 0}
+#o-syspop-body .prodpick-label{grid-column:1 / -1}
+#o-syspop-body .prodpick .obtn{min-height:36px;padding:6px 8px;font-size:13px}
 /* v3.9.18 (Phase 2): the Fleet view mirrors the single-player Fleet tab.
    An overlay inside #o-main like the station: a scrollable panel with
    the power breakdown, ship rows, and the shipyard queue. */
@@ -433,5 +458,5 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
    the whole panel scrolled as one unit, so on a phone the close button
    scrolled off the top once the build list was longer than the screen. */
 #pop-panel,#o-st-pop-panel{display:flex;flex-direction:column;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:hidden}
-#pop-panel>.pophead,#o-st-pop-panel>.pophead,#pop-hero,#o-st-pop-hero,#pop-actions,#o-st-pop-actions{flex-shrink:0}
-#pop-body,#o-st-pop-body{flex:1 1 auto;min-height:0;overflow-y:auto}
+#pop-panel>.pophead,#o-st-pop-panel>.pophead,#o-syspop-panel>.pophead,#pop-hero,#o-st-pop-hero,#pop-actions,#o-st-pop-actions{flex-shrink:0}
+#pop-body,#o-st-pop-body,#o-syspop-body{flex:1 1 auto;min-height:0;overflow-y:auto}
