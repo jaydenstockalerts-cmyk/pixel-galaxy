@@ -218,7 +218,7 @@ body.ui-hidden #activity{opacity:0;pointer-events:none}
    ============================================================ */
 section[data-pg="map"],section[data-pg="station"]{position:fixed;inset:0;z-index:1}
 section[data-pg="station"] .mapwrap{background:#c98a5a}
-section[data-pg="fleet"],section[data-pg="crew"],section[data-pg="research"],section[data-pg="quests"],section[data-pg="empire"],section[data-pg="log"]{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px + env(safe-area-inset-top,0px)) 12px calc(var(--dock-h) + 24px)}
+section[data-pg="fleet"],section[data-pg="research"],section[data-pg="quests"],section[data-pg="empire"],section[data-pg="log"]{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px + env(safe-area-inset-top,0px)) 12px calc(var(--dock-h) + 24px)}
 .mapwrap{position:absolute;inset:0;border:0;margin:0;background:#0a0e2a}
 .mapwrap #cv,.mapwrap #st{border:0;margin:0;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges}
@@ -296,7 +296,7 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 .tut-hl{outline:3px solid #ffd84a!important;outline-offset:2px;border-radius:8px;box-shadow:0 0 0 6px rgba(255,216,74,.25),0 0 18px rgba(255,216,74,.6);animation:tutPulse 1.2s ease-in-out infinite}
 @keyframes tutPulse{50%{box-shadow:0 0 0 10px rgba(255,216,74,.12),0 0 26px rgba(255,216,74,.85)}}
 
-/* v3.4 TAB GRAPHICS — Fleet ship sprites, commander portraits, crew
+/* v3.4 TAB GRAPHICS — Fleet ship sprites, commander portraits
    and tech icons, quest icons. These make the four tabs read at a
    glance instead of as bare text rows. */
 .shipimg{image-rendering:pixelated;vertical-align:middle;margin-right:6px;background:#0a0e2a;border:2px solid var(--mid);border-radius:4px}
@@ -304,7 +304,6 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 .cmdav-fleet{background:#a33}
 .cmdav-econ{background:#3a7}
 .cmdav-build{background:#36a}
-.crewic{font-size:18px;margin-right:6px;vertical-align:middle}
 .techic{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;border-radius:6px;background:var(--mid);font-size:15px;margin-right:8px;vertical-align:middle}
 .questic{font-size:18px;margin-right:6px;vertical-align:middle}
 .row.claimable{border-color:#ffb02e;box-shadow:0 0 0 2px rgba(255,176,46,.35)}
@@ -361,6 +360,7 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 .obtn{font:inherit;font-weight:bold;background:var(--fg);color:var(--bg);border:0;border-radius:var(--radius-sm);padding:10px 14px;min-height:44px;cursor:pointer}
 .obtn.big{min-height:52px;font-size:16px}
 .obtn.ghost{background:none;color:var(--fg);border:2px solid var(--fg)}
+.obtn.sel{outline:3px solid var(--accent,#6ee7f5);outline-offset:1px} /* v3.9.27: selected production toggle */
 #o-toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%);z-index:25;background:var(--fg);color:var(--bg);padding:10px 14px;border-radius:var(--radius-sm);font-weight:bold;font-size:13px;max-width:90vw;text-align:center;box-shadow:var(--shadow)}
 /* v3.9.14 STATION — an overlay over the galaxy view inside #o-main,
    same layout as #online: canvas, chips, popup. */
@@ -391,8 +391,8 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 #o-fl-body .shiprow .bg button{min-width:64px}
 #o-fl-body .pbar{height:8px;background:var(--hi);border-radius:4px;overflow:hidden;margin-top:6px}
 #o-fl-body .pbar div{height:100%;background:var(--ac,#ffd84a);width:0%}
-#o-research,#o-crew{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
-#o-research *,#o-crew *{box-sizing:border-box}
+#o-research{position:absolute;inset:0;z-index:15;display:flex;flex-direction:column;background:var(--bg);color:var(--fg);overflow-x:hidden}
+#o-research *{box-sizing:border-box}
 #o-res-body,#o-cr-body{flex:1;overflow-y:auto;padding:12px}
 #o-res-body .ocard,#o-cr-body .ocard{margin:0 auto 12px;max-width:640px}
 #o-res-body .techtree-wrap{overflow-x:auto;padding-bottom:4px}
