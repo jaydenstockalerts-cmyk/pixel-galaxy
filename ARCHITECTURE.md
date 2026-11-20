@@ -204,5 +204,5 @@ use test-1 unless the code is changed.
   github.io → pages.dev migration popup, v3.9.55). Cron
   `pixel-galaxy-repo-privatize-nov26` handles the flip.
 - The hidden ±15% battle factor stays unstated.
-- **Profanity is blocked everywhere (v3.9.67, Jayden Nov 20):** no profanity in any shape in chat (Global + Syndicate) or in any name (Syndicate, Home World at spawn + rename). Enforced server-side in `src/profanity.js` — reject, never mask. The client only pre-checks for instant feedback.
+- **Profanity is blocked everywhere (v3.9.67, hardened v3.9.68, Jayden Nov 20):** no profanity in any shape in chat (Global + Syndicate) or in any name (Syndicate, Home World at spawn + rename). Enforced server-side in `src/profanity.js` — reject, never mask. The client only pre-checks for instant feedback. v3.9.68 closes the evasions: masked letters as wildcards, separator-crossing splits, full-width/homoglyph/zero-width Unicode, reversed words, common misspellings, a severe Spanish set, the acronyms "wtf"/"stfu", and the middle-finger emoji. Minced oaths (frick, heck) still pass.
 - Emoney outage / reselling work lives in the main chat, not here.
