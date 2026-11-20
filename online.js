@@ -1305,7 +1305,7 @@ async function onDoColonyUpgrade(id) {
     }
     onToast("Colony upgrade started — Lv " + (sys.colonyUpgradeTo || "?") + " in " + onStLeft((r.data.durationSec || 0) * 1000) + ".");
     onRenderPanel();
-    await onRefresh();
+    await onRefreshCosts();
   } else {
     onToast("Could not upgrade the colony: " + (r.data.error || r.status) + ".");
   }
@@ -1628,11 +1628,41 @@ let onStPopKeyCache = "";
 let onStPopOpenAt = 0;
 let onStMove = null;        // uid of the building being moved, or null
 
+// v3.9.49: cost-display lag (playtest: deductions lagged a tick in the
+// ribbon, empire-panel credits lagged after big spends). Diagnosis, from
+// code: the ribbon and the empire panel both read the onEmpire/onStation
+// snapshots, which only refreshed on the 15s poll or a full onRefresh —
+// and the three station spend handlers never refreshed at all, so credits
+// spent on a build stayed visible (pre-spend) for up to a full poll tick.
+// Worse, those handlers assigned onStation = r.data without resetting
+// onStationAt, so the 1s ticker accrued up to 15s of production on top of
+// the already-settled snapshot — double-counting, so the ribbon
+// overshot after a build and stepped down at the next poll. The server
+// already returns settled post-spend balances in the spend responses
+// (/station/build + /station/move: full station + credits; /fleet/build +
+// /fleet/scrap: res + credits), so the fix is client-only: apply the
+// settled balances to the same snapshots both displays read, reset the
+// accrual clocks, and re-render in the same tick. Spends whose responses
+// carry no balances (research, commander, colony, quest claim) converge
+// through a light refresh of just empire + station — the full onRefresh
+// also refetches /systems (1,000 rows), which a spend does not change.
+// Single player has no equivalent bug: spends deduct in the same local
+// state the ribbon reads, in the same tick.
+function onSetStation(data) { onStation = data; onStationAt = Date.now(); }
+function onSetStationRes(res) { if (onStation && res) { onStation.res = res; onStationAt = Date.now(); } }
+function onSetEmpireCredits(credits) { if (onEmpire && credits != null) { onEmpire.credits = credits; onEmpireAt = Date.now(); } }
+async function onRefreshCosts() {
+  await onLoadEmpire();
+  await onLoadStation();
+  onRenderTop();
+  onRenderPanel();
+}
+
 async function onLoadStation() {
   const r = await onApi("/station", "GET");
   if (r.status === 200) {
     const prev = onPrevStation;
-    onStation = r.data; onStationAt = Date.now();
+    onSetStation(r.data);
     // v3.9.22: build completions were silent (single player announces
     // them). Toast once when a queued job disappears as a finished
     // building — same transition detection as research in onLoadProgress.
@@ -1824,7 +1854,9 @@ function onRenderStation() {
 async function onDoStationBuild(type, x, y) {
   const r = await onApi("/station/build", "POST", { type, x, y });
   if (r.status === 200) {
-    onStation = r.data;
+    onSetStation(r.data);
+    onSetEmpireCredits(r.data.credits);
+    onRenderTop(); onRenderPanel();
     onToast(ON_ST_B[type].name + " construction started.");
     onCloseStPop();
     onRenderStation();
@@ -1838,7 +1870,9 @@ async function onDoStationBuild(type, x, y) {
 async function onDoStationUpgrade(u) {
   const r = await onApi("/station/build", "POST", { u });
   if (r.status === 200) {
-    onStation = r.data;
+    onSetStation(r.data);
+    onSetEmpireCredits(r.data.credits);
+    onRenderTop(); onRenderPanel();
     onToast("Upgrade started.");
     onRenderStation();
   } else {
@@ -1851,7 +1885,9 @@ async function onDoStationUpgrade(u) {
 async function onDoStationMove(u, x, y) {
   const r = await onApi("/station/move", "POST", { u, x, y });
   if (r.status === 200) {
-    onStation = r.data;
+    onSetStation(r.data);
+    onSetEmpireCredits(r.data.credits);
+    onRenderTop(); onRenderPanel();
     onStMove = null;
     onToast("Building moved.");
     onRenderStation();
@@ -2168,7 +2204,7 @@ async function onDoResearchStart(id) {
     onSetProgress(r.data);
     onToast("Research started: " + (t ? t.n : id) + ".");
     onRenderResearch();
-    onRefresh();
+    await onRefreshCosts();
   } else {
     const err = (r.data && r.data.error) || r.status;
     if (err === "missing_prereq") onToast("Requires " + (r.data.reqName || "another tech") + " first.");
@@ -2189,7 +2225,7 @@ async function onDoCommander(id) {
     const cmd = (r.data.commanders || []).find((c) => c.id === id);
     if (cmd) onToast(!wasHired ? cmd.name + " joins your command." : cmd.assigned ? cmd.name + " assigned as your officer." : cmd.name + " unassigned.");
     onRenderResearch();
-    onRefresh();
+    await onRefreshCosts();
   } else {
     const err = (r.data && r.data.error) || r.status;
     if (err === "not_enough_credits") onToast("Not enough credits to hire.");
@@ -2299,7 +2335,9 @@ async function onDoFleetBuild(type, n) {
   const r = await onApi("/fleet/build", "POST", { type, n: n || 1 });
   if (r.status === 200 && r.data.built > 0) {
     onToast(r.data.built + "x " + def.name + " construction started.");
-    await onLoadFleet(); onRenderFleet(); onRefresh();
+    await onLoadFleet(); onRenderFleet();
+    onSetStationRes(r.data.res); onSetEmpireCredits(r.data.credits);
+    onRenderTop(); onRenderPanel();
   } else {
     const err = (r.data && r.data.error) || "failed";
     const why = err === "no_hangar" ? "Build a Hangar at your station first (needs Hangar Lv " + def.hangar + ")."
@@ -2319,7 +2357,9 @@ async function onDoFleetScrap(type) {
   const r = await onApi("/fleet/scrap", "POST", { type });
   if (r.status === 200) {
     onToast(def.name + " scrapped. Half its cost was refunded.");
-    await onLoadFleet(); onRenderFleet(); onRefresh();
+    await onLoadFleet(); onRenderFleet();
+    onSetStationRes(r.data.res); onSetEmpireCredits(r.data.credits);
+    onRenderTop(); onRenderPanel();
   } else {
     onToast("Scrap failed: " + ((r.data && r.data.error) || r.status) + ".");
   }
@@ -2501,7 +2541,7 @@ async function onDoQuestClaim(id) {
     onQuestBadge();
     onToast("Quest complete: +" + (r.data.rewardText || onQuestRewardText(r.data.reward)) + "!");
     onRenderQuests();
-    await onRefresh();
+    await onRefreshCosts();
   } else {
     const err = (r.data && r.data.error) || "failed";
     onToast(err === "already_claimed" ? "Already claimed." : err === "not_complete" ? "Not complete yet." : "Claim failed: " + err + ".");
