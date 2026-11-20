@@ -167,8 +167,10 @@ let onReady = false;
 // cam = {cx, cy, zoom} — centre in world coords, zoom scales world->screen.
 let onCam = { cx: 0, cy: 0, zoom: 1 };
 
-const FAC_COL = { c: "#e0584a", v: "#b07cf0", k: "#ffb02e", a: "#4fc3f7", m: "#ff7ad9" };
-const FAC_NAME = { c: "Crimson Pact", v: "Vael Collective", k: "Keth Dominion", a: "Aurelian Combine", m: "Vortex Marauders" };
+const FAC_COL = { c: "#e0584a", v: "#b07cf0", k: "#a3e635", a: "#5b8cff", m: "#ff7ad9" };
+const FAC_NAME = { c: "Vanguard", v: "Vael Collective", k: "Keth Dominion", a: "Aurelian Combine", m: "Void Corsairs" };
+// One line per faction, saying who they are (v3.9.53) — shown on faction system cards.
+const FAC_ABOUT = { c: "The old fleet, still expanding — disciplined, aggressive, and hard to dislodge.", v: "Patient builders — they turtle up, out-produce everyone, and rarely strike first.", k: "Expansionists who push outward system by system and fight for every one.", a: "Traders and builders — rich, well-defended, and in no hurry to fight.", m: "Raiders. They hit fast, take what they want, and vanish before you can answer." };
 
 function onq(s) { return document.querySelector(s); }
 function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c])); }
@@ -578,7 +580,7 @@ function onDrawGalaxy() {
   const q = cv.getContext("2d");
   if (!q) return;
   const w = cv.width, h = cv.height;
-  q.fillStyle = "#0a0e2a";
+  q.fillStyle = "#100a24";
   q.fillRect(0, 0, w, h);
   const owned = onOwnedIds();
   // Ring boundary circles (rings 1, 5, 10, 15) — faint dashed.
@@ -1024,7 +1026,7 @@ function onRenderPanel() {
       onSetPanel('<div class="ocard"><h2>Recover your empire</h2><p>Enter the recovery code you saved when you started. It works on any device.</p><input id="o-rec-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><br><button class="obtn" data-oact="recover-go">Recover empire</button> <button class="obtn ghost" data-oact="recover-cancel">Cancel</button>' + (onRecoverErr ? '<br><small style="color:#ff8a80">' + esc(onRecoverErr) + '</small>' : '') + '</div>');
       return;
     }
-    onSetPanel('<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Battle to take systems, grow your empire, fight the five factions.</p><p><small>Name your Home World (optional — leave blank to keep the galaxy\'s name):</small><br><input id="o-spawn-name" type="text" placeholder="e.g. New Terra" maxlength="24" autocomplete="off" value="' + esc(onSpawnName) + '"></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>');
+    onSetPanel('<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One galaxy, a thousand systems, and every one of them up for grabs. You start on the rim, fifteen jumps out from the Dark Nexus. Fight your way in — the five factions won\'t move aside for you.</p><p><small>Name your Home World (optional — leave blank to keep the galaxy\'s name):</small><br><input id="o-spawn-name" type="text" placeholder="e.g. New Terra" maxlength="24" autocomplete="off" value="' + esc(onSpawnName) + '"></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>');
     return;
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
@@ -1280,7 +1282,7 @@ function onSystemCard(s) {
         : '');
   } else if (s.ownerType === "faction") {
     if (!inReach) html += '<small>' + reachNote + '</small>';
-    else html += '<small>' + (adj ? 'Adjacent to your empire.' : '2 jumps away — Jump Drive.') + ' Attack to take it from ' + esc(owner) + '.</small>' + flLine + '<br>'
+    else html += '<small>' + (adj ? 'Adjacent to your empire.' : '2 jumps away — Jump Drive.') + ' Attack to take it from ' + esc(owner) + '.</small>' + (FAC_ABOUT[s.owner] ? '<br><small>' + esc(FAC_ABOUT[s.owner]) + '</small>' : '') + flLine + '<br>'
       + '<small>Travel time: ' + Math.ceil(onTravelMs(s.id) / 1000) + 's from Home World.</small><br>'
       + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + '<span id="o-sys-transit-left">' + onTransitSecs() + 's</span>.</small>'
         : onProdPickerHtml(onAttackProd, "prod") + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
@@ -1811,7 +1813,7 @@ function onRenderStPop() {
   body.scrollTop = 0; // v3.9.26: a fresh popup always starts at the top (close button visible)
   const cmdLv = (onStation.b && onStation.b.command) || 1;
   const hq = hero.getContext("2d");
-  if (hq) { hq.imageSmoothingEnabled = false; hq.fillStyle = "#0a0e2a"; hq.fillRect(0, 0, 96, 96); }
+  if (hq) { hq.imageSmoothingEnabled = false; hq.fillStyle = "#100a24"; hq.fillRect(0, 0, 96, 96); }
   if (onStPop.kind === "building") {
     const b = (onStation.bl || []).find((z) => z.u === onStPop.u);
     if (!b) { onCloseStPop(); return; }
