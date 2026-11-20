@@ -661,6 +661,20 @@ function onDrawGalaxy() {
       q.arc(p.x, p.y, Math.max(1.5, r * Math.min(3, onCam.zoom)) + 5, 0, Math.PI * 2);
       q.stroke();
     }
+    // v3.9.56: a Home World gets a hollow cream diamond — a SHAPE, not
+    // another ring, so it collides with neither the gold attackable
+    // ring (a circle, and never drawn on player systems anyway) nor
+    // the white selection ring (a circle). Cream #f2ead9 is the
+    // post-de-AI warm off-white; it sits clear of Nexus gold, mine
+    // cyan, player orange, and every faction colour.
+    if (s.isHome) {
+      const dr = Math.max(1.5, r * Math.min(3, onCam.zoom)) + 10;
+      q.strokeStyle = "#f2ead9";
+      q.lineWidth = 2;
+      q.beginPath();
+      q.moveTo(p.x, p.y - dr); q.lineTo(p.x + dr, p.y); q.lineTo(p.x, p.y + dr); q.lineTo(p.x - dr, p.y); q.closePath();
+      q.stroke();
+    }
     // v3.9.13: gold ring around systems you can attack right now (adjacent
     // neutral or faction systems — battle to take them, like single
     // player) so the next move is obvious at a glance. v3.9.37: with Jump
@@ -1284,7 +1298,7 @@ function onSystemCard(s) {
   let owner = "Neutral";
   if (mine) owner = "Yours";
   else if (s.ownerType === "faction") owner = FAC_NAME[s.owner] || s.owner;
-  else if (s.ownerType === "player") owner = "Another player";
+  else if (s.ownerType === "player") owner = s.isHome ? "Another player \u00b7 Home World" : "Another player";
   // v3.9.38: the card renders into the centered #o-syspop popup — the
   // popup header carries the system name + X, so the card itself has no
   // outer ocard wrapper and no h2.
@@ -1325,9 +1339,11 @@ function onSystemCard(s) {
       + ((onEmpire && onEmpire.transit) ? '<small>Your fleet is en route to <b>' + esc(onEmpire.transit.systemName || "") + '</b> — arrives in ' + '<span id="o-sys-transit-left">' + onTransitSecs() + 's</span>.</small>'
         : onProdPickerHtml(onAttackProd, "prod") + '<div class="bg"><button class="obtn" data-oact="attack" data-stance="allout">Attack · All-out</button> <button class="obtn" data-oact="attack" data-stance="balanced">Attack · Balanced</button> <button class="obtn" data-oact="attack" data-stance="cautious">Attack · Cautious</button></div>');
   } else if (s.ownerType === "player") {
-    html += '<small>Owned by another player.</small>';
+    // v3.9.56: label the Home World — and say what a raid does there.
+    // A conquered system says the opposite: win and it is yours.
+    html += '<small>' + (s.isHome ? 'Home World of another player.' : 'Owned by another player.') + '</small>';
     if (!inReach) html += '<br><small>' + reachNote + '</small>';
-    else html += '<br><small>' + (adj ? 'Adjacent.' : '2 jumps away — Jump Drive.') + ' Raiding gives the defender <b>90 seconds</b> to respond — they may offer tribute, and you can accept or decline it. A Home World cannot be taken, only raided for resources.</small><br>'
+    else html += '<br><small>' + (adj ? 'Adjacent.' : '2 jumps away — Jump Drive.') + ' Raiding gives the defender <b>90 seconds</b> to respond — they may offer tribute, and you can accept or decline it. ' + (s.isHome ? 'This is their Home World \u2014 it cannot be taken, only raided for 10% of credits (cap 500).' : 'Win this raid and the system is yours.') + '</small><br>'
       + '<div class="bg"><button class="obtn" data-oact="raid" data-stance="allout">Raid · All-out</button> <button class="obtn" data-oact="raid" data-stance="balanced">Raid · Balanced</button> <button class="obtn" data-oact="raid" data-stance="cautious">Raid · Cautious</button></div>';
   } else {
     // Neutral — battle to take it, like single player (Jayden, Nov 17).
