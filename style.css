@@ -46,6 +46,13 @@ button{user-select:none;-webkit-user-select:none}
 .box,.card{border:3px solid var(--fg);border-radius:var(--radius);padding:var(--sp-3);margin-bottom:var(--sp-3);box-shadow:var(--shadow);background:var(--panel)}
 .row{display:flex;justify-content:space-between;align-items:center;gap:var(--sp-2);padding:10px 0;border-bottom:1px solid var(--hi)}
 .row:last-child{border-bottom:0}
+
+/* v3.9.47: next-target finder — compact rows, weakest first; a tap opens the system. Shared by both modes (SP rows are <button>, online rows are <div>). */
+.tgt-list{margin-top:10px}
+.tgt-row{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;text-align:left;padding:9px 10px;border:1px solid var(--hi);border-radius:var(--radius-sm);background:var(--bg);color:var(--fg);font-weight:normal;min-height:0;cursor:pointer}
+.tgt-row + .tgt-row{margin-top:6px}
+.tgt-row b{font-weight:bold}
+.tgt-row small{opacity:.75;white-space:nowrap}
 .row>div{min-width:0}
 .empty{display:block;padding:var(--sp-3);text-align:center;color:var(--ink-2);font-size:var(--fs-sm)}
 
