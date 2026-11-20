@@ -532,6 +532,13 @@ const spw=i=>Math.round(SYS[i].pw*(S.own[i]?1.4:1));
 // The systems stay VISIBLE (greyed/locked) so the player can see
 // what is coming; the popup says so in one plain line.
 const avail=i=>!S.won.includes(i)&&(S.won.some(j=>adj(i,j))||(S.won.length===0&&adj(i,0)))&&(secOf(i)===0||hasJump()); // v3.2.7: if you own no systems at all, systems adjacent to Home World (1, 2) are attackable — without this, losing your last system was a permanent soft-lock (nothing adjacent to anything you own, so nothing attackable, including Home World itself)
+// v3.9.47: next-target finder — the systems the Attack button would
+// accept, weakest first. avail() IS the rule (adjacent to a won system,
+// Sector 2 needs Jump Drive). Distance is always 1 jump in single
+// player — attacks are adjacent-only here. Capped at the weakest 8.
+const spTargets=()=>SYS.map((s,i)=>({i,pw:spw(i)})).filter(t=>avail(t.i)).sort((a,b)=>a.pw-b.pw).slice(0,8);
+let tgtKey="";
+function renderTargets(){const el=$("#tgt");if(!el)return;const list=spTargets();const key=list.map(t=>t.i+":"+t.pw).join();if(key===tgtKey)return;tgtKey=key;el.innerHTML=list.length?("<b>Next targets</b><br><small>Weakest systems you can attack first — tap one to open it.</small>"+list.map(t=>{const s=SYS[t.i];return `<button class="tgt-row" data-tgt="${t.i}"><span><b>${s.n}</b> · ${s.t}</span><small>${t.pw} power · 1 jump</small></button>`}).join("")):"<b>Next targets</b><br><small>No systems in reach — take systems next to yours to expand.</small>";}
 // v1.4: adjacency bonus REMOVED at Jayden's request (approved mechanics
 // change). Production is base rate only (plus tech/commander effects),
 // so spaced-out buildings produce at full rate — that is what makes
@@ -715,7 +722,7 @@ upd2();
 // condition or reward changes.
 const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok())),key=open.map(q=>q.id+(q.ok()?1:0)).join();
 if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row${q.ok()?" claimable":""}"><div><span class="questic">${questIcon(q.t)}</span>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — a rival raids one of your systems next to their territory. Repel one with a stronger fleet.</small> <button data-empire="1" class="mini">Empire ›</button>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
-popupUI();empireUI();activityUI();progressBars();tutCheck();
+renderTargets();popupUI();empireUI();activityUI();progressBars();tutCheck();
 draw();
 }
 
@@ -792,6 +799,7 @@ if(d.tab){S.tab=d.tab;PAGE={kind:"tab"}}
 else if(d.page){openEmpire()}
 else if(d.back){goBack()}
 else if(d.fly){const i=+d.fly;S.sel=i;PAGE={kind:"tab"};S.tab="map";flyTo(i)}
+else if(d.tgt){openSystem(+d.tgt)}
 else if(d.zin){setZoom(CAM.zoom*1.25)}
 else if(d.zout){setZoom(CAM.zoom/1.25)}
 else if(d.sec){SEC=+d.sec;fitCam()}
@@ -871,9 +879,9 @@ closePopup();
 else if(b.id==="snd"){S.mute=S.mute?0:1;sfx("ok")}
 else if(b.id==="reset"){$("#rbox").hidden=false}
 else if(d.rcancel){$("#rbox").hidden=true}
-else if(d.rgo){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
+else if(d.rgo){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";tgtKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.")}
 else if(d.endkeep){hideEnd()}
-else if(d.endnew){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.");maybeTut()} // v3.3: a fresh empire gets the tutorial right away — it used to stay hidden until the next reload
+else if(d.endnew){if(TUT.open)closeTut(false);tutClearKeys();S=fresh();recalc();save();qKey="";tgtKey="";hideEnd();$("#rbox").hidden=true;msg("A new empire begins.");maybeTut()} // v3.3: a fresh empire gets the tutorial right away — it used to stay hidden until the next reload
 update();save();
 }
 // v1.4 popup touch: click path — ignore a click that is really the
