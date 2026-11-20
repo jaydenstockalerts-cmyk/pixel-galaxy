@@ -423,9 +423,9 @@ section[data-pg="research"] .card.treecard{max-width:none}
    button off). Full-screen dimming overlay, centered panel, header with
    the system name + X, scrollable body — the card's own actions (Attack,
    setprod, garrison, Close) live inside the body. */
-#o-syspop{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
-#o-syspop-panel{text-align:left;width:100%;max-width:480px;display:flex;flex-direction:column;max-height:85vh;max-height:85dvh;overflow:hidden}
-#o-syspop-x{min-width:48px;min-height:48px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
+#o-syspop,#o-srvdown{position:fixed;inset:0;z-index:20;background:rgba(7,11,31,.8);display:flex;align-items:center;justify-content:center;padding:16px}
+#o-syspop-panel,#o-srvdown-panel{text-align:left;width:100%;max-width:480px;display:flex;flex-direction:column;max-height:85vh;max-height:85dvh;overflow:hidden}
+#o-syspop-x,#o-srvdown-x{min-width:48px;min-height:48px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
 /* v3.9.38: the Battle report must be tappable from every tab — the Fleet /
    Research / Quests overlays (z-index 15) cover the panel the report used
    to live in. #o-outcome is a top banner above them (same geometry as
@@ -473,6 +473,6 @@ section[data-pg="research"] .card.treecard{max-width:none}
    button) and the actions stay pinned; only the body scrolls. Before,
    the whole panel scrolled as one unit, so on a phone the close button
    scrolled off the top once the build list was longer than the screen. */
-#pop-panel,#o-st-pop-panel{display:flex;flex-direction:column;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:hidden}
-#pop-panel>.pophead,#o-st-pop-panel>.pophead,#o-syspop-panel>.pophead,#pop-hero,#o-st-pop-hero,#pop-actions,#o-st-pop-actions{flex-shrink:0}
-#pop-body,#o-st-pop-body,#o-syspop-body{flex:1 1 auto;min-height:0;overflow-y:auto}
+#pop-panel,#o-st-pop-panel,#o-srvdown-panel{display:flex;flex-direction:column;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);overflow:hidden}
+#pop-panel>.pophead,#o-st-pop-panel>.pophead,#o-syspop-panel>.pophead,#o-srvdown-panel>.pophead,#pop-hero,#o-st-pop-hero,#pop-actions,#o-st-pop-actions{flex-shrink:0}
+#pop-body,#o-st-pop-body,#o-syspop-body,#o-srvdown-body{flex:1 1 auto;min-height:0;overflow-y:auto}
