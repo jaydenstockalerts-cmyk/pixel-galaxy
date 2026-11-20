@@ -100,34 +100,34 @@ const dailyDayNum=()=>Math.floor(Date.now()/864e5);
 const dailyForDay=n=>DAILY[((n*2654435761)>>>29)%DAILY.length]; // top 3 bits of the Knuth hash — the low-bit form walks the pool in order (see backend src/daily.js)
 const TT={fleet:"fleet power",econ:"production",build:"faster building and research"};
 const CM={
-vex:{n:"Admiral Vex",t:"fleet",b:.05,c:150,d:"Fleet commander. Boosts fleet power."},
-kade:{n:"Commodore Kade",t:"fleet",b:.08,c:2500,d:"Elite fleet commander. Big fleet power boost."},
-orla:{n:"Director Orla",t:"econ",b:.05,c:150,d:"Station manager. Boosts production."},
-juno:{n:"Quartermaster Juno",t:"econ",b:.08,c:2500,d:"Master of supply. Big production boost."},
-tam:{n:"Engineer Tamsin",t:"build",b:.04,c:300,d:"Chief builder. Faster building, shipyard and research."},
-bolt:{n:"Chief Bolt",t:"build",b:.06,c:5000,d:"Legendary engineer. Much faster builds."}
+vex:{n:"Admiral Vex",t:"fleet",b:.05,c:150,d:"Vex has won more fleet actions than anyone alive. Your ships hit harder under her command."},
+kade:{n:"Commodore Kade",t:"fleet",b:.08,c:2500,d:"Kade doesn't lose ships. He loses the other guy's ships. The fleet hits much harder with him aboard."},
+orla:{n:"Director Orla",t:"econ",b:.05,c:150,d:"Orla runs the station like a ledger — every mine, foundry, and hub a little sharper."},
+juno:{n:"Quartermaster Juno",t:"econ",b:.08,c:2500,d:"Juno can stretch a shipment twice as far. Production jumps under her watch."},
+tam:{n:"Engineer Tamsin",t:"build",b:.04,c:300,d:"Tamsin builds fast and fixes faster. Buildings, ships, research — all of it finishes sooner."},
+bolt:{n:"Chief Bolt",t:"build",b:.06,c:5000,d:"Bolt has forgotten more about shipyards than most engineers ever learn. Builds finish far sooner with him on the job."}
 };
 const TECH=[
-{id:"w1",n:"Laser Cannons",d:"+15% fleet power",c:{credits:300,crystal:120},t:180,k:"pw",v:.15},
-{id:"w2",n:"Plasma Weapons",d:"+25% fleet power",c:{credits:1200,crystal:450},t:540,req:"w1",k:"pw",v:.25},
-{id:"w3",n:"Antimatter Warheads",d:"+40% fleet power",c:{credits:5000,crystal:1800},t:1800,req:"w2",k:"pw",v:.4},
-{id:"e1",n:"Efficient Reactors",d:"+20% production",c:{credits:400,metal:300},t:270,k:"eco",v:.2},
-{id:"e2",n:"Asteroid Mining",d:"+30% production",c:{credits:1600,metal:1000},t:900,req:"e1",k:"eco",v:.3},
-{id:"e3",n:"Dyson Swarm",d:"+50% production",c:{credits:6000,metal:3000},t:2700,req:"e2",k:"eco",v:.5},
-{id:"h1",n:"Reinforced Hulls",d:"Fewer ships lost in battle",c:{credits:800,metal:400},t:360,k:"keep",v:.1},
-{id:"h2",n:"Repair Drones",d:"Even fewer ships lost",c:{credits:3000,metal:1600},t:1200,req:"h1",k:"keep",v:.1},
-{id:"l1",n:"Bigger Hangars",d:"+2 ship slots per Hangar level",c:{credits:1000,crystal:300},t:450,k:"slot",v:2},
-{id:"l2",n:"Orbital Docks",d:"+3 more ship slots per Hangar level",c:{credits:4000,crystal:1200},t:1500,req:"l1",k:"slot",v:3},
-{id:"c1",n:"Advanced Command",d:"Command Station max level 7",c:{credits:2000,crystal:750},t:900,k:"cmax",v:2},
+{id:"w1",n:"Laser Cannons",d:"Your ships hit 15% harder.",c:{credits:300,crystal:120},t:180,k:"pw",v:.15},
+{id:"w2",n:"Plasma Weapons",d:"Hotter guns. Fleet power +25%.",c:{credits:1200,crystal:450},t:540,req:"w1",k:"pw",v:.25},
+{id:"w3",n:"Antimatter Warheads",d:"Warheads that crack hulls open. Fleet power +40%.",c:{credits:5000,crystal:1800},t:1800,req:"w2",k:"pw",v:.4},
+{id:"e1",n:"Efficient Reactors",d:"Reactors that waste less. Production +20%.",c:{credits:400,metal:300},t:270,k:"eco",v:.2},
+{id:"e2",n:"Asteroid Mining",d:"Your miners work the rock better. Production +30%.",c:{credits:1600,metal:1000},t:900,req:"e1",k:"eco",v:.3},
+{id:"e3",n:"Dyson Swarm",d:"A swarm of collectors drinking straight from the star. Production +50%.",c:{credits:6000,metal:3000},t:2700,req:"e2",k:"eco",v:.5},
+{id:"h1",n:"Reinforced Hulls",d:"Thicker hulls, fewer ships lost.",c:{credits:800,metal:400},t:360,k:"keep",v:.1},
+{id:"h2",n:"Repair Drones",d:"Drones patch holes mid-battle. Even fewer ships lost.",c:{credits:3000,metal:1600},t:1200,req:"h1",k:"keep",v:.1},
+{id:"l1",n:"Bigger Hangars",d:"Roomier hangars — +2 ship slots per Hangar level.",c:{credits:1000,crystal:300},t:450,k:"slot",v:2},
+{id:"l2",n:"Orbital Docks",d:"Proper docks in orbit — +3 more slots per Hangar level.",c:{credits:4000,crystal:1200},t:1500,req:"l1",k:"slot",v:3},
+{id:"c1",n:"Advanced Command",d:"Command Station can reach level 7.",c:{credits:2000,crystal:750},t:900,k:"cmax",v:2},
 // v3.2.6: Construction Crews — a second builder. Requires Advanced
 // Command (the Command Station must be advanced enough to coordinate
 // two crews). k "bld" feeds bqcap(): 1 + tsum("bld") = 2 once researched.
-{id:"b1",n:"Construction Crews",d:"+1 builder (build 2 things at once)",c:{credits:1600,crystal:600},t:900,req:"c1",k:"bld",v:1},
-{id:"c2",n:"Fleet Doctrine",d:"Command Station max level 10",c:{credits:6000,crystal:3000},t:3600,req:"c1",k:"cmax",v:3},
-{id:"w4",n:"Singularity Cannons",d:"+60% fleet power",c:{credits:10000,crystal:4500},t:5400,req:"w3",k:"pw",v:.6},
-{id:"w5",n:"Reality Splitters",d:"+80% fleet power",c:{credits:10000,crystal:6000},t:7200,req:"w4",k:"pw",v:.8},
-{id:"l3",n:"Megastructure Docks",d:"+4 more ship slots per Hangar level",c:{credits:9000,crystal:5250},t:4500,req:"l2",k:"slot",v:4},
-{id:"c3",n:"Galactic Doctrine",d:"Command Station max level 13",c:{credits:8000,crystal:3750},t:5400,req:"c2",k:"cmax",v:3},
+{id:"b1",n:"Construction Crews",d:"A second crew — build two things at once.",c:{credits:1600,crystal:600},t:900,req:"c1",k:"bld",v:1},
+{id:"c2",n:"Fleet Doctrine",d:"Command Station can reach level 10.",c:{credits:6000,crystal:3000},t:3600,req:"c1",k:"cmax",v:3},
+{id:"w4",n:"Singularity Cannons",d:"Guns that fire collapsed stars. Fleet power +60%.",c:{credits:10000,crystal:4500},t:5400,req:"w3",k:"pw",v:.6},
+{id:"w5",n:"Reality Splitters",d:"Weapons that don't so much hit the enemy as unmake them. Fleet power +80%.",c:{credits:10000,crystal:6000},t:7200,req:"w4",k:"pw",v:.8},
+{id:"l3",n:"Megastructure Docks",d:"Docks the size of cities — +4 more slots per Hangar level.",c:{credits:9000,crystal:5250},t:4500,req:"l2",k:"slot",v:4},
+{id:"c3",n:"Galactic Doctrine",d:"Command Station can reach level 13.",c:{credits:8000,crystal:3750},t:5400,req:"c2",k:"cmax",v:3},
 // v2.5: Jump Drive — no prerequisite, mid-game reachable. Unlocks
 // ATTACKS and CLAIMS in Sector 2: without it the player cannot attack
 // or claim any Sector 2 system (see avail() in game.js) — but viewing
@@ -135,9 +135,12 @@ const TECH=[
 // their jump drives at S.min>=60 (see rivalCycle()).
 {id:"j1",n:"Jump Drive",d:"Unlocks attacks and claims in Sector 2 — you can already scout its map for free",c:{credits:2000,crystal:750},t:900,k:"jump",v:1}
 ];
-const RV={c:{n:"Crimson Pact",b:150,agg:0.9,exp:0.9,eco:1.0},v:{n:"Vael Collective",b:250,agg:0.5,exp:0.5,eco:1.3},k:{n:"Keth Dominion",b:200,agg:0.8,exp:1.0,eco:1.0},a:{n:"Aurelian Combine",b:180,agg:0.3,exp:0.4,eco:1.4},m:{n:"Vortex Marauders",b:120,agg:1.0,exp:0.4,eco:0.9}};
+const RV={c:{n:"Vanguard",b:150,agg:0.9,exp:0.9,eco:1.0,about:"The old fleet, still expanding — disciplined, aggressive, and hard to dislodge."},v:{n:"Vael Collective",b:250,agg:0.5,exp:0.5,eco:1.3,about:"Patient builders — they turtle up, out-produce everyone, and rarely strike first."},k:{n:"Keth Dominion",b:200,agg:0.8,exp:1.0,eco:1.0,about:"Expansionists who push outward system by system and fight for every one."},a:{n:"Aurelian Combine",b:180,agg:0.3,exp:0.4,eco:1.4,about:"Traders and builders — rich, well-defended, and in no hurry to fight."},m:{n:"Void Corsairs",b:120,agg:1.0,exp:0.4,eco:0.9,about:"Raiders. They hit fast, take what they want, and vanish before you can answer."}};
 // v2.4 faction personalities: agg = raid likelihood (raid chance per
 // cycle is agg x 0.7), exp = claim likelihood per cycle, eco = economy
-// multiplier (feeds rstr() as x(0.8+0.2xeco)). Crimson = aggressive
+// multiplier (feeds rstr() as x(0.8+0.2xeco)). Vanguard = aggressive
 // expander, Vael = builder/turtle, Keth = aggressive expander,
-// Aurelian = turtle/builder, Vortex = raider.
+// Aurelian = turtle/builder, Void Corsairs = raider.
+// v3.9.53: faction names + one-line identities (about) — the de-AI pass
+// renamed Crimson Pact -> Vanguard and Vortex Marauders -> Void
+// Corsairs. Ids never change, so saves and diplomacy are untouched.
