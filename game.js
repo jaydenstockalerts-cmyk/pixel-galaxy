@@ -425,8 +425,20 @@ function goBack(){PAGE={kind:"tab"};update()}
 //      retarget a popup tap. Backdrop tap-to-close also fires on
 //      pointerup, not just click.
 let popOpenAt=0, popClickGuard=0, popKeyCache="";
-function showPopup(){const p=$("#pop");if(p){const wasHidden=p.hidden;p.hidden=!POP;if(POP&&wasHidden)popOpenAt=Date.now()}}
+function showPopup(){const p=$("#pop");if(p){const wasHidden=p.hidden;p.hidden=!POP;if(POP&&wasHidden){popOpenAt=Date.now();setSheetState("half")}}}
 function closePopup(){POP=null;const p=$("#pop");if(p)p.hidden=true;update()}
+// v3.9.61 SHEETS — detail popups are bottom sheets over the live map:
+// peek (grip + title + primary action), half (~50%), expanded (~85%).
+// The grip cycles the state; tapping the dimmed scrim or swiping the
+// grip down dismisses; the X still closes. The peek bar duplicates the
+// popup's primary action (first button) so it stays tappable collapsed.
+let popSheet="half";
+function setSheetState(st){popSheet=st;const p=$("#pop-panel");if(p){p.classList.remove("sheet-peek","sheet-half","sheet-full");p.classList.add("sheet-"+st)}}
+function sheetCycle(){setSheetState(popSheet==="half"?"full":popSheet==="full"?"peek":"half")}
+let sheetPeekHtml="";
+function sheetPeekFill(){const p=$("#pop-panel"),src=$("#pop-actions"),bar=p&&p.querySelector("[data-peekbar]");if(!p||!src||!bar)return;const b=src.querySelector("button");const h=b&&b.outerHTML?b.outerHTML:"";if(sheetPeekHtml!==h){sheetPeekHtml=h;bar.innerHTML=h}}
+let sheetSwipeY=null,sheetSwipeDone=false;
+function sheetDragInit(){document.addEventListener("touchstart",e=>{const g=e.target&&e.target.closest?e.target.closest("[data-sheetgrip]"):null;if(g&&e.touches&&e.touches[0])sheetSwipeY=e.touches[0].clientY},{passive:true});document.addEventListener("touchend",e=>{if(sheetSwipeY==null)return;const y=e.changedTouches&&e.changedTouches[0]?e.changedTouches[0].clientY:sheetSwipeY;const d=y-sheetSwipeY;sheetSwipeY=null;if(d>60){sheetSwipeDone=true;setTimeout(()=>{sheetSwipeDone=false},400);closePopup()}else if(d<-60){setSheetState("full")}},{passive:true})}
 // v3.9.55: migration popup — the game moved to pixel-galaxy-852.pages.dev.
 // Old host only (github.io), only while this browser holds a single-player
 // save, and only until the player copies it or dismisses it for good.
@@ -687,15 +699,19 @@ const fmtClock=ts=>{const d=new Date(ts);let h=d.getHours(),m=d.getMinutes(),ap=
 const left=ms=>{const s=Math.max(0,Math.ceil(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return(h?h+"h ":"")+(h||m?m+"m ":"")+(s%60)+"s"};
 
 const RICON={energy:"⚡",metal:"▣",crystal:"◆",credits:"●"};
-$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="rlabel">${r[0].toUpperCase()+r.slice(1)}</span><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b><span class="rate" id="r-${r}"></span></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("")+"<div id=\"inc\"></div><div id=\"upkeep-warn\" class=\"upkeep-warn\" hidden></div>"; // v3.3: #inc holds the income breakdown, shown when the bar is expanded
+$("#res").innerHTML=R.map(r=>`<div class="pill"><span class="rlabel">${r[0].toUpperCase()+r.slice(1)}</span><span class="pline"><span class="ric dot-${r}">${RICON[r]||""}</span><b id="v-${r}"></b></span><span class="rate" id="r-${r}"></span><span class="sbar"><i id="sb-${r}"></i></span><span class="cap" id="c-${r}"></span></div>`).join("")+"<div id=\"inc\"></div><div id=\"upkeep-warn\" class=\"upkeep-warn\" hidden></div>"; // v3.3: #inc holds the income breakdown, shown when the bar is expanded
 const resEl=$("#res");
+// v3.9.61: sheet grip (tap cycles peek/half/full), scrim tap dismisses.
+const _sg=$("#pop-panel .sheetgrip");if(_sg)_sg.addEventListener("click",()=>{if(sheetSwipeDone)return;sheetCycle()});
+const _pop=$("#pop");if(_pop)_pop.addEventListener("click",e=>{if(e.target===_pop){popClickGuard=Date.now()+600;closePopup()}});
+sheetDragInit();
 if(resEl)resEl.addEventListener("click",()=>{if(Date.now()<popClickGuard)return; /* v3.4.2: the resource bar's click listener ignored popClickGuard, so tapping a popup's X (which sits over the ribbon on a phone) closed the popup on pointerup and the synthetic click that followed landed on the newly-exposed ribbon and opened the resource details. The guard swallows that ghost click. */resEl.classList.toggle("expanded");const mb=$("#menubtn");if(mb)mb.hidden=resEl.classList.contains("expanded")}); /* v3.4.3: when the resource details are open the bar grows taller and the hamburger (vertically centred in the bar) slides down with it — hide it while the details are open instead; tap the bar again to collapse and it comes back. */
 const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
 // v3.4 TAB GRAPHICS — the Fleet tab shows each ship's actual sprite
 // (2x, crisp pixels) instead of a bare text row. SHIPIMG is the
 // canvas size per ship (the sprite's natural size x2).
 const SHIPIMG={fighter:[36,18],cruiser:[60,28],capital:[92,44]};
-$("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row"><div><canvas class="shipimg" data-ship="${k}" width="${SHIPIMG[k][0]}" height="${SHIPIMG[k][1]}"></canvas><b>${U[k].n}</b> x<span id="n-${k}"></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}<br><span id="sr-${k}"></span></small></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
+$("#ships").innerHTML=Object.keys(U).map(k=>`<div class="row shipcard ship-${k}"><div class="shipmain"><canvas class="shipimg" data-ship="${k}" width="${SHIPIMG[k][0]}" height="${SHIPIMG[k][1]}"></canvas><div class="shipmeta"><b>${U[k].n}</b> <span class="shipcount">x<span id="n-${k}"></span></span><br><small>Power ${U[k].pw}, ${U[k].sz} slot${U[k].sz>1?"s":""}, ${DUR[k]}s. Strong vs ${Object.keys(WEAK).find(t=>WEAK[t]===k)} (+50%).<br>Cost: ${cstr(U[k].c)}<br><span id="sr-${k}"></span></small></div></div><div class="bg"><button data-build="${k}" id="sb-${k}"></button><button data-build="${k}" data-n="5" id="s5-${k}">x5</button><button data-scrap="${k}" id="sc-${k}">Scrap</button><button data-build="${k}" data-n="10" id="s10-${k}">x10</button></div></div>`).join("");
 function drawShipImgs(){try{document.querySelectorAll(".shipimg").forEach(cv=>{const sp=SPR()[cv.dataset.ship];if(!sp)return;const q=cv.getContext("2d");if(!q||!q.drawImage)return;q.imageSmoothingEnabled=false;q.clearRect(0,0,cv.width,cv.height);q.drawImage(sp,0,0,cv.width,cv.height)})}catch(e){}}
 drawShipImgs();
 
@@ -756,9 +772,11 @@ const ns=nextStep();const nsEl=$("#nextstep");if(nsEl){nsEl.hidden=nsOff();if(!n
 if(pDrag||stDrag)markGestureLearned();const hg=$("#hint-g"),hs=$("#hint-s");const gh=gestureHintDone();if(hg)hg.hidden=gh;if(hs)hs.hidden=gh; // v3.5.2: the pan/pinch hint chips dismiss once the player has panned or pinched on either map.
 const slots=scap();
 $("#slots").textContent="Slots used: "+usedQ()+" / "+slots+". Ships burn a little energy each.";
-const sqEl=$("#sq");if(sqEl)sqEl.textContent=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in "+left(S.sq[0].end-now)+", queue clears in "+left(S.sq[S.sq.length-1].end-now)+"."):"Shipyard idle ("+qcap()+" ships can be queued).";
+const sqEl=$("#sq");if(sqEl)sqEl.innerHTML=S.sq.length?("Shipyard: "+["fighter","cruiser","capital"].filter(k=>S.sq.some(j=>j.k===k)).map(k=>S.sq.filter(j=>j.k===k).length+"× "+U[k].n).join(", ")+" — next in <span class=\"mono\">"+left(S.sq[0].end-now)+"</span>, queue clears in <span class=\"mono\">"+left(S.sq[S.sq.length-1].end-now)+"</span>."):"Shipyard idle ("+qcap()+" ships can be queued)."; // v3.9.61: countdowns read monospace (Pattern 4)
 const garEl=$("#gar");if(garEl){const g=[];for(const i in S.gar||{}){const gg=S.gar[i];if(!gg)continue;const parts=Object.keys(U).filter(k=>gg[k]>0).map(k=>gg[k]+"× "+U[k].n);if(parts.length)g.push(parts.join(", ")+" at "+SYS[i].n)}garEl.textContent=g.length?(" Garrisoned: "+g.join("; ")+"."):"";} // v3.3: garrisoned ships are listed here — they used to vanish from the Fleet tab entirely
-const bqEl=$("#bq");if(bqEl){const cap=bqcap(),nj=S.bq.length;bqEl.textContent=nj?("Building: "+S.bq.map(j=>{if(j.col!==undefined){const c=colAt(j.col);return c?"Colony Lv "+(c.l+1)+" on "+SYS[j.col].n+" ("+left(j.end-now)+")":""}const b=S.bl.find(z=>z.u===j.u);return b?B[b.t].n+" ("+left(j.end-now)+")":""}).join(", ")+". "+(cap>1?"Builders busy ("+nj+"/"+cap+").":"Builder busy.")):(cap>1?"Builders idle.":"Builder idle.");} // v3.2.6: the chip names the builder count once Construction Crews (b1) is researched — with one builder the text is unchanged ("Builder idle." / "Builder busy.")
+const scEl=$("#ships-count");if(scEl)scEl.textContent=total()+" ship"+(total()===1?"":"s");const qcEl=$("#sq-count");if(qcEl)qcEl.textContent=S.sq.length?S.sq.length+" queued":"idle";const ghEl=$("#gar-head");if(ghEl)ghEl.hidden=!(garEl&&garEl.textContent); // v3.9.61: Fleet section headers (Ships / Shipyard / Garrisoned)
+const colList=S.won.filter(i=>i!==0&&colAt(i));const colEl=$("#col");if(colEl){colEl.textContent=colList.map(i=>{const c=colAt(i);return "Colony Lv "+c.l+" ("+(c.spec?COLSPECNAME[c.spec]:"no focus")+") on "+SYS[i].n+" — +"+(COL_INC*c.l*60).toFixed(1)+" "+(c.spec?COLSPEC[c.spec]:"—")+"/min, +"+(COL_DEF*c.l)+" defence"}).join("; ")+(colList.length?".":"");}const chEl=$("#col-head");if(chEl)chEl.hidden=!colList.length;const ccEl=$("#col-count");if(ccEl)ccEl.textContent=colList.length+" "+(colList.length===1?"colony":"colonies"); // v3.9.61: Fleet shows every colony (level + focus), not just garrisoned systems
+// v3.9.61: the builder chip is gone — the activity tray is the single home for job status (Pattern 2). The tray lists each building job with its own countdown.
 const mvEl=$("#mvcancel");if(mvEl)mvEl.hidden=!(S.mv||S.place); // v3.2.2: Move/Place mode had no exit — show the Cancel chip while either is active
 for(const k in U){$("#n-"+k).textContent=S.ships[k]+(S.sq.some(j=>j.k===k)?" (+"+S.sq.filter(j=>j.k===k).length+")":"");$("#sc-"+k).disabled=S.ships[k]<1;const b=$("#sb-"+k),ok=S.bx.hangar>=U[k].h;
 const rsn=!ok?"":usedQ()+U[k].sz>slots?"Slots full — a "+U[k].n+" needs "+U[k].sz+" slot"+(U[k].sz>1?"s":"")+", "+(slots-usedQ())+" free.":S.sq.length>=qcap()?"Shipyard queue full.":!can(U[k].c)?"Can't afford yet.":"";const sr=$("#sr-"+k);if(sr)sr.textContent=rsn;b.textContent=ok?"Build":"Hangar Lv"+U[k].h;b.disabled=!ok||!!rsn;$("#s5-"+k).disabled=$("#s10-"+k).disabled=b.disabled} // v3.3: a greyed-out Build button now says why (slots / queue / cost) — the Hangar-level case already named itself
@@ -1383,7 +1401,9 @@ body.innerHTML="<small><b>New home: pixel-galaxy-852.pages.dev</b></small>"
 +"<small><b>How to move:</b><br>1. Tap <b>Copy my world</b> below.<br>2. Open the new link.<br>3. Menu → Import, paste, Import.</small>"
 +"<small>Your online empire lives on the server — use your recovery code on the new link, no copy needed.</small>";
 acts.innerHTML='<button data-move-copy="1" class="grow">Copy my world</button><button data-move-open="1" class="grow">Open the new link</button><button data-move-later="1">Remind me later</button><button data-move-never="1">Don\'t show again</button><button data-pclose="1" class="grow">Close</button>';
-}}
+}
+sheetPeekFill();
+}
 // v3.9.50: the 250ms tick must never rebuild a button under a finger
 // (popupUI/quests/renderTargets already key their rebuilds; empireUI
 // rebuilt #emp-list + #e-rvs unconditionally, so the diplomacy and
