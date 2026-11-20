@@ -339,6 +339,14 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
    lane stays readable. Nodes keep the #tr-/#tc-/#tb- ids so update()
    works unchanged. */
 #tech{overflow-x:auto;padding-bottom:6px}
+/* v3.9.50: the 1300px tree (7x172px lanes) was capped at 560px like every
+   other section, so on a desktop it scrolled sideways in a phone-width
+   window — the same as a phone. Online's tree card already escapes its
+   cap (v3.9.21); single player gets the same treatment. The Commanders
+   card stays 560px centred. */
+section[data-pg="research"]{max-width:none}
+section[data-pg="research"] .card{max-width:560px;margin-left:auto;margin-right:auto}
+section[data-pg="research"] .card.treecard{max-width:none}
 .techtree{display:grid;grid-template-columns:repeat(7,172px);grid-template-rows:30px repeat(5,190px);row-gap:14px;column-gap:16px;position:relative;min-width:max-content}
 #techsvg,#o-techsvg{position:absolute;inset:0;pointer-events:none;z-index:0}
 .techlane{grid-row:1;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:bold;letter-spacing:.5px;border-bottom:2px solid var(--fg);padding-bottom:4px;white-space:nowrap}
