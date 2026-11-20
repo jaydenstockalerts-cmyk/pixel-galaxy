@@ -142,6 +142,14 @@ function onColonyUpgradeHtml(s) {
   return '<div class="row"><div><b>Upgrade colony</b><br><small>Cost: ' + onFlCostStr(cost) + ' · ' + onStLeft(dur * 1000) + '</small></div><button class="obtn" data-oact="colony-upgrade"' + (onColCanAfford(cost) ? '' : ' disabled') + '>Upgrade</button></div>';
 }
 let onSpawned = false;
+// v3.9.54: server-down modal — shown when /empire (or a recovery
+// attempt) fails with a network error or 5xx. The 15s timer is the
+// auto-retry while it is open; the Retry button tries at once.
+let onSrvDownOpen = false;
+let onSrvDownContext = null; // "boot" | "recover" | "poll"
+let onSrvDownTimer = null;
+let onLastEmpireDown = false; // the last /empire call hit network/5xx
+let onEmpirePollFails = 0;    // consecutive server-down /empire polls
 let onRaids = [];        // from /raids (pending/tribute_offered/resolved)
 let onPrevRaidStatus = {}; // raid id -> status, to toast on resolution
 let onLastRaidOutcome = null; // last resolved raid, kept visible until dismissed (v3.9.22: a 3.5s toast is invisible — raid 1's lost battle was never seen)
@@ -340,8 +348,38 @@ function onToastRevolts(revolts) {
   }
 }
 
+// ---------- server-down modal (v3.9.54) ----------
+// A 401 is a dead token (re-auth path), a 409 is "not spawned" —
+// neither is the server being down. Only a network error (status 0)
+// or a 5xx opens the modal; a recovery 404 keeps the inline
+// "code did not match" message, no popup.
+function onShowSrvDown(context) {
+  onSrvDownContext = context;
+  const el = onq("#o-srvdown");
+  if (el) el.hidden = false;
+  onSrvDownOpen = true;
+  if (onSrvDownTimer == null) {
+    onSrvDownTimer = setInterval(() => { onSrvDownRetry(); }, 15000);
+  }
+}
+function onHideSrvDown() {
+  const el = onq("#o-srvdown");
+  if (el) el.hidden = true;
+  onSrvDownOpen = false;
+  if (onSrvDownTimer != null) { clearInterval(onSrvDownTimer); onSrvDownTimer = null; }
+}
+async function onSrvDownRetry() {
+  if (!onSrvDownOpen) return;
+  // A recovery retries the recovery itself (the code is still in the
+  // input behind the modal); anything else just reloads the empire.
+  if (onSrvDownContext === "recover") { await onDoRecover(); return; }
+  if (await onLoadEmpire()) { onHideSrvDown(); await onRefresh(); }
+  // Still down — the modal stays open and the 15s timer tries again.
+}
+
 async function onLoadEmpire() {
   const r = await onApi("/empire", "GET");
+  onLastEmpireDown = (r.status === 0 || r.status >= 500);
   if (r.status === 200) {
     onEmpire = r.data; onEmpireAt = Date.now(); onSpawned = true; onToastRevolts(r.data.revolts);
     // v3.9.26: a transit report newer than the last one shown means an
@@ -1473,7 +1511,12 @@ async function onDoRecover() {
     } catch (e) {}
     onShowRecoverForm = false; onRecoverErr = "";
     onToast("Empire recovered. Welcome back, Commander.");
+    onHideSrvDown();
     await onRefresh();
+  } else if (r.status === 0 || r.status >= 500) {
+    // Server unreachable — the modal says so (v3.9.54). A 404 keeps
+    // the inline "code did not match" message, no popup.
+    onShowSrvDown("recover");
   } else {
     onRecoverErr = "That code did not match any empire — check it and try again.";
     onRenderPanel();
@@ -2858,6 +2901,8 @@ document.addEventListener("click", (e) => {
   else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
   else if (act === "quest-claim" && b.dataset.qid) onDoQuestClaim(b.dataset.qid);
   else if (act === "daily-claim") onDoDailyClaim();
+  else if (act === "srvdown-retry") onSrvDownRetry();
+  else if (act === "srvdown-close") onHideSrvDown();
   else if (act === "syndicate-create") onDoSynCreate();
   else if (act === "syndicate-join" && b.dataset.sid) onDoSynJoin(b.dataset.sid);
   else if (act === "syndicate-leave") onDoSynLeave();
@@ -2937,9 +2982,14 @@ async function onStartGame() {
   onRenderTop();
   onRenderPanel();
   onDrawGalaxy();
+  // v3.9.54: remember whether a token was saved — a boot with one
+  // whose /empire fails server-down opens the modal, not the welcome
+  // screen (the Nov 19 outage showed "new world" for a live empire).
+  const hadToken = !!onToken;
   const okAuth = await onEnsureAuth();
   if (!okAuth) { onToast("Could not create a guest account. Check your connection and reload."); return; }
   await onRefresh();
+  if (hadToken && !onSpawned && onLastEmpireDown) onShowSrvDown("boot");
   onReady = true;
   // v3.9.22: a reload used to drop the camera on the full galaxy — drop
   // it on the Home World at zoom 4 instead, like right after spawn.
@@ -2989,9 +3039,22 @@ async function onStartGame() {
     if (onStationOpen) { onRenderStation(); }
     if (onFleetOpen) { onRenderFleet(); }
     if (onResearchOpen) { onRenderResearch(); }
-    if (okE || okR) { onPollFails = 0; }
-    else {
+    if (okE || okR) {
+      onPollFails = 0; onEmpirePollFails = 0;
+      // The server answered — a server-down modal from an earlier
+      // failure dismisses itself (v3.9.54).
+      if (onSrvDownOpen) onHideSrvDown();
+    } else if (onLastEmpireDown) {
+      // Server-down is the modal's job, not the generic backoff: the
+      // 15s tick IS the modal's auto-retry, so the poll keeps running.
+      // Two consecutive failed /empire polls open it; dismissed with
+      // the X, the next failed poll re-opens it.
+      onEmpirePollFails++;
+      onPollFails = 0;
+      if (onEmpirePollFails >= 2 && !onSrvDownOpen) onShowSrvDown("poll");
+    } else {
       onPollFails++;
+      onEmpirePollFails = 0;
       if (onPollFails >= 3) {
         clearInterval(onPoll);
         onToast("Server unreachable — polling paused. Reload to retry.");
