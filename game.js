@@ -5,7 +5,7 @@ function tone(f,d,ty,v,t0,f2){const a=ac();if(!a||S.mute)return;const o=a.create
 function boom(){const a=ac();if(!a||S.mute)return;const n=Math.floor(a.sampleRate*.3),b=a.createBuffer(1,n,a.sampleRate),c=b.getChannelData(0);for(let i=0;i<n;i++)c[i]=(Math.random()*2-1)*(1-i/n);const s=a.createBufferSource(),g=a.createGain();s.buffer=b;g.gain.value=.08;s.connect(g);g.connect(a.destination);s.start()}
 function sfx(k){const m={click:()=>tone(520,.04),ok:()=>{tone(660,.08);tone(880,.12,"square",.04,.08)},laser:()=>tone(900,.12,"sawtooth",.025,0,200),boom:boom,win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.15,"square",.045,i*.12)),lose:()=>[392,330,262,196].forEach((f,i)=>tone(f,.2,"triangle",.06,i*.15)),alert:()=>{tone(880,.1);tone(660,.1,"square",.05,.15);tone(880,.1,"square",.05,.3)},claim:()=>[784,988,1319].forEach((f,i)=>tone(f,.12,"square",.045,i*.09))};if(m[k])m[k]()}
 // v3.9.28: fresh metal 40 -> 60 — the mine now costs 50 metal (economy package), so a 40 start could not afford the tutorial's first build.
-const fresh=()=>({res:{energy:40,metal:60,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:null,own:{},rv:{c:{cy:Date.now()},v:{cy:Date.now()},k:{cy:Date.now()},a:{cy:Date.now()},m:{cy:Date.now()}},gar:{},col:{},war:{},dip:{},pair:{},end:{},stab:{},pairCy:Date.now(),stabCy:Date.now(),min:0,rvi:0,rep:0,cap:0,feed:[],tab:"map",t:Date.now(),stance:"balanced",transit:null,raidWarn:null});
+const fresh=()=>({res:{energy:40,metal:60,crystal:10,credits:10},b:{solar:1,foundry:1,mine:0,hub:0,hangar:0,command:1},ships:{fighter:0,cruiser:0,capital:0},won:[0],sel:1,bl:[{u:1,t:"solar",x:1,y:2,l:1},{u:2,t:"foundry",x:2,y:2,l:1},{u:3,t:"command",x:2,y:1,l:1}],nu:4,bsel:null,place:null,mv:null,bq:[],sq:[],q:[],tech:[],rq:null,cmds:[],cx:{},slot:null,own:{},rv:{c:{cy:Date.now()},v:{cy:Date.now()},k:{cy:Date.now()},a:{cy:Date.now()},m:{cy:Date.now()}},gar:{},col:{},war:{},dip:{},pair:{},end:{},stab:{},pairCy:Date.now(),stabCy:Date.now(),min:0,rvi:0,rep:0,cap:0,dm:0,feed:[],tab:"map",t:Date.now(),stance:"balanced",transit:null,raidWarn:null});
 // v2.4: S.gar maps system id -> {fighter,cruiser,capital} stationed
 // there; S.war maps faction id -> 1 once it has taken one of your
 // systems (drives the standings board's "At war" status). S.rv clocks
@@ -486,6 +486,34 @@ const total=()=>S.ships.fighter+S.ships.cruiser+S.ships.capital;
 const garAt=i=>{const g=(S.gar||{})[i]||{};return{fighter:g.fighter||0,cruiser:g.cruiser||0,capital:g.capital||0}};
 const garTotal=()=>Object.keys(S.gar||{}).reduce((a,i)=>{const g=garAt(+i);return a+g.fighter+g.cruiser+g.capital},0);
 const allShips=()=>total()+garTotal();
+// Daily challenges (v3.9.51, single-player mirror of backend src/daily.js):
+// same pool, same UTC-day pick. State lives in localStorage
+// (pixelgalaxy-daily): the UTC day, the baseline snapshot from first
+// access of the day, and whether today's reward was claimed.
+const DAILY_KEY="pixelgalaxy-daily";
+const dailySnapshot=()=>({captures:S.cap||0,techs:S.tech.length,levels:S.bl.reduce((a,b)=>a+(b.l||0),0),ships:allShips(),garrisoned:garTotal(),repels:S.rep||0,systems:S.won.length,credits:S.res.credits||0});
+function dailyState(){
+  const day=dailyDayNum();
+  let st=null;try{st=JSON.parse(localStorage.getItem(DAILY_KEY))}catch(e){}
+  if(!st||st.day!==day){st={day,baseline:dailySnapshot(),claimed:false};try{localStorage.setItem(DAILY_KEY,JSON.stringify(st))}catch(e){}}
+  const d=dailyForDay(day),cur=dailySnapshot();
+  let progress;
+  if(d.kind==="systems")progress=cur.systems;
+  else if(d.kind==="credits")progress=Math.floor(cur.credits);
+  else progress=Math.max(0,(cur[d.kind]||0)-((st.baseline||{})[d.kind]||0));
+  progress=Math.min(progress,d.target);
+  return {day,d,progress,done:progress>=d.target,claimed:!!st.claimed,dm:S.dm||0};
+}
+function dailyClaim(){
+  const st=dailyState();
+  if(st.claimed||!st.done)return false;
+  let saved=null;try{saved=JSON.parse(localStorage.getItem(DAILY_KEY))}catch(e){}
+  if(!saved||saved.day!==st.day)return false;
+  saved.claimed=true;try{localStorage.setItem(DAILY_KEY,JSON.stringify(saved))}catch(e){}
+  S.res.credits+=st.d.r.credits||0;S.dm=(S.dm||0)+DAILY_DM;save();
+  msg("Daily challenge complete: +"+(st.d.r.credits||0)+" credits, +"+DAILY_DM+" Dark Matter.");
+  sfx("claim");qKey="";return true;
+}
 const shipCount=k=>S.ships[k]+Object.keys(S.gar||{}).reduce((a,i)=>a+garAt(+i)[k],0);
 // Raw garrison power (no weakness bonus — a garrison defends at full
 // strength) and the shared fleet multiplier, so sysDef() matches the
@@ -617,6 +645,7 @@ function toast(t){const c=$("#toasts"),el=document.createElement("div");el.class
 // no Hangar, a Command upgrade, else expand.
 function nextStep(){
 if(Q.some(q=>!S.q.includes(q.id)&&q.ok()))return "A quest is ready to claim — check the Quests tab.";
+const _ds=dailyState();if(_ds.done&&!_ds.claimed)return "Your daily challenge is ready to claim — check the Quests tab.";
 if(R.every(k=>S.res[k]>=cap()-0.01))return "Storage is full — upgrade the Command Station to hold more.";
 if(total()>0&&usedQ()>=scap()&&!S.bq.some(j=>{const b=S.bl.find(x=>x.u===j.u);return b&&b.t==="hangar"}))return "Your Hangar is full — upgrade the Hangar for more ship slots.";
 if(!S.b.mine)return "Build a Crystal Mine to start earning crystal.";
@@ -720,8 +749,8 @@ upd2();
 // on a fresh profile (only Build a Crystal Mine / Build a Hangar /
 // Launch your first ship were listed). Display only — no quest
 // condition or reward changes.
-const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok())),key=open.map(q=>q.id+(q.ok()?1:0)).join();
-if(key!==qKey){qKey=key;$("#quests").innerHTML=open.length?open.map(q=>`<div class="row${q.ok()?" claimable":""}"><div><span class="questic">${questIcon(q.t)}</span>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — a rival raids one of your systems next to their territory. Repel one with a stronger fleet.</small> <button data-empire="1" class="mini">Empire ›</button>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>"}
+const all=Q.filter(q=>!S.q.includes(q.id)),open=all.filter(q=>q.ok()).concat(all.filter(q=>!q.ok())),_ds=dailyState(),key=open.map(q=>q.id+(q.ok()?1:0)).join()+"|d:"+_ds.d.id+":"+_ds.progress+":"+(_ds.done?1:0)+":"+(_ds.claimed?1:0)+":"+_ds.dm;
+if(key!==qKey){qKey=key;const _dc='<div class="row'+(_ds.done&&!_ds.claimed?' claimable':'')+'"><div><span class="questic">📅</span><b>Daily: '+_ds.d.t+'</b><br><small>'+_ds.progress+' / '+_ds.d.target+' · Reward: '+_ds.d.r.credits+' credits + '+DAILY_DM+' Dark Matter · You have '+_ds.dm+' Dark Matter</small></div>'+(_ds.claimed?'<button disabled>Claimed ✓</button>':_ds.done?'<button data-daily-claim="1">Claim</button>':'<button disabled>Claim</button>')+'</div>';$("#quests").innerHTML=_dc+(open.length?open.map(q=>`<div class="row${q.ok()?" claimable":""}"><div><span class="questic">${questIcon(q.t)}</span>${q.t}<br><small>Reward: ${cstr(q.r)}</small>${q.id==="q14"?'<br><small>Raids start after about 10 minutes — a rival raids one of your systems next to their territory. Repel one with a stronger fleet.</small> <button data-empire="1" class="mini">Empire ›</button>':""}</div><button data-claim="${q.id}" ${q.ok()?"":"disabled"}>Claim</button></div>`).join(""):"<small>All quests complete. Nice work, Commander.</small>")}
 renderTargets();popupUI();empireUI();activityUI();progressBars();tutCheck();
 draw();
 }
@@ -839,7 +868,7 @@ else if(d.bup){const b=S.bl.find(z=>z.u===S.bsel);if(b){const l=effL(b),c=cost(b
 else if(d.bmv){S.mv=S.mv===S.bsel?null:S.bsel;S.place=null;if(S.mv)closePopup()}
 else if(d.bnew){S.place=S.place===d.bnew?null:d.bnew;S.mv=null;S.bsel=null}
 else if(d.build){const k=d.build,u=U[k],n=+d.n||1;let ok=0;for(let j=0;j<n;j++){if(S.bx.hangar>=u.h&&usedQ()+u.sz<=scap()&&S.sq.length<qcap()&&can(u.c)){pay(u.c);const s0=Math.max(Date.now(),S.sq.length?S.sq[S.sq.length-1].end:0);S.sq.push({k,end:s0+DUR[k]*1000*tmul()});ok++}else break}if(ok)msg(ok+"x "+u.n+" construction started.")}
-else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);for(const k in q.r)S.res[k]+=q.r[k];msg("Quest complete: "+q.t);sfx("claim")}} // v3.8: quest rewards now overflow the storage cap (they used to be eaten when storage was full — the playtest caught rewards being destroyed with only a toast)
+else if(d.claim){const q=Q.find(z=>z.id===d.claim);if(q&&q.ok()&&!S.q.includes(q.id)){S.q.push(q.id);for(const k in q.r)S.res[k]+=q.r[k];msg("Quest complete: "+q.t);sfx("claim")}}else if(d.dailyClaim){dailyClaim()} // v3.8: quest rewards now overflow the storage cap (they used to be eaten when storage was full — the playtest caught rewards being destroyed with only a toast)
 else if(d.tech){const t=TECH.find(z=>z.id===d.tech);if(t&&!S.rq&&!S.tech.includes(t.id)&&(!t.req||S.tech.includes(t.req))&&can(t.c)){pay(t.c);S.rq={id:t.id,end:Date.now()+t.t*1000*tmul()};msg("Research started: "+t.n)}}
 else if(d.cmd){const id=d.cmd,c=CM[id];if(!S.cmds.includes(id)){if(S.res.credits>=c.c){S.res.credits-=c.c;S.cmds.push(id);const prev=S.slot;S.slot=id;msg(c.n+" joins your command."+(prev&&prev!==id?" "+CM[prev].n+" is unassigned — only one officer can be assigned.":""))}}else{if(S.slot===id){S.slot=null;msg(c.n+" unassigned.")}else{const prev=S.slot;S.slot=id;msg(c.n+" assigned as your officer."+(prev?" "+CM[prev].n+" is unassigned — only one officer can be assigned.":""))}}} // v3.8: hiring/assigning now says which officer was swapped out (the playtest caught silent swaps dropping the fleet bonus right before an attack)
 
