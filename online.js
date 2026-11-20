@@ -380,8 +380,8 @@ async function onSrvDownRetry() {
   // Still down — the modal stays open and the 15s timer tries again.
 }
 
-async function onLoadEmpire() {
-  const r = await onApi("/empire", "GET");
+async function onLoadEmpire(data) {
+  const r = data ? { status: 200, data } : await onApi("/empire", "GET");
   onLastEmpireDown = (r.status === 0 || r.status >= 500);
   if (r.status === 200) {
     onEmpire = r.data; onEmpireAt = Date.now(); onSpawned = true; onToastRevolts(r.data.revolts);
@@ -448,8 +448,8 @@ async function onLoadSystems() {
 // ---------- PvP raids (Jayden's rules, Nov 16) ----------
 // Load raids involving the player (as attacker or defender). When a raid
 // flips to resolved, toast the outcome once.
-async function onLoadRaids() {
-  const r = await onApi("/raids", "GET");
+async function onLoadRaids(data) {
+  const r = data ? { status: 200, data } : await onApi("/raids", "GET");
   if (r.status !== 200 || !Array.isArray(r.data.raids)) return false;
   onToastRevolts(r.data.revolts);
   const prev = onPrevRaidStatus;
@@ -1885,8 +1885,8 @@ async function onRefreshCosts() {
   onRenderPanel();
 }
 
-async function onLoadStation() {
-  const r = await onApi("/station", "GET");
+async function onLoadStation(data) {
+  const r = data ? { status: 200, data } : await onApi("/station", "GET");
   if (r.status === 200) {
     const prev = onPrevStation;
     onSetStation(r.data);
@@ -2302,8 +2302,8 @@ function onSetProgress(data) {
   for (const c of data.commanders || []) if (c.hired) onPrevCmdLevels[c.id] = c.level;
 }
 
-async function onLoadProgress() {
-  const r = await onApi("/progress", "GET");
+async function onLoadProgress(data) {
+  const r = data ? { status: 200, data } : await onApi("/progress", "GET");
   if (r.status !== 200) return false;
   const prev = onProgress;
   onProgress = r.data;
@@ -2511,8 +2511,8 @@ function onFlCanAfford(cost) {
   return true;
 }
 
-async function onLoadFleet() {
-  const r = await onApi("/fleet", "GET");
+async function onLoadFleet(data) {
+  const r = data ? { status: 200, data } : await onApi("/fleet", "GET");
   if (r.status === 200) {
     const prev = onPrevFleet;
     onFleet = r.data;
@@ -2731,9 +2731,9 @@ let onQuestsOpen = false;
 function onQuestRewardText(reward) {
   return Object.keys(reward || {}).map((r) => reward[r] + " " + r).join(" + ");
 }
-async function onLoadQuests() {
+async function onLoadQuests(data) {
   if (!onSpawned) return false;
-  const r = await onApi("/quests", "GET");
+  const r = data ? { status: 200, data } : await onApi("/quests", "GET");
   if (r.status !== 200) return false;
   onQuests = r.data.quests || [];
   onQuestBadge();
@@ -2742,9 +2742,9 @@ async function onLoadQuests() {
 }
 // v3.9.51: today's daily challenge — same challenge for every player,
 // from GET /daily. Loaded alongside quests when the Quests overlay opens.
-async function onLoadDaily() {
+async function onLoadDaily(data) {
   if (!onSpawned) return false;
-  const r = await onApi("/daily", "GET");
+  const r = data ? { status: 200, data } : await onApi("/daily", "GET");
   if (r.status !== 200) return false;
   onDaily = r.data.daily || null;
   if (onQuestsOpen) onRenderQuests();
@@ -2847,9 +2847,9 @@ function onSynBadge() {
   badge.hidden = n < 1;
   badge.textContent = String(n);
 }
-async function onLoadSyndicate() {
+async function onLoadSyndicate(data) {
   if (!onSpawned) return false;
-  const r = await onApi("/syndicate", "GET");
+  const r = data ? { status: 200, data } : await onApi("/syndicate", "GET");
   if (r.status !== 200) return false;
   onSyn = r.data || null;
   onSynBadge();
@@ -2985,9 +2985,9 @@ let onLastStripHtml = null;
 let onChatSeen = 0; // v3.9.61: ms timestamp — messages after this are unread on the strip
 try { onChatSeen = parseInt(localStorage.getItem(ON_CHAT_SEEN_KEY) || "0", 10) || 0; } catch (e) {}
 
-async function onLoadChat() {
+async function onLoadChat(data) {
   if (!onSpawned) return false;
-  const r = await onApi("/chat", "GET");
+  const r = data ? { status: 200, data } : await onApi("/chat", "GET");
   if (r.status !== 200) return false;
   onChat = r.data || null;
   if (onChatOpen || !onChatSeen) { onChatSeen = Date.now(); try { localStorage.setItem(ON_CHAT_SEEN_KEY, String(onChatSeen)); } catch (e) {} }
@@ -3280,43 +3280,58 @@ async function onStartGame() {
   // a dead backend still burns rows on every invocation, and a tight
   // retry loop is how a quota gets eaten right after a reset.
   let onPollFails = 0;
-  // v3.9.63 rows-read burn: /quests + /syndicate used to fire every 15s
-  // even though their state only changes when a player acts (a claim or
-  // a Syndicate action — both refetch immediately themselves). They now
-  // load on tab open (onOpenQuests / onOpenSyndicate) and every 4th
-  // poll (60s); the badges can lag up to a minute, and the poll drops
-  // 2 of its 8 requests per cycle. Chat stays live via /chat every 15s.
+// v3.9.65: the merged poll — one GET /poll per 15s instead of 8. The
+// loaders above accept pre-fetched data (no extra fetch when called
+// from here); tab opens and actions still call them with no argument
+// and fetch their own endpoint. Query flags opt into the slower
+// sections: quests + syndicate every 4th poll (60s, v3.9.63), daily
+// while the Quests tab is open (v3.9.60). Chat rides every cycle.
+async function onLoadPoll() {
+  const q = [];
+  if (onPollTick % 4 === 0) { q.push("quests=1"); q.push("syndicate=1"); }
+  if (onQuestsOpen) q.push("daily=1");
+  const r = await onApi("/poll" + (q.length ? "?" + q.join("&") : ""), "GET");
+  onLastEmpireDown = (r.status === 0 || r.status >= 500);
+  if (r.status === 200) {
+    const d = r.data || {};
+    if (d.empire) await onLoadEmpire(d.empire);
+    if (d.raids) await onLoadRaids(d.raids);
+    if (d.station) await onLoadStation(d.station);
+    if (d.progress) await onLoadProgress(d.progress);
+    if (d.fleet) await onLoadFleet(d.fleet);
+    if (d.quests) await onLoadQuests(d.quests);
+    if (d.daily) await onLoadDaily(d.daily);
+    if (d.syndicate) await onLoadSyndicate(d.syndicate);
+    if (d.chat) await onLoadChat(d.chat);
+    return true;
+  }
+  if ((r.status === 404 || r.status === 409) && r.data.error === "not_spawned") { onEmpire = null; onSpawned = false; return true; }
+  if (r.status === 401) { // token dead — re-auth once (same as onLoadEmpire)
+    try { localStorage.removeItem(ON_TOKEN_KEY); localStorage.removeItem(ON_PLAYER_KEY); } catch (e) {}
+    onToken = null; onPlayer = null;
+    if (await onEnsureAuth()) return onLoadPoll();
+  }
+  return false;
+}
+
+  // v3.9.65 poll merge: the 15s tick is ONE request now (GET /poll),
+  // not 8 — the server runs the shared preamble once and returns every
+  // section. /quests + /syndicate still ride only every 4th poll (60s,
+  // v3.9.63 — their state only changes when a player acts, and tab open
+  // still fetches immediately); the badges can lag up to a minute.
+  // Chat rides every cycle (live, v3.9.59).
   let onPollTick = 0;
   const onPoll = setInterval(async () => {
     if (!onReady) return;
     onPollTick++;
-    const okE = await onLoadEmpire();
-    const okR = await onLoadRaids();
-    // v3.9.20: the ribbon (station resources) and the tray (research)
-    // need fresh station/progress state on every poll, not just when
-    // those views are open.
-    await onLoadStation();
-    await onLoadProgress();
-    // v3.9.22: ship launches need onLoadFleet even when the Fleet view
-    // is closed, or their completion toast never fires.
-    await onLoadFleet();
-    // v3.9.31: the Quests tab badge (claimable count) stays live —
-    // v3.9.63: every 4th poll (60s), not every 15s; tab open still
-    // fetches immediately (onOpenQuests).
-    if (onPollTick % 4 === 0) await onLoadQuests();
-    // v3.9.60: the Daily section used to fetch only when the Quests tab
-    // opened, so its progress froze at the tab-open snapshot while
-    // credits kept ticking up (the playtest saw 206/500 at 357 credits).
-    // Refetch while the tab is open so progress tracks the live balance;
-    // the server already settles before answering /daily.
-    if (onQuestsOpen) await onLoadDaily();
-    // v3.9.52: the Syndicate tab badge (claimable weekly) stays live,
-    // and the chat refreshes while the overlay is open — v3.9.63: the
-    // Syndicate load is every 4th poll (60s) like /quests; tab open
-    // still fetches immediately (onOpenSyndicate).
-    if (onPollTick % 4 === 0) await onLoadSyndicate();
-    // v3.9.59: the unified chat strip (latest message) stays live.
-    await onLoadChat();
+    // v3.9.65: one merged GET /poll per cycle replaces the old 8
+    // requests (empire, raids, station, progress, fleet, quests,
+    // syndicate, chat + daily while the Quests tab is open). The
+    // loaders fan the sections out to their existing apply paths, so
+    // toasts, badges and transitions behave exactly as before. The
+    // cadence is unchanged (15s) and okE/okR are one outcome now.
+    const ok = await onLoadPoll();
+    const okE = ok, okR = ok;
     // v3.9.22: the map is only refetched when ownership actually
     // changed — /systems is 1,000 rows, so polling it every 15s would
     // burn the shared DO rows-read quota (5.76M/day per player).
