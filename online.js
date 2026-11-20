@@ -1687,6 +1687,43 @@ async function onDoRecover() {
   }
 }
 
+// Profanity pre-check (v3.9.67): the server is authoritative — this
+// only gives instant feedback before sending. Same shape as
+// src/profanity.js: lowercase, leet map, token match on a small common
+// list, spaced-letter concat. A server 400 "profanity" still shows the
+// same message on a miss.
+const ON_PROFANITY = ["fuck", "fucker", "motherfucker", "shit", "bullshit", "bitch", "cunt", "whore", "slut", "dick", "dickhead", "cock", "cocksucker", "pussy", "ass", "asshole", "bastard", "damn", "goddamn", "hell", "crap", "piss", "wank", "twat", "bollocks", "bugger", "douchebag", "jackass", "dumbass", "nigger", "nigga", "faggot", "retard"];
+function onHasProfanity(text) {
+  if (typeof text !== "string" || !text) return false;
+  const leet = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a", "!": "i" };
+  let s = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ph/g, "f");
+  let n = "";
+  for (const ch of s) n += leet[ch] || ch;
+  const toks = n.split(/[^a-z0-9]+/).filter(Boolean);
+  const sq = (w) => w.replace(/(.)\1+/g, "$1");
+  const strip = (w) => {
+    if (w.endsWith("ies") && w.length > 3) return w.slice(0, -3) + "y";
+    if (w.endsWith("ing") && w.length > 3) return w.slice(0, -3);
+    if (w.endsWith("es") && w.length > 2) return w.slice(0, -2);
+    if (w.endsWith("ed") && w.length > 2) return w.slice(0, -2);
+    if (w.endsWith("s") && w.length > 1) return w.slice(0, -1);
+    return w;
+  };
+  for (const t of toks) {
+    if (ON_PROFANITY.includes(t)) return true;
+    const st = strip(t);
+    if (st !== t && ON_PROFANITY.includes(st)) return true;
+    if (/(.)\1/.test(t)) {
+      const q = sq(t);
+      if (ON_PROFANITY.includes(q)) return true;
+      const qs = strip(q);
+      if (qs !== q && ON_PROFANITY.includes(qs)) return true;
+    }
+  }
+  const singles = toks.filter((t) => t.length === 1).join("");
+  return ON_PROFANITY.some((w) => w !== "hell" && singles.includes(w));
+}
+
 async function onDoSpawn() {
   // v3.9.22: the spawn button is live before the guest account exists —
   // wait for auth first, or the POST goes out with no token and 401s
@@ -1698,6 +1735,7 @@ async function onDoSpawn() {
   // module var lags only if the input event hasn't fired yet).
   const nameInp = onq("#o-spawn-name");
   const name = ((nameInp ? nameInp.value : onSpawnName) || "").trim();
+  if (name && onHasProfanity(name)) { onToast("That contains language that isn't allowed."); return; }
   const r = await onApi("/spawn", "POST", name ? { name } : {});
   if (r.status === 200 || r.status === 201) {
     onSpawnName = "";
@@ -1717,7 +1755,8 @@ async function onDoSpawn() {
       onRenderPanel(); onDrawGalaxy();
     }
   } else {
-    onToast("Spawn failed: " + (r.data.error || r.status) + ".");
+    const serr = (r.data && r.data.error) || r.status;
+    onToast(serr === "profanity" ? "That contains language that isn't allowed." : "Spawn failed: " + serr + ".");
   }
 }
 
@@ -1728,11 +1767,14 @@ async function onDoRename() {
   const inp = onq("#o-rename-name");
   const name = ((inp ? inp.value : onRenameName) || "").trim();
   if (!name) { onToast("Enter a name first."); return; }
+  if (onHasProfanity(name)) { onToast("That contains language that isn't allowed."); return; }
   const r = await onApi("/rename-home", "POST", { name });
   if (r.status === 200) {
     onShowRename = false; onRenameName = "";
     onToast("Home World renamed to " + ((r.data.system && r.data.system.name) || name) + ".");
     await onRefresh();
+  } else if (r.data && r.data.error === "profanity") {
+    onToast("That contains language that isn't allowed.");
   } else if (r.data && r.data.error === "bad_name") {
     onToast("Names are 1–24 characters.");
   } else {
@@ -2921,6 +2963,7 @@ function onRenderSyndicate() {
     + (syn.isFounder ? '<button class="obtn ghost" data-oact="syndicate-disband">Disband Syndicate</button>' : '') + '</div></div>';
 }
 async function onDoSynCreate() {
+  if (onHasProfanity(onSynName)) { onToast("That contains language that isn't allowed."); return; }
   const r = await onApi("/syndicate/create", "POST", { name: onSynName });
   if (r.status === 200 && r.data.syndicate) {
     onSyn = { syndicate: r.data.syndicate, open: [] };
@@ -2929,7 +2972,7 @@ async function onDoSynCreate() {
     onRenderSyndicate();
   } else {
     const err = (r.data && r.data.error) || "failed";
-    onToast(err === "invalid_name" ? "Name must be 1\u201324 characters." : err === "name_taken" ? "That name is taken." : err === "already_in_syndicate" ? "You are already in a Syndicate." : "Could not create Syndicate: " + err + ".");
+    onToast(err === "profanity" ? "That contains language that isn't allowed." : err === "invalid_name" ? "Name must be 1\u201324 characters." : err === "name_taken" ? "That name is taken." : err === "already_in_syndicate" ? "You are already in a Syndicate." : "Could not create Syndicate: " + err + ".");
     await onLoadSyndicate();
   }
 }
@@ -3089,6 +3132,7 @@ function onRenderChat() {
 async function onDoChatSend() {
   const msg = (onChatMsg || "").trim();
   if (!msg) return;
+  if (onHasProfanity(msg)) { onToast("That contains language that isn't allowed."); return; }
   const r = await onApi("/chat/send", "POST", { channel: onChatChan, message: msg });
   if (r.status === 200 && r.data) {
     onChat = r.data;
@@ -3099,7 +3143,7 @@ async function onDoChatSend() {
     if (body) body.scrollTop = body.scrollHeight;
   } else {
     const err = (r.data && r.data.error) || "failed";
-    onToast(err === "cooldown" ? "Slow down \u2014 wait a moment before sending again." : err === "invalid_message" ? "Message must be 1\u2013280 characters." : err === "not_in_syndicate" ? "You\u2019re not in a Syndicate." : "Could not send: " + err + ".");
+    onToast(err === "profanity" ? "That contains language that isn't allowed." : err === "cooldown" ? "Slow down \u2014 wait a moment before sending again." : err === "invalid_message" ? "Message must be 1\u2013280 characters." : err === "not_in_syndicate" ? "You\u2019re not in a Syndicate." : "Could not send: " + err + ".");
     await onLoadChat();
   }
 }
