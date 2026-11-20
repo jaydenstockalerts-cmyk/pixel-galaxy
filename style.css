@@ -110,6 +110,7 @@ button.secondary{background:none;color:var(--fg);border:2px solid var(--fg)}
 .res.expanded .pill .cap{display:block}
 .res #inc{display:none;font-size:11px;line-height:1.5;color:var(--ink-2);margin-top:6px}
 .res.expanded #inc{display:block} /* v3.3: income breakdown, only when the resource bar is expanded */
+.res .upkeep-warn{grid-column:1/-1;background:#7a1f1f;color:#fff;border:2px solid #ff6a5e;border-radius:var(--radius-sm);padding:6px 8px;font-size:12px;line-height:1.4} /* v3.9.46: upkeep warning — full-width strip under the pills (same red as the raid banner), shown whenever launched-ship upkeep exceeds energy production */
 .res .dot-energy{color:#b8860b}.res .dot-metal{color:#7c849c}.res .dot-crystal{color:#2a9dc4}.res .dot-credits{color:#d07000}
 
 /* ============================================================
