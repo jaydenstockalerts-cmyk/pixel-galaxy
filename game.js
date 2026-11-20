@@ -427,6 +427,33 @@ function goBack(){PAGE={kind:"tab"};update()}
 let popOpenAt=0, popClickGuard=0, popKeyCache="";
 function showPopup(){const p=$("#pop");if(p){const wasHidden=p.hidden;p.hidden=!POP;if(POP&&wasHidden)popOpenAt=Date.now()}}
 function closePopup(){POP=null;const p=$("#pop");if(p)p.hidden=true;update()}
+// v3.9.55: migration popup — the game moved to pixel-galaxy-852.pages.dev.
+// Old host only (github.io), only while this browser holds a single-player
+// save, and only until the player copies it or dismisses it for good.
+const MOVE_NEW="https://pixel-galaxy-852.pages.dev/";
+const MOVE_NEVER_KEY="pixelgalaxy-move-dismissed"; // "1" = never show again
+const MOVE_COPIED_KEY="pixelgalaxy-move-copied";   // "1" = copied, stop asking
+function moveShouldShow(){
+try{
+if(!location.hostname.endsWith("github.io"))return false;
+if(localStorage.getItem(MOVE_NEVER_KEY)==="1")return false;
+if(localStorage.getItem(MOVE_COPIED_KEY)==="1")return false;
+const raw=localStorage.getItem(KEY);if(!raw)return false;
+const j=JSON.parse(raw);return !!(j&&j.res&&j.b&&j.ships);
+}catch(e){return false}
+}
+function maybeMovePopup(){if(!moveShouldShow())return;POP={kind:"move"};showPopup();update()}
+function moveCopy(){
+let raw="";try{raw=localStorage.getItem(KEY)||""}catch(e){}
+if(!raw){msg("Nothing to copy — no save on this browser.");return}
+if(typeof navigator!=="undefined"&&navigator.clipboard&&navigator.clipboard.writeText){
+navigator.clipboard.writeText(raw).then(()=>{
+try{localStorage.setItem(MOVE_COPIED_KEY,"1")}catch(e){}
+msg("Save copied — open the new link, Menu → Import, paste it.");
+closePopup();
+}).catch(()=>{msg("Copy didn't work — use Menu → Export to copy it yourself.")});
+}else msg("Copy didn't work — use Menu → Export to copy it yourself.");
+}
 const tsum=k=>TECH.filter(x=>S.tech.includes(x.id)&&x.k===k).reduce((a,x)=>a+x.v,0);
 const lv=id=>Math.min(10,1+Math.floor(Math.sqrt((S.cx[id]||0)/2)));
 const cb=t=>{const id=S.slot;return id&&CM[id].t===t?CM[id].b*lv(id):0}; // v3.5.4: ONE commander only — the single assigned officer is the only buff; cb returns 0 for the other two types
@@ -836,6 +863,10 @@ else if(d.szin){setStZoom(STCAM.zoom*1.25)}
 else if(d.szout){setStZoom(STCAM.zoom/1.25)}
 else if(d.place){const t=d.place;if(POP&&POP.kind==="plot"){placeB(t,POP.x,POP.y);closePopup()}}
 else if(d.pclose){closePopup()}
+else if(d.moveCopy){moveCopy()}
+else if(d.moveOpen){try{window.open(MOVE_NEW,"_blank")}catch(e){}}
+else if(d.moveLater){closePopup()}
+else if(d.moveNever){try{localStorage.setItem(MOVE_NEVER_KEY,"1")}catch(e){}closePopup()}
 else if(d.menu){openMenu()}
 else if(d.mclose){closeMenu()}
 else if(d.mitem){const m=d.mitem;closeMenu();if(m==="empire")openEmpire();else if(m==="log"){PAGE={kind:"log"};update()}else if(m==="howto"){showTut(0)}else if(m==="sound"){S.mute=S.mute?0:1;sfx("ok")}else if(m==="nextstep"){try{localStorage.setItem("pixelgalaxy-nextstep",nsOff()?"1":"0")}catch(e){}update()} /* v3.4.2: toggle the Next step hints on/off (persisted) */else if(m==="hide")setUIHidden(true);else if(m==="reset"){$("#rbox").hidden=false}else if(m==="export"){const t=$("#savetxt");if(t){try{t.value=localStorage.getItem(KEY)||""}catch(e){t.value=""}}$("#savebox").hidden=false}else if(m==="import"){const t=$("#imptxt");if(t)t.value="";$("#impbox").hidden=false}else if(m==="switchmode"){try{localStorage.removeItem("pixelgalaxy-mode")}catch(e){}location.reload()}}
@@ -1267,6 +1298,7 @@ if(!POP)return "";
 if(POP.kind==="system"){const i=S.sel,own=S.won.includes(i),g=garAt(i),col=colAt(i);return "sys|"+i+"|"+(own?1:0)+"|"+(avail(i)?1:0)+"|"+S.ships.fighter+"|"+S.ships.cruiser+"|"+S.ships.capital+"|"+g.fighter+"|"+g.cruiser+"|"+g.capital+"|"+Math.round(sysDef(i))+"|"+spw(i)+"|"+fpower(i).toFixed(1)+"|"+S.won.length+"|col:"+(col?col.l+":"+(col.spec||"-"):"-")+"|"+(col&&col.l<COL_MAX&&S.bq.some(j=>j.col===i)?1:0)+"|"+(col&&col.l<COL_MAX?can(colUpCost(col.l))?1:0:0)+"|"+S.bq.length+"|rel:"+(S.own[i]?dipRel(S.own[i]):"-")+"|tru:"+(S.own[i]?(dipAt(S.own[i]).truceUntil||0):0)+"|stab:"+(S.stab?S.stab[i]||"":"")+"|stance:"+(S.stance||"balanced")+"|tr:"+(S.transit?S.transit.sys:"-")}
 if(POP.kind==="building"){const b=S.bl.find(z=>z.u===POP.u);if(!b)return "gone";const e=effL(b),c=cost(b.t,e);return "bld|"+b.u+"|"+b.l+"|"+e+"|"+(e>=lvlCap(b.t)?1:0)+"|"+cstr(c)+"|"+S.bq.length+"|"+(can(c)?1:0)+"|"+(S.mv===b.u?1:0)}
 if(POP.kind==="plot"){return "plot|"+POP.x+"|"+POP.y+"|"+(plotLocked(POP.x,POP.y)?1:0)+"|"+plotReqLv(POP.x,POP.y)+"|"+S.b.command+"|"+unlockedCount()+"|"+S.bq.length+"|"+Object.keys(B).map(t=>cnt(t)+"/"+MAXC(t)+"/"+(can(newCost(t))?1:0)).join(",")}
+if(POP.kind==="move"){return "move"}
 return "?"}
 function popupUI(){
 const p=$("#pop");
@@ -1343,6 +1375,14 @@ title.textContent=lk?"Locked land ("+(x+1)+", "+(y+1)+")":"Open land ("+(x+1)+",
 if(hq){hq.fillStyle=lk?"#6b7590":"#c98a5a";hq.fillRect(0,0,96,96)}
 if(lk){body.innerHTML="<small>🔒 Locked — upgrade the Command Station to Lv "+plotReqLv(x,y)+" to unlock this plot.</small><br><small>"+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". The city grows outward from the keep.</small>";acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';}
 else{body.innerHTML="<small>"+_dn+". "+un+" of 144 plots unlocked — Command Station Lv "+S.b.command+". What can you build here? Each new copy costs 1.5x the last. Buildings produce at full rate wherever they stand. Build limits rise with your Command Station: most buildings max at 1 + half your Command level (Hangar: 1 + a third).</small>"+Object.keys(B).map(t=>{const n=cnt(t),mx=MAXC(t),c=newCost(t),ok=n<mx&&S.bq.length<bqcap()&&can(c);return '<div class="row"><div><b>'+B[t].n+'</b> '+n+"/"+mx+'<br><small>'+B[t].d+'<br>Cost: '+cstr(c)+'</small></div><button data-place="'+t+'" '+(ok?"":"disabled")+'>Place</button></div>'}).join("");acts.innerHTML='<button data-pclose="1" class="grow">Close</button>';} // v3.9.45: the unlocked-plot popup gets a Close button — its only close was the X (Jayden, Nov 19: the X was covered on his phone and there was no other way out; online got the same fix in v3.9.38). v3.3: the build-limit rule is now stated — the caps used to sit at 2 with no explanation of when they rise
+}else if(POP.kind==="move"){
+title.textContent="Pixel Galaxy is moving";
+if(hq){const sp=planetSprite(0);hq.drawImage(sp,16,16,64,64)}
+body.innerHTML="<small><b>New home: pixel-galaxy-852.pages.dev</b></small>"
++"<small>Your single-player world lives in THIS browser — it can't move by itself. Copy it, then import it on the new link.</small>"
++"<small><b>How to move:</b><br>1. Tap <b>Copy my world</b> below.<br>2. Open the new link.<br>3. Menu → Import, paste, Import.</small>"
++"<small>Your online empire lives on the server — use your recovery code on the new link, no copy needed.</small>";
+acts.innerHTML='<button data-move-copy="1" class="grow">Copy my world</button><button data-move-open="1" class="grow">Open the new link</button><button data-move-later="1">Remind me later</button><button data-move-never="1">Don\'t show again</button><button data-pclose="1" class="grow">Close</button>';
 }}
 // v3.9.50: the 250ms tick must never rebuild a button under a finger
 // (popupUI/quests/renderTargets already key their rebuilds; empireUI
@@ -1521,4 +1561,5 @@ setInterval(save,5000);
 fitCam(); // v1.5: default galaxy view fits the whole galaxy in the safe area (bottom row visible)
 update();
 maybeTut();
+maybeMovePopup(); // v3.9.55: old-host migration popup (github.io + save present)
 } // v3.9.0: end of the single-player-only init gate
