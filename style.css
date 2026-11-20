@@ -532,7 +532,7 @@ section[data-pg="research"] .card.treecard{max-width:none}
 #pop-panel.sheet-full,#o-st-pop-panel.sheet-full,#o-syspop-panel.sheet-full{max-height:85dvh}
 #pop-panel.sheet-peek,#o-st-pop-panel.sheet-peek,#o-syspop-panel.sheet-peek{max-height:124px;overflow:hidden}
 .sheet-peek #pop-hero,.sheet-peek #o-st-pop-hero,.sheet-peek #pop-body,.sheet-peek #o-st-pop-body,.sheet-peek #o-syspop-body,.sheet-peek #pop-actions,.sheet-peek #o-st-pop-actions{display:none}
-.sheetgrip{display:block;width:100%;padding:10px 0 4px;background:none;border:0;cursor:pointer;flex-shrink:0;min-height:0}
+.sheetgrip{display:block;width:100%;padding:10px 0 4px;background:none;border:0;cursor:pointer;flex-shrink:0;min-height:0;touch-action:none}
 .sheetgrip::after{content:"";display:block;width:36px;height:4px;border-radius:2px;background:var(--hi);margin:0 auto}
 .peekbar{display:none}
 .sheet-peek .peekbar{display:flex}
