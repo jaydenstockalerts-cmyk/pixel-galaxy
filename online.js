@@ -57,7 +57,8 @@ document.addEventListener("click", (e) => {
 let onToken = null;
 try { onToken = localStorage.getItem(ON_TOKEN_KEY); } catch (e) {}
 let onPlayer = null;
-try { onPlayer = localStorage.getItem(ON_PLAYER_KEY); } catch (e) {}
+try { onPlayer = localStorage.getItem(ON_PLAYER_KEY); } catch (e) {} // v3.9.66: beta password for this session only —
+let onBetaPassword = null; // sent with /auth/guest and /auth/recover; never stored in localStorage.
 
 async function onApi(path, method, body) {
   let res;
@@ -320,11 +321,23 @@ function onRecoveryCard() {
 let onAuthPromise = null; // in-flight guest creation (v3.9.22): two
 // concurrent onEnsureAuth calls used to mint two guests — the spawn
 // could land on the orphaned one while the UI kept the other.
+// v3.9.66: the server rejected the beta password (wrong, rotated, or the
+// saved beta flag predates the server-side check). Clear the flag and
+// reload so the boot gate re-prompts with a clear message. The reload
+// also avoids re-entering onStartGame (which would start a second poll).
+function onBetaGateReprompt(reason) {
+  try { localStorage.removeItem(ON_BETA_KEY); } catch (e) {}
+  try { sessionStorage.setItem("pixelgalaxy-beta-reprompt", reason); } catch (e) {}
+  onBetaPassword = null;
+  location.reload();
+}
+
 async function onEnsureAuth() {
   if (onToken && onPlayer) return true;
   if (onAuthPromise) return onAuthPromise;
   onAuthPromise = (async () => {
-    const r = await onApi("/auth/guest", "POST", {});
+    const r = await onApi("/auth/guest", "POST", { password: onBetaPassword });
+    if (r.status === 403) { onBetaGateReprompt(onBetaPassword ? "incorrect" : "changed"); return false; }
     if (r.status === 201 && r.data.token) {
       onToken = r.data.token;
       onPlayer = r.data.playerId;
@@ -1646,7 +1659,7 @@ async function onDoRecover() {
   const inp = onq("#o-rec-code");
   const code = inp ? inp.value.trim() : "";
   if (!code) { onRecoverErr = "Enter your recovery code."; onRenderPanel(); return; }
-  const r = await onApi("/auth/recover", "POST", { recoveryCode: code });
+  const r = await onApi("/auth/recover", "POST", { recoveryCode: code, password: onBetaPassword });
   if (r.status === 200 && r.data.token) {
     onToken = r.data.token;
     onPlayer = r.data.playerId;
@@ -1659,6 +1672,9 @@ async function onDoRecover() {
     onToast("Empire recovered. Welcome back, Commander.");
     onHideSrvDown();
     await onRefresh();
+  } else if (r.status === 403) {
+    // v3.9.66: beta password missing or wrong — re-prompt at the gate.
+    onBetaGateReprompt(onBetaPassword ? "incorrect" : "changed");
   } else if (r.status === 0 || r.status >= 500) {
     // Server unreachable — the modal says so (v3.9.54). A 404 keeps
     // the inline "code did not match" message, no popup.
@@ -3220,6 +3236,13 @@ async function onInitOnline() {
   if (!betaOk) {
     const el = onq("#o-panel");
     if (el) onSetPanel('<div class="ocard"><h2>Online beta</h2><p>This mode is in closed beta. Enter the access password to continue.</p><input id="o-beta-pw" type="password" placeholder="Beta password" autocomplete="off"><br><button class="obtn" data-oact="beta">Enter</button> <small id="o-beta-err" hidden>Wrong password — try again.</small><br><br><button class="obtn ghost" data-oact="single">‹ Back to Single Player</button></div>');
+    // v3.9.66: re-prompt after a 403 (wrong or rotated password) — say so plainly.
+    let onBetaReprompt = "";
+    try { onBetaReprompt = sessionStorage.getItem("pixelgalaxy-beta-reprompt") || ""; sessionStorage.removeItem("pixelgalaxy-beta-reprompt"); } catch (e) {}
+    if (onBetaReprompt) {
+      const err0 = onq("#o-beta-err");
+      if (err0) { err0.textContent = onBetaReprompt === "changed" ? "The beta password has changed — enter the new password." : "Wrong password — try again."; err0.hidden = false; }
+    }
     const go = async () => {
       const inp = onq("#o-beta-pw");
       const pw = inp ? inp.value : "";
@@ -3231,6 +3254,7 @@ async function onInitOnline() {
         return;
       }
       if (ok) {
+        onBetaPassword = pw; // v3.9.66: keep for this session (guest/recover)
         try { localStorage.setItem(ON_BETA_KEY, "1"); } catch (e) {}
         onStartGame();
       } else {
