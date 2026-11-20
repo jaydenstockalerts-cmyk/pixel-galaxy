@@ -200,6 +200,32 @@ function onIsInReach(sys) {
   return onHasJumpDrive() && onIsTwoJumps(sys);
 }
 
+// v3.9.47: next-target finder — the attackable systems from the player's
+// current position, weakest first. Same rule as the gold rings and the
+// Attack button: adjacent to an owned system, or 2 jumps away with the
+// Jump Drive researched (onIsInReach); player-held systems are raids,
+// not attacks, so they are excluded. The Dark Nexus is listed when in
+// reach — it is attackable, unlike the gold rings which skip it because
+// it is always visible. Capped at the weakest 8 to stay compact.
+function onTargets() {
+  const owned = onOwnedIds();
+  return onSystems
+    .filter((s) => !owned.has(s.id) && s.ownerType !== "player" && onIsInReach(s))
+    .map((s) => ({ s, dist: onIsAdjacent(s) ? 1 : 2 }))
+    .sort((a, b) => a.s.pw - b.s.pw);
+}
+function onTargetsCard() {
+  if (!onSpawned) return "";
+  const all = onTargets();
+  const list = all.slice(0, 8);
+  const rows = list.map(({ s, dist }) =>
+    '<div class="tgt-row" data-oact="target-jump" data-sys="' + s.id + '"><span><b>' + esc(s.name) + '</b> · ' + esc(s.type || "") + '</span><small>' + s.pw + ' power · ' + dist + ' jump' + (dist > 1 ? "s" : "") + '</small></div>').join("");
+  return '<div class="ocard"><h2>Next targets</h2><small>Weakest systems you can attack first — tap one to open it.</small>'
+    + (rows || '<br><small>No systems in reach — take systems next to yours to expand.</small>')
+    + (all.length > list.length ? '<br><small>…and ' + (all.length - list.length) + ' more in reach.</small>' : '')
+    + '</div>';
+}
+
 function onToast(msg) {
   const el = onq("#o-toast");
   if (!el) return;
@@ -998,7 +1024,7 @@ function onRenderPanel() {
     + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn ghost" data-oact="rename">Rename Home World</button>'
     + '<br><small>Map: <span style="color:#ff7a29">orange dots</span> are other players\' empires; <span style="color:#ffd84a">gold rings</span> mark systems you can attack.</small>'
     + (onShowRename ? '<br><small>Rename your Home World (1–24 characters):</small><br><input id="o-rename-name" type="text" maxlength="24" autocomplete="off" value="' + esc(onRenameName) + '"> <button class="obtn" data-oact="rename-save">Save name</button> <button class="obtn ghost" data-oact="rename-cancel">Cancel</button>' : '')
-    + '</div>';
+    + '</div>' + onTargetsCard();
   el.innerHTML = banner + el.innerHTML;
 }
 
@@ -2538,6 +2564,10 @@ document.addEventListener("click", (e) => {
   else if (act === "raid-outcome-dismiss") { onLastRaidOutcome = null; onRenderPanel(); }
   else if (act === "transit-outcome-dismiss") { onLastTransitOutcome = null; onRenderPanel(); }
   else if (act === "transit-jump" && b.dataset.sys) {
+    const id = +b.dataset.sys, sys = onSysById[id];
+    if (sys) { onSelected = id; onAttackProd = "credits"; if (sys.x != null && sys.y != null) { onCam.cx = sys.x; onCam.cy = sys.y; } onRenderPanel(); onDrawGalaxy(); }
+  }
+  else if (act === "target-jump" && b.dataset.sys) {
     const id = +b.dataset.sys, sys = onSysById[id];
     if (sys) { onSelected = id; onAttackProd = "credits"; if (sys.x != null && sys.y != null) { onCam.cx = sys.x; onCam.cy = sys.y; } onRenderPanel(); onDrawGalaxy(); }
   }
