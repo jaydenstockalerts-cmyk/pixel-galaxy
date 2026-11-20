@@ -25,6 +25,7 @@ function onGalaxy() {
 }
 function onGalaxyName() { return ON_GALAXIES[onGalaxy()] || onGalaxy(); }
 const ON_MODE_KEY = "pixelgalaxy-mode";
+const ON_CHAT_SEEN_KEY = "pixelgalaxy-chat-seen"; // v3.9.61: unread chat badge
 const ON_BETA_KEY = "pixelgalaxy-beta-ok";
 const ON_TOKEN_KEY = "pixelgalaxy-online-token";
 const ON_PLAYER_KEY = "pixelgalaxy-online-player";
@@ -137,7 +138,7 @@ function onColonyUpgradeHtml(s) {
   const lv = s.colonyLevel || 1;
   if (lv >= ON_COLONY_MAX) return '<br><small>Colony Lv ' + ON_COLONY_MAX + ' — fully upgraded.</small>';
   if (s.colonyUpgradeTo != null) {
-    return '<br><small>Upgrading to Lv ' + s.colonyUpgradeTo + ' — done in ' + onStLeft(Math.max(0, (s.colonyUpgradeDoneAt || 0) - Date.now())) + '.</small>';
+    return '<br><small>Upgrading to Lv ' + s.colonyUpgradeTo + ' — done in <span id="o-col-left" class="mono">' + onStLeft(Math.max(0, (s.colonyUpgradeDoneAt || 0) - Date.now())) + '</span>.</small>';
   }
   const cost = onColUpCost(lv), dur = onColUpDur(lv);
   return '<div class="row"><div><b>Upgrade colony</b><br><small>Cost: ' + onFlCostStr(cost) + ' · ' + onStLeft(dur * 1000) + '</small></div><button class="obtn" data-oact="colony-upgrade"' + (onColCanAfford(cost) ? '' : ' disabled') + '>Upgrade</button></div>';
@@ -157,7 +158,8 @@ let onLastRaidOutcome = null; // last resolved raid, kept visible until dismisse
 let onLastTransitOutcome = null; // last resolved attack transit, kept visible until dismissed (v3.9.26 — mirrors the raid report)
 let onLastTransitReportAt = null; // newest transit report already shown (null until the first /empire load, so a stale report never pops on login)
 let onLastBannerSig = null; // banner + selected-system signatures, so the
-let onLastSelSig = null;    // 15s poll re-renders the panel when a raid or
+let onLastSelSig = null;
+let onColRefreshDoneAt = 0; // v3.9.61: the colony DoneAt already pulled fresh after elapsing    // 15s poll re-renders the panel when a raid or
                             // the selected system changed — even with a
                             // system card open (v3.9.22: the tribute popup
                             // never appeared while the card was open)
@@ -383,6 +385,18 @@ async function onLoadEmpire() {
   onLastEmpireDown = (r.status === 0 || r.status >= 500);
   if (r.status === 200) {
     onEmpire = r.data; onEmpireAt = Date.now(); onSpawned = true; onToastRevolts(r.data.revolts);
+    // v3.9.61: merge the empire's systems into the /systems cache — the
+    // 15s poll never refetches /systems (rows-read quota; only on a
+    // galaxyVersion change), so without this onSysById held a completed
+    // colony upgrade as still pending and the card sat at "Upgrading to
+    // Lv 2 — done in 0s" until a reload. The /empire systems are full
+    // getSystem() objects (colonyLevel, colonyUpgradeTo/DoneAt, prod,
+    // garrison, defence), so this keeps the signature's source live.
+    for (const sys of (r.data.systems || [])) {
+      if (onSysById[sys.id]) Object.assign(onSysById[sys.id], sys);
+      const li = onSystems.findIndex((z) => z.id === sys.id);
+      if (li >= 0) Object.assign(onSystems[li], sys);
+    }
     // v3.9.26: a transit report newer than the last one shown means an
     // attack resolved — surface it as a Battle report card (a 3.5s toast
     // is invisible). The first load only arms the watermark, so a stale
@@ -926,7 +940,7 @@ function onRenderTop() {
   const crRate = (onEmpire.netPerSec || 0) * 60;
   const pill = (key, val, rate, capV) => {
     const pct = capV > 0 ? Math.max(0, Math.min(1, val / capV)) : 0;
-    return '<div class="pill"><span class="rlabel">' + key.toUpperCase() + '</span><span class="pline"><span class="ric dot-' + key + '">' + (ON_RICON[key] || "") + '</span><b>' + Math.floor(val) + '</b><span class="rate">' + (rate >= 0 ? "+" : "") + rate.toFixed(0) + '/min</span></span>'
+    return '<div class="pill"><span class="rlabel">' + key.toUpperCase() + '</span><span class="pline"><span class="ric dot-' + key + '">' + (ON_RICON[key] || "") + '</span><b>' + Math.floor(val) + '</b></span><span class="rate">' + (rate >= 0 ? "+" : "") + rate.toFixed(0) + '/min</span></span>'
       + (capV > 0 ? '<span class="sbar"><i style="width:' + Math.round(pct * 100) + '%"></i></span><span class="cap">of ' + Math.floor(capV) + '</span>' : '')
       + '</div>';
   };
@@ -1099,6 +1113,41 @@ function onTogglePanel(force) {
     btn.setAttribute("aria-label", onPanelMini ? "Show empire panel" : "Hide empire panel");
   }
 }
+// v3.9.61 SHEETS — the station popup and system card are bottom sheets
+// over the live map: peek (grip + title + primary action), half (~50%),
+// expanded (~85%). The grip cycles the state; tapping the dimmed scrim
+// or swiping the grip down dismisses; the X still closes. The peek bar
+// duplicates the sheet's primary action (first button) so it stays
+// tappable while collapsed.
+let onSheetState = { st: "half", sys: "half" };
+function onSetSheet(which, st) {
+  onSheetState[which] = st;
+  const p = onq(which === "st" ? "#o-st-pop-panel" : "#o-syspop-panel");
+  if (p) { p.classList.remove("sheet-peek", "sheet-half", "sheet-full"); p.classList.add("sheet-" + st); }
+}
+function onSheetCycle(which) { const cur = onSheetState[which] || "half"; onSetSheet(which, cur === "half" ? "full" : cur === "full" ? "peek" : "half"); }
+const onSheetPeekHtml = {}; // v3.9.61: last peek-bar HTML per panel (a module var, not bar.dataset)
+function onSheetPeekFill(which) {
+  const panel = onq(which === "st" ? "#o-st-pop-panel" : "#o-syspop-panel");
+  const src = onq(which === "st" ? "#o-st-pop-actions" : "#o-syspop-body");
+  const bar = panel && panel.querySelector("[data-peekbar]");
+  if (!panel || !src || !bar) return;
+  const b = src.querySelector("button");
+  const h = b && b.outerHTML ? b.outerHTML : "";
+  if (onSheetPeekHtml[which] !== h) { onSheetPeekHtml[which] = h; bar.innerHTML = h; }
+}
+let onSheetSwipeY = null, onSheetSwipeGrip = null, onSheetSwipeDone = false;
+function onSheetDragInit() {
+  document.addEventListener("touchstart", (e) => { const g = e.target && e.target.closest ? e.target.closest("[data-sheetgrip]") : null; if (g && e.touches && e.touches[0]) { onSheetSwipeY = e.touches[0].clientY; onSheetSwipeGrip = g.dataset.sheetgrip; } }, { passive: true });
+  document.addEventListener("touchend", (e) => {
+    if (onSheetSwipeY == null || !onSheetSwipeGrip) return;
+    const y = e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : onSheetSwipeY;
+    const d = y - onSheetSwipeY, which = onSheetSwipeGrip; onSheetSwipeY = null; onSheetSwipeGrip = null;
+    if (d > 60) { onSheetSwipeDone = true; setTimeout(() => { onSheetSwipeDone = false; }, 400); if (which === "st") onCloseStPop(); else { onSelected = null; onRenderPanel(); onDrawGalaxy(); } }
+    else if (d < -60) onSetSheet(which, "full");
+  }, { passive: true });
+}
+onSheetDragInit();
 function onRenderPanel() {
   const el = onq("#o-panel");
   if (!el) return;
@@ -1143,9 +1192,11 @@ function onRenderPanel() {
   if (sel) {
     const pop = onq("#o-syspop");
     if (pop) {
+      const wasHidden = pop.hidden;
       pop.hidden = false;
+      if (wasHidden) onSetSheet("sys", "half");
       const t = onq("#o-syspop-title"); if (t) t.textContent = sel.name;
-      const b = onq("#o-syspop-body"); if (b) b.innerHTML = onSystemCard(sel);
+      const b = onq("#o-syspop-body"); if (b) { b.innerHTML = onSystemCard(sel); onSheetPeekFill("sys"); }
     }
   }
   const e = onEmpire || {};
@@ -1868,17 +1919,7 @@ function onStChips() {
   if (!onStation) return;
   const cap = onq("#o-st-cap");
   if (cap) cap.textContent = "Storage cap " + (onStation.storageCap || 600);
-  const bq = onq("#o-st-bq");
-  const busy = (onStation.bq || [])[0];
-  if (bq) {
-    if (busy) {
-      const b = (onStation.bl || []).find((z) => z.u === busy.u);
-      const name = b ? ON_ST_B[b.t].name : "Building";
-      const secs = Math.max(0, Math.ceil((busy.end - Date.now()) / 1000));
-      bq.textContent = "\uD83D\uDD28 " + name + " Lv " + (b ? b.l + 1 : "?") + " \u2014 done in " + onStLeft(secs * 1000) + ".";
-      bq.hidden = false;
-    } else bq.hidden = true;
-  }
+  // v3.9.61: the builder chip is gone — the activity tray is the single home for job status (Pattern 2).
   const mv = onq("#o-st-mvcancel");
   if (mv) mv.hidden = onStMove == null;
   const hint = onq("#o-st-hint");
@@ -1912,7 +1953,9 @@ function onRenderStPop() {
   const pop = onq("#o-st-pop");
   if (!pop) return;
   if (!onStPop || !onStation) { pop.hidden = true; onStPopKeyCache = ""; return; }
+  const wasHidden = pop.hidden;
   pop.hidden = false;
+  if (wasHidden) onSetSheet("st", "half");
   const key = onStPopKey();
   if (key === onStPopKeyCache) return;
   onStPopKeyCache = key;
@@ -1960,6 +2003,7 @@ function onRenderStPop() {
       acts.innerHTML = '<button data-oact="station-pop-close" class="grow">Close</button>';
     }
   }
+  onSheetPeekFill("st");
 }
 
 function onOpenStBuilding(u) {
@@ -2547,10 +2591,9 @@ function onRenderFleet() {
     const _parts = ["fighter", "cruiser", "capital"].filter((k) => (_gs[k] || 0) > 0).map((k) => (_gs[k] || 0) + "× " + ON_FL_SHIPS[k].name);
     if (_parts.length) _gar.push(_parts.join(", ") + " at " + _s.name + " (Colony Lv " + (_s.colonyLevel || 1) + ")");
   }
-  let html = '<div class="ocard"><h2>Fleet</h2>'
+  let html = '<div class="ocard"><div class="cardhead"><h2>Fleet</h2><span>Power ' + Math.round(f.power || 0) + '</span></div>'
     + '<small>Fleet power: <b>' + Math.round(f.power || 0) + '</b>. Vs swarm <b>' + Math.round((f.powerVs || {}).swarm || 0) + '</b>, armored <b>' + Math.round((f.powerVs || {}).armored || 0) + '</b>, fortress <b>' + Math.round((f.powerVs || {}).fortress || 0) + '</b>.</small><br>'
     + '<small>Home defence: <b>' + Math.round(f.defence || 0) + '</b> (fleet power ' + Math.round(f.power || 0) + ' ×1.2).</small><br>'
-    + (_gar.length ? '<small>Garrisoned: ' + _gar.join("; ") + '.</small><br>' : '')
     + '<small>' + _sub + '</small><br>'
     + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
     + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (7 + onSlotBonus()) + ' slots per level).</small>'
@@ -2560,8 +2603,29 @@ function onRenderFleet() {
   if (hangarLv < 1) html += '<br><small><b>No Hangar yet</b> — build one at your station to start building ships.</small>';
   if (total === 0 && hangarLv >= 1) html += '<br><small>No ships yet — build a Fighter to start your fleet.</small>';
   html += '</div>';
-  // One row per ship type (single-player Fleet tab rows).
-  html += '<div class="ocard">';
+  if (_gar.length) html += '<div class="ocard"><div class="cardhead"><h3>Garrisoned</h3></div><small>' + _gar.join("; ") + '.</small></div>';
+  // v3.9.61 (live check): the Fleet tab showed no colony info for a
+  // system with no garrison — only ships, upkeep, and the garrison
+  // list. Every owned system is a colony, so list them all here with
+  // level + focus, the same numbers the owned-system card shows.
+  const _cols = [];
+  for (const _s of ((onEmpire && onEmpire.systems) || [])) {
+    if (_s.id === (onEmpire && onEmpire.homeSystem)) continue;
+    _cols.push(_s);
+  }
+  if (_cols.length) {
+    html += '<div class="cardhead"><h3>Colonies</h3><span>' + _cols.length + ' ' + (_cols.length === 1 ? 'colony' : 'colonies') + '</span></div>';
+    for (const _s of _cols) {
+      const _lv = _s.colonyLevel || 1;
+      const _focus = ON_PROD_LABEL[_s.prod || "credits"];
+      const _gp = ["fighter", "cruiser", "capital"].filter((k) => ((_s.garrison || {})[k] || 0) > 0).map((k) => ((_s.garrison || {})[k] || 0) + "× " + ON_FL_SHIPS[k].name);
+      html += '<div class="ocard"><div class="cardhead"><h3>' + esc(_s.name) + '</h3><span>Colony Lv ' + _lv + '</span></div>'
+        + '<small>Focus: <b>' + esc(_focus) + '</b> — earns <b>+' + (ON_SYS_INC * 60 * _lv).toFixed(1) + ' ' + esc(_focus) + '/min</b>, +<b>' + (15 * _lv) + '</b> defence.</small>'
+        + (_gp.length ? '<br><small>Garrison: ' + _gp.join(", ") + '.</small>' : '<br><small>No garrison stationed.</small>') + '</div>';
+    }
+  }
+  // One card row per ship type (single-player Fleet tab rows).
+  html += '<div class="cardhead"><h3>At station</h3><span>' + total + ' ship' + (total === 1 ? '' : 's') + '</span></div>';
   for (const k of Object.keys(ON_FL_SHIPS)) {
     const d = ON_FL_SHIPS[k];
     const n = ships[k] || 0;
@@ -2569,7 +2633,7 @@ function onRenderFleet() {
     const afford = onFlCanAfford(d.cost);
     const slotsFit = used + d.sz <= slotCap;
     const canBuild = !needsHangar && afford && slotsFit && q.length < (f.queueCap || 0);
-    html += '<div class="shiprow"><div><b>' + d.name + '</b> x' + n + '<br><small>Power ' + d.pw + ', ' + d.sz + ' slot' + (d.sz > 1 ? "s" : "") + ', ' + Math.ceil(d.dur * onTmul() * onShipMul()) + 's. Strong vs ' + d.vs + ' (+50%).<br>Cost: ' + onFlCostStr(d.cost) + '<br>'
+    html += '<div class="shiprow ship-' + k + '"><span class="shipic ship-' + k + '">' + ({ fighter: "\u25B2", cruiser: "\u2B1F", capital: "\u2B22" }[k] || "\u25B2") + '</span><div class="shipmeta"><b>' + d.name + '</b> <span class="shipcount">x' + n + '</span><br><small>Power ' + d.pw + ', ' + d.sz + ' slot' + (d.sz > 1 ? "s" : "") + ', ' + Math.ceil(d.dur * onTmul() * onShipMul()) + 's. Strong vs ' + d.vs + ' (+50%).<br>Cost: ' + onFlCostStr(d.cost) + '<br>'
       + (needsHangar ? 'Needs Hangar Lv ' + d.hangar + '.' : '')
       + (!needsHangar && !afford ? 'Not enough resources.' : '')
       + (!needsHangar && afford && !slotsFit ? 'No free ship slots.' : '')
@@ -2579,7 +2643,6 @@ function onRenderFleet() {
       + '<button class="obtn ghost" data-oact="fleet-scrap" data-type="' + k + '"' + (n > 0 ? '' : ' disabled') + '>Scrap</button>'
       + '</div></div>';
   }
-  html += '</div>';
   // Shipyard queue with a progress bar on the first job. The job's total
   // time is end - start (the server already applied the build-time
   // multipliers when it queued the ship), so the bar stays exact
@@ -2590,8 +2653,8 @@ function onRenderFleet() {
     const dur = Math.max(1, (first.end - first.s) / 1000);
     const leftMs = Math.max(0, first.end - now);
     const done = Math.max(0, Math.min(100, 100 * (1 - leftMs / (dur * 1000))));
-    html += '<div class="ocard"><small><b>Shipyard queue</b> (' + q.length + ')</small><br>'
-      + '<small>' + (ON_FL_SHIPS[first.k] || {}).name + ' — done in <b id="o-fl-left">' + Math.ceil(leftMs / 1000) + 's</b></small>'
+    html += '<div class="ocard"><div class="cardhead"><h3>Shipyard</h3><span>' + q.length + ' queued</span></div>'
+      + '<small>' + (ON_FL_SHIPS[first.k] || {}).name + ' — done in <b id="o-fl-left" class="mono">' + Math.ceil(leftMs / 1000) + 's</b></small>'
       + '<div class="pbar"><div id="o-fl-bar" style="width:' + done.toFixed(0) + '%"></div></div>'
       + '<small>' + q.map((j) => (ON_FL_SHIPS[j.k] || {}).name).join(", ") + '</small></div>';
   }
@@ -2887,12 +2950,15 @@ let onChatChan = "global";
 let onChatMsg = "";
 let onLastChatHtml = null;
 let onLastStripHtml = null;
+let onChatSeen = 0; // v3.9.61: ms timestamp — messages after this are unread on the strip
+try { onChatSeen = parseInt(localStorage.getItem(ON_CHAT_SEEN_KEY) || "0", 10) || 0; } catch (e) {}
 
 async function onLoadChat() {
   if (!onSpawned) return false;
   const r = await onApi("/chat", "GET");
   if (r.status !== 200) return false;
   onChat = r.data || null;
+  if (onChatOpen || !onChatSeen) { onChatSeen = Date.now(); try { localStorage.setItem(ON_CHAT_SEEN_KEY, String(onChatSeen)); } catch (e) {} }
   onRenderChatStrip();
   if (onChatOpen) onRenderChat();
   return true;
@@ -2914,18 +2980,24 @@ function onRenderChatStrip() {
   if (!onSpawned || !onChat) { el.hidden = true; return; }
   el.hidden = false;
   const latest = onChatLatest();
-  const html = latest
+  let unread = 0;
+  for (const ch of ["global", "syndicate"]) for (const m of (onChat[ch] || [])) if ((m.at || 0) > onChatSeen) unread++;
+  const msg = latest
     ? "<b>" + latest.chan + "</b> \u00b7 " + onClock(latest.m.at) + " <b>" + esc(latest.m.name) + ":</b> " + esc(latest.m.message)
     : "Global \u2014 no messages yet. Tap to say hello.";
+  const html = '<span class="chatmsg">' + msg + '</span><span class="chatmeta">' + (unread > 0 ? '<span class="chatunread">' + unread + '</span>' : '') + '<span class="chatchev">\u203a</span></span>';
   if (html !== onLastStripHtml) { onLastStripHtml = html; el.innerHTML = html; }
 }
 
 function onOpenChat() {
   if (!onSpawned) { onToast("Found your Home World first."); return; }
   onChatOpen = true;
+  onChatSeen = Date.now();
+  try { localStorage.setItem(ON_CHAT_SEEN_KEY, String(onChatSeen)); } catch (e) {}
   const ov = onq("#o-chat");
   if (ov) ov.hidden = false;
   onRenderChat();
+  onRenderChatStrip();
   const body = onq("#o-chat-body");
   if (body) body.scrollTop = body.scrollHeight;
 }
@@ -3015,6 +3087,10 @@ document.addEventListener("click", (e) => {
     else if (tutb.dataset.otutcol !== undefined) onTutSetCollapsed(!(onq("#o-tut") && onq("#o-tut").classList.contains("collapsed")));
     return;
   }
+  const gb = e.target.closest ? e.target.closest("[data-sheetgrip]") : null;
+  if (gb) { if (!onSheetSwipeDone) onSheetCycle(gb.dataset.sheetgrip); return; }
+  if (e.target && e.target.id === "o-st-pop") { onCloseStPop(); return; }
+  if (e.target && e.target.id === "o-syspop") { onSelected = null; onRenderPanel(); onDrawGalaxy(); return; }
   const b = e.target.closest ? e.target.closest("[data-oact]") : null;
   if (!b) return;
   const act = b.dataset.oact;
@@ -3277,6 +3353,26 @@ async function onStartGame() {
     // re-rendered until it resolves).
     const tsl = onq("#o-sys-transit-left");
     if (tsl) tsl.textContent = onTransitSecs() + "s";
+    // v3.9.61: the colony upgrade countdown ticks live (it froze at the
+    // render-time value), and when the timer elapses the card pulls the
+    // fresh empire once so it shows the new level instead of sitting at
+    // "done in 0s" until the next 15s poll. The guard resets if the
+    // server has not completed it yet (clock skew), so it retries.
+    const cl = onq("#o-col-left");
+    if (cl && onSelected != null) {
+      const cs = onSysById[onSelected];
+      if (cs && cs.colonyUpgradeTo != null) {
+        cl.textContent = onStLeft(Math.max(0, (cs.colonyUpgradeDoneAt || 0) - Date.now()));
+        if ((cs.colonyUpgradeDoneAt || 0) <= Date.now() && onColRefreshDoneAt !== cs.colonyUpgradeDoneAt) {
+          onColRefreshDoneAt = cs.colonyUpgradeDoneAt;
+          onLoadEmpire().then(() => {
+            const s2 = onSysById[onSelected];
+            if (s2 && s2.colonyUpgradeTo == null) { if (onSelSig() !== onLastSelSig) onRenderPanel(); }
+            else onColRefreshDoneAt = 0;
+          });
+        }
+      }
+    }
     const el = onq("#o-raid-count");
     if (!el) return;
     const raid = onRaids.find((r) => (r.status === "pending" || r.status === "tribute_offered") && r.defenderId === onPlayer);
