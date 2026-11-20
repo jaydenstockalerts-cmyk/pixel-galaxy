@@ -1125,7 +1125,7 @@ function onSetSheet(which, st) {
   const p = onq(which === "st" ? "#o-st-pop-panel" : "#o-syspop-panel");
   if (p) { p.classList.remove("sheet-peek", "sheet-half", "sheet-full"); p.classList.add("sheet-" + st); }
 }
-function onSheetCycle(which) { const cur = onSheetState[which] || "half"; onSetSheet(which, cur === "half" ? "full" : cur === "full" ? "peek" : "half"); }
+function onSheetCycle(which) { onSheetGestureStep(which, "tap"); }
 const onSheetPeekHtml = {}; // v3.9.61: last peek-bar HTML per panel (a module var, not bar.dataset)
 function onSheetPeekFill(which) {
   const panel = onq(which === "st" ? "#o-st-pop-panel" : "#o-syspop-panel");
@@ -1136,18 +1136,50 @@ function onSheetPeekFill(which) {
   const h = b && b.outerHTML ? b.outerHTML : "";
   if (onSheetPeekHtml[which] !== h) { onSheetPeekHtml[which] = h; bar.innerHTML = h; }
 }
-let onSheetSwipeY = null, onSheetSwipeGrip = null, onSheetSwipeDone = false;
-function onSheetDragInit() {
-  document.addEventListener("touchstart", (e) => { const g = e.target && e.target.closest ? e.target.closest("[data-sheetgrip]") : null; if (g && e.touches && e.touches[0]) { onSheetSwipeY = e.touches[0].clientY; onSheetSwipeGrip = g.dataset.sheetgrip; } }, { passive: true });
-  document.addEventListener("touchend", (e) => {
-    if (onSheetSwipeY == null || !onSheetSwipeGrip) return;
-    const y = e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : onSheetSwipeY;
-    const d = y - onSheetSwipeY, which = onSheetSwipeGrip; onSheetSwipeY = null; onSheetSwipeGrip = null;
-    if (d > 60) { onSheetSwipeDone = true; setTimeout(() => { onSheetSwipeDone = false; }, 400); if (which === "st") onCloseStPop(); else { onSelected = null; onRenderPanel(); onDrawGalaxy(); } }
-    else if (d < -60) onSetSheet(which, "full");
-  }, { passive: true });
+// v3.9.62 SHEET GESTURES — the v3.9.61 grip listened to touch events
+// only, so a mouse drag did nothing useful: dragging up ended over the
+// scrim and the click's common ancestor was the backdrop (dismiss), and
+// dragging down ended inside the panel (no-op). Tap cycling also went
+// through click, which a preceding drag's ghost click could swallow.
+// Now ONE pointer handler owns the gesture for mouse and touch alike:
+// pointerdown captures the grip (so the release never lands on the
+// scrim), pointerup decides — a <60px move is a tap and cycles one
+// state; a >60px drag steps taller (up) or shorter (down), and down
+// from peek dismisses. The click that follows any grip pointerup is
+// swallowed by onSheetSwipeDone, so nothing fires twice; a keyboard
+// Enter/Space still cycles via click (no pointer precedes it).
+// Tap order (documented): half -> full -> peek -> half.
+function onSheetNextState(cur, dir) {
+  if (dir === "tap") return cur === "half" ? "full" : cur === "full" ? "peek" : "half";
+  if (dir === "up") return cur === "peek" ? "half" : "full";
+  if (dir === "down") return cur === "full" ? "half" : cur === "half" ? "peek" : "dismiss";
+  return cur;
 }
-onSheetDragInit();
+function onSheetGestureStep(which, dir) {
+  const next = onSheetNextState(onSheetState[which] || "half", dir);
+  if (next === "dismiss") { if (which === "st") onCloseStPop(); else { onSelected = null; onRenderPanel(); onDrawGalaxy(); } }
+  else onSetSheet(which, next);
+}
+let onSheetGestY = null, onSheetGestId = null, onSheetGestWhich = null, onSheetSwipeDone = false;
+function onSheetGestureInit() {
+  document.addEventListener("pointerdown", (e) => {
+    const g = e.target && e.target.closest ? e.target.closest("[data-sheetgrip]") : null;
+    if (!g || onSheetGestId !== null) return;
+    onSheetGestY = e.clientY; onSheetGestId = e.pointerId; onSheetGestWhich = g.dataset.sheetgrip;
+    try { g.setPointerCapture(e.pointerId); } catch (_) {}
+  });
+  const end = (e) => {
+    if (onSheetGestId === null || e.pointerId !== onSheetGestId) return;
+    const d = e.clientY - onSheetGestY, which = onSheetGestWhich; onSheetGestId = null; onSheetGestWhich = null;
+    onSheetSwipeDone = true; setTimeout(() => { onSheetSwipeDone = false; }, 500);
+    if (d <= -60) onSheetGestureStep(which, "up");
+    else if (d >= 60) onSheetGestureStep(which, "down");
+    else onSheetGestureStep(which, "tap");
+  };
+  document.addEventListener("pointerup", end);
+  document.addEventListener("pointercancel", () => { onSheetGestId = null; onSheetGestWhich = null; });
+}
+onSheetGestureInit();
 function onRenderPanel() {
   const el = onq("#o-panel");
   if (!el) return;
