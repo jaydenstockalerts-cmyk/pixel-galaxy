@@ -1006,7 +1006,7 @@ function onCloseAllOverlays() {
 }
 function onShowTab(t) {
   onTabGen++;
-  if (t === "map") { onCloseAllOverlays(); return; }
+  if (t === "map") { onCloseAllOverlays(); onTogglePanel(false); return; }
   onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests(); onCloseSyndicate();
   onSetTab(t);
   const gen = onTabGen;
@@ -1050,6 +1050,22 @@ function onSetPanel(html) {
   if (foc === "o-rename-name" || foc === "o-rec-code" || foc === "o-spawn-name") {
     const inp = onq("#" + foc);
     if (inp) { inp.focus(); try { const n = inp.value.length; inp.setSelectionRange(n, n); } catch (e) {} }
+  }
+}
+// v3.9.58: the bottom panel can be minimized (Jayden: it blocks map
+// navigation on a phone). The collapsed state is a class on the element
+// plus a module flag — never innerHTML — so the 15s poll re-render in
+// onSetPanel cannot wipe it. The toggle bar lives outside #o-panel.
+let onPanelMini = false;
+function onTogglePanel(force) {
+  onPanelMini = force !== undefined ? !!force : !onPanelMini;
+  const el = onq("#o-panel");
+  if (el) el.classList.toggle("mini", onPanelMini);
+  const btn = onq("#o-panel-toggle");
+  if (btn) {
+    btn.classList.toggle("mini", onPanelMini);
+    btn.innerHTML = onPanelMini ? "\u2303 Show empire" : "\u2304 Hide";
+    btn.setAttribute("aria-label", onPanelMini ? "Show empire panel" : "Hide empire panel");
   }
 }
 function onRenderPanel() {
@@ -1103,7 +1119,7 @@ function onRenderPanel() {
   }
   const e = onEmpire || {};
   const over = Math.max(0, (e.count || 0) - (e.softCap || 25));
-  onSetPanel(banner + '<div class="ocard"><h2>Your empire</h2><small>' + esc(onGalaxyName()) + '</small>'
+  onSetPanel(banner + '<div class="ocard"><h2>Your empire</h2><small>' + esc(onGalaxyName()) + '</small> · '
     + '<small>Credits <b>' + Math.floor(e.credits || 0) + '</b> · Power <b>' + Math.round(e.power || 0) + '</b> · Systems <b>' + (e.count || 0) + ' / ' + (e.softCap || 25) + '</b></small><br>'
     + '<small>Income <b>+' + (e.grossPerSec != null ? e.grossPerSec.toFixed(2) : "?") + '/s</b>'
     + (e.upkeepPerSec ? ' · Upkeep <b>−' + (e.upkeepPerSec * 60).toFixed(1) + '/min</b>' : '')
@@ -2737,9 +2753,9 @@ function onRenderSyndicate() {
         + (full ? '<span>Full</span>' : '<button class="obtn" data-oact="syndicate-join" data-sid="' + esc(o.id) + '">Join</button>') + '</div>';
     }).join("");
     body.innerHTML = '<div class="ocard"><h2>Syndicates</h2><p><small>Team up with up to 10 players. A Syndicate shares one weekly challenge — finish it together and every member claims credits + Dark Matter.</small></p>'
-      + '<input id="o-syn-name" type="text" placeholder="Name your Syndicate" maxlength="24" autocomplete="off" value="' + esc(onSynName) + '">'
-      + '<button class="obtn" data-oact="syndicate-create">Create Syndicate</button></div>'
-      + '<div class="ocard"><h2>Open Syndicates</h2>' + (open || '<p><small>No Syndicates yet — found the first one.</small></p>') + '</div>';
+      + '<div class="stack"><input id="o-syn-name" type="text" placeholder="Name your Syndicate" maxlength="24" autocomplete="off" value="' + esc(onSynName) + '">'
+      + '<button class="obtn" data-oact="syndicate-create">Create Syndicate</button></div></div>'
+      + '<div class="ocard"><h2>Open Syndicates</h2>' + (open || '<p class="syn-empty"><small>No Syndicates yet — found the first one.</small></p>') + '</div>';
     return;
   }
   const w = syn.weekly || {};
@@ -2753,10 +2769,10 @@ function onRenderSyndicate() {
     + wcard
     + '<div class="ocard"><h2>Members</h2>' + mrows + '</div>'
     + '<div class="ocard"><h2>Chat</h2>' + (chat || '<p><small>No messages yet \u2014 say hello.</small></p>')
-    + '<input id="o-syn-chat" type="text" placeholder="Message your Syndicate" maxlength="280" autocomplete="off" value="' + esc(onSynChat) + '">'
-    + '<button class="obtn" data-oact="syndicate-chat">Send</button></div>'
-    + '<div class="ocard"><button class="obtn ghost" data-oact="syndicate-leave">Leave Syndicate</button>'
-    + (syn.isFounder ? ' <button class="obtn ghost" data-oact="syndicate-disband">Disband Syndicate</button>' : '') + '</div>';
+    + '<div class="stack"><input id="o-syn-chat" type="text" placeholder="Message your Syndicate" maxlength="280" autocomplete="off" value="' + esc(onSynChat) + '">'
+    + '<button class="obtn" data-oact="syndicate-chat">Send</button></div></div>'
+    + '<div class="ocard"><div class="stack"><button class="obtn ghost" data-oact="syndicate-leave">Leave Syndicate</button>'
+    + (syn.isFounder ? '<button class="obtn ghost" data-oact="syndicate-disband">Disband Syndicate</button>' : '') + '</div></div>';
 }
 async function onDoSynCreate() {
   const r = await onApi("/syndicate/create", "POST", { name: onSynName });
@@ -2908,6 +2924,7 @@ document.addEventListener("click", (e) => {
   else if (act === "rename-cancel") { onShowRename = false; onRenameName = ""; onRenderPanel(); }
   else if (act === "garrison-send" && onSelected != null && b.dataset.type) onDoGarrisonShip(onSelected, b.dataset.type, "send");
   else if (act === "garrison-recall" && onSelected != null && b.dataset.type) onDoGarrisonShip(onSelected, b.dataset.type, "recall");
+  else if (act === "panel-toggle") onTogglePanel();
   else if (act === "station") onShowTab("station");
   else if (act === "fleet") onShowTab("fleet");
   else if (act === "research") onShowTab("research");
