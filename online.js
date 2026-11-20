@@ -2512,6 +2512,7 @@ function onFlTick() {
 // claim (POST /quests/claim). The tab button carries a badge with the
 // claimable count.
 let onQuests = null;      // from GET /quests: [{id, title, reward, status}]
+let onDaily = null;       // from GET /daily: {day, challenge, progress, done, claimed, darkMatter, credits}
 let onQuestsOpen = false;
 function onQuestRewardText(reward) {
   return Object.keys(reward || {}).map((r) => reward[r] + " " + r).join(" + ");
@@ -2522,6 +2523,16 @@ async function onLoadQuests() {
   if (r.status !== 200) return false;
   onQuests = r.data.quests || [];
   onQuestBadge();
+  if (onQuestsOpen) onRenderQuests();
+  return true;
+}
+// v3.9.51: today's daily challenge — same challenge for every player,
+// from GET /daily. Loaded alongside quests when the Quests overlay opens.
+async function onLoadDaily() {
+  if (!onSpawned) return false;
+  const r = await onApi("/daily", "GET");
+  if (r.status !== 200) return false;
+  onDaily = r.data.daily || null;
   if (onQuestsOpen) onRenderQuests();
   return true;
 }
@@ -2540,6 +2551,7 @@ async function onOpenQuests(gen) {
   onSetTab("quests");
   onRenderQuests();
   const ok = await onLoadQuests();
+  await onLoadDaily();
   if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
   if (!ok && !onQuests) { onToast("Could not load your quests \u2014 check your connection."); onCloseQuests(); onSetTab("map"); return; }
   onRenderQuests();
@@ -2564,7 +2576,11 @@ function onRenderQuests() {
         : "<span>Not yet</span>";
     return '<div class="row"><div><b>' + esc(q.title) + '</b><br><small>Reward: ' + esc(reward) + '</small></div>' + state + "</div>";
   }).join("");
-  body.innerHTML = '<div class="ocard"><h2>Quests</h2><p><small>Complete a quest, then claim its reward here.</small></p>' + rows + "</div>";
+  const d = onDaily;
+  const dcard = !d
+    ? '<div class="ocard"><h2>Daily Challenge</h2><p><small>Loading today\u2019s challenge\u2026</small></p></div>'
+    : '<div class="ocard"><h2>Daily Challenge</h2><p><b>' + esc(d.challenge.title) + '</b><br><small>' + d.progress + ' / ' + d.challenge.target + ' · Reward: ' + esc(d.challenge.rewardText) + ' · You have ' + (d.darkMatter || 0) + ' Dark Matter</small></p>' + (d.claimed ? '<span>Claimed \u2713</span>' : d.done ? '<button class="obtn" data-oact="daily-claim">Claim</button>' : '<span>Not yet</span>') + '</div>';
+  body.innerHTML = dcard + '<div class="ocard"><h2>Quests</h2><p><small>Complete a quest, then claim its reward here.</small></p>' + rows + "</div>";
 }
 async function onDoQuestClaim(id) {
   const r = await onApi("/quests/claim", "POST", { questId: id });
@@ -2578,6 +2594,23 @@ async function onDoQuestClaim(id) {
     const err = (r.data && r.data.error) || "failed";
     onToast(err === "already_claimed" ? "Already claimed." : err === "not_complete" ? "Not complete yet." : "Claim failed: " + err + ".");
     await onLoadQuests();
+  }
+}
+// v3.9.51: claim today's daily challenge. The server validates and pays
+// exactly once; on success the Daily section re-renders from the
+// response (which carries the new Dark Matter balance) and the ribbon
+// costs refresh like a quest claim.
+async function onDoDailyClaim() {
+  const r = await onApi("/daily/claim", "POST", {});
+  if (r.status === 200 && r.data.daily) {
+    onDaily = r.data.daily;
+    onToast("Daily challenge complete: +" + (r.data.rewardText || "") + "!");
+    onRenderQuests();
+    await onRefreshCosts();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast(err === "already_claimed" ? "Already claimed." : err === "not_complete" ? "Not complete yet." : "Claim failed: " + err + ".");
+    await onLoadDaily();
   }
 }
 
@@ -2656,6 +2689,7 @@ document.addEventListener("click", (e) => {
   else if (act === "fleet-build" && b.dataset.type) onDoFleetBuild(b.dataset.type, Number(b.dataset.n) || 1);
   else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
   else if (act === "quest-claim" && b.dataset.qid) onDoQuestClaim(b.dataset.qid);
+  else if (act === "daily-claim") onDoDailyClaim();
   else if (act === "station-mv-cancel") { onStMove = null; onRenderStation(); }
   else if (act === "station-pop-close") { if (Date.now() - onStPopOpenAt >= 350) onCloseStPop(); }
   else if (act === "station-pop-upgrade" && b.dataset.u) { if (Date.now() - onStPopOpenAt >= 350) onDoStationUpgrade(Number(b.dataset.u)); }
