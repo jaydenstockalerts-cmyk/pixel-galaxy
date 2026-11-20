@@ -5,12 +5,12 @@
    Tokens extend the original 4-colour palette (--bg/--hi/--mid/--fg).
    ============================================================ */
 :root{
-  --bg:#e6f4ff; --hi:#9ec5ee; --mid:#2a4f9a; --fg:#070b1f;
+  --bg:#f6ecdb; --hi:#e8d5ae; --mid:#8a5a1d; --fg:#1d1408;
   color-scheme:light; box-sizing:border-box;
   /* v1.0 tokens */
-  --panel:#e6f4ff; --panel-2:#d3e8fb; --ink:#070b1f; --ink-2:#33415e;
-  --accent:#2a4f9a; --accent-2:#4fc3f7; --good:#2d7a46; --warn:#e0584a;
-  --gold:#ffe066; --glass:rgba(230,244,255,.88); --glass-dark:rgba(7,11,31,.72);
+  --panel:#f6ecdb; --panel-2:#ecdcbd; --ink:#1d1408; --ink-2:#5d4a33;
+  --accent:#8a5a1d; --accent-2:#a86f14; --good:#2d7a46; --warn:#e0584a;
+  --gold:#f5c542; --glass:rgba(246,236,219,.88); --glass-dark:rgba(18,11,31,.72);
   --radius:10px; --radius-sm:6px;
   --shadow:4px 4px 0 var(--mid); --shadow-sm:2px 2px 0 var(--mid);
   --hud-h:56px; --dock-h:64px; --tray-h:0px;
@@ -21,15 +21,15 @@
 }
 @media (prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
-    --bg:#070b1f; --hi:#1a2a63; --mid:#4fc3f7; --fg:#e6f4ff; color-scheme:dark;
-    --panel:#0d1430; --panel-2:#16204a; --ink:#e6f4ff; --ink-2:#aab4c9;
-    --accent:#4fc3f7; --glass:rgba(13,20,48,.88);
+    --bg:#120b1f; --hi:#2a1e45; --mid:#f0a13c; --fg:#f2ead9; color-scheme:dark;
+    --panel:#1a1129; --panel-2:#271a3e; --ink:#f2ead9; --ink-2:#b9aec9;
+    --accent:#f0a13c; --glass:rgba(26,17,41,.88);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#070b1f; --hi:#1a2a63; --mid:#4fc3f7; --fg:#e6f4ff; color-scheme:dark;
-  --panel:#0d1430; --panel-2:#16204a; --ink:#e6f4ff; --ink-2:#aab4c9;
-  --accent:#4fc3f7; --glass:rgba(13,20,48,.88);
+  --bg:#120b1f; --hi:#2a1e45; --mid:#f0a13c; --fg:#f2ead9; color-scheme:dark;
+  --panel:#1a1129; --panel-2:#271a3e; --ink:#f2ead9; --ink-2:#b9aec9;
+  --accent:#f0a13c; --glass:rgba(26,17,41,.88);
 }
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 body{margin:0;background:var(--bg);color:var(--fg);font:var(--fs-body)/var(--lh) "Courier New",ui-monospace,monospace}
@@ -193,7 +193,7 @@ body.ui-hidden #activity{opacity:0;pointer-events:none}
 .pophead{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
 .pophead h2{margin:0;font-size:17px;letter-spacing:1px}
 #pop-x{min-width:48px;min-height:48px;padding:4px 12px;background:none;color:var(--fg);border:2px solid var(--fg)}
-#pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);border-radius:var(--radius-sm);background:#0a0e2a;image-rendering:pixelated}
+#pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);border-radius:var(--radius-sm);background:#100a24;image-rendering:pixelated}
 #pop-body{margin-bottom:10px}
 #pop-body .stat{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--hi);font-size:var(--fs-sm)}
 #pop-body .stat:last-child{border-bottom:0}
@@ -205,7 +205,7 @@ body.ui-hidden #activity{opacity:0;pointer-events:none}
 .pagehead h2{margin:0;font-size:var(--fs-title);letter-spacing:1px}
 .pagehead .page-sub{font-size:var(--fs-sm);color:var(--ink-2)}
 .pagehead button{min-width:44px;min-height:36px;padding:4px 10px;background:none;color:var(--fg);border:2px solid var(--fg)}
-#shero,#bhero{width:160px;height:160px;margin:0 auto 12px;border:3px solid var(--fg);background:#0a0e2a}
+#shero,#bhero{width:160px;height:160px;margin:0 auto 12px;border:3px solid var(--fg);background:#100a24}
 #bhero{background:#c98a5a}
 
 /* --- bottom dock: slim floating glass icon dock --- */
@@ -227,10 +227,10 @@ body.ui-hidden #activity{opacity:0;pointer-events:none}
 section[data-pg="map"],section[data-pg="station"]{position:fixed;inset:0;z-index:1}
 section[data-pg="station"] .mapwrap{background:#c98a5a}
 section[data-pg="fleet"],section[data-pg="research"],section[data-pg="quests"],section[data-pg="empire"],section[data-pg="log"]{max-width:560px;margin:0 auto;padding:calc(var(--hud-h) + 20px + env(safe-area-inset-top,0px)) 12px calc(var(--dock-h) + 24px)}
-.mapwrap{position:absolute;inset:0;border:0;margin:0;background:#0a0e2a}
+.mapwrap{position:absolute;inset:0;border:0;margin:0;background:#100a24}
 .mapwrap #cv,.mapwrap #st{border:0;margin:0;display:block;touch-action:none;width:100vw;height:100dvh;max-width:none;image-rendering:pixelated;image-rendering:crisp-edges}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges}
-#mm{position:fixed;top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px;width:96px;height:120px;border:2px solid var(--fg);border-radius:var(--radius-sm);margin:0;background:#0a0e2a;cursor:pointer;z-index:2} /* v3.3: bigger — it was ~70px and too small to read or tap reliably */
+#mm{position:fixed;top:calc(var(--hud-h) + 16px + env(safe-area-inset-top,0px));right:8px;width:96px;height:120px;border:2px solid var(--fg);border-radius:var(--radius-sm);margin:0;background:#100a24;cursor:pointer;z-index:2} /* v3.3: bigger — it was ~70px and too small to read or tap reliably */
 /* v1.7: the minimap is FIXED to the viewport, not absolute inside the
    map wrap — at ~1100px wide and below it was clipped by the right
    edge of the screen (live v1.6), which only happens if its
@@ -325,7 +325,7 @@ body:has(section[data-pg="map"]:not([hidden])) #pagefoot,body:has(section[data-p
 /* v3.4 TAB GRAPHICS — Fleet ship sprites, commander portraits
    and tech icons, quest icons. These make the four tabs read at a
    glance instead of as bare text rows. */
-.shipimg{image-rendering:pixelated;vertical-align:middle;margin-right:6px;background:#0a0e2a;border:2px solid var(--mid);border-radius:4px}
+.shipimg{image-rendering:pixelated;vertical-align:middle;margin-right:6px;background:#100a24;border:2px solid var(--mid);border-radius:4px}
 .cmdav{display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;border-radius:50%;font-weight:bold;font-size:16px;color:#fff;margin-right:8px;vertical-align:middle;border:2px solid var(--fg)}
 .cmdav-fleet{background:#a33}
 .cmdav-econ{background:#3a7}
@@ -379,7 +379,7 @@ section[data-pg="research"] .card.treecard{max-width:none}
 #o-menu{position:fixed;top:0;left:0;bottom:0;z-index:31;width:min(320px,86vw);background:var(--panel);border-right:3px solid var(--fg);box-shadow:6px 0 0 var(--mid);padding:calc(12px + env(safe-area-inset-top,0px)) 12px 12px;transform:translateX(-102%);transition:transform .22s ease;display:flex;flex-direction:column;gap:6px}
 #o-menu.open{transform:translateX(0)}
 #o-main{position:relative;flex:1 1 auto;min-height:0;display:flex;flex-direction:column;overflow:hidden}
-#ocv{flex:1 1 auto;width:100%;min-height:0;touch-action:none;display:block;background:#0a0e2a}
+#ocv{flex:1 1 auto;width:100%;min-height:0;touch-action:none;display:block;background:#100a24}
 #o-activity{margin:6px 8px 0;display:flex;flex-direction:column;gap:6px}
 #o-activity .trayrow{background:var(--panel);border:2px solid var(--fg);border-radius:var(--radius-sm);padding:6px 10px;font-size:12px}
 #o-tabs{display:flex;gap:2px;width:100%;background:var(--glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-top:3px solid var(--fg);padding:4px 8px calc(4px + env(safe-area-inset-bottom,0px))}
@@ -463,7 +463,7 @@ section[data-pg="research"] .card.treecard{max-width:none}
 #o-res-body .ocard.otree-card{max-width:none} /* v3.9.21: the tree spans the full body width like single-player #tech (scrolls sideways on a phone); the 640px cap is for the status card only */
 #o-res-body .pbar{height:8px;background:var(--hi);border-radius:4px;overflow:hidden;margin-top:6px}
 #o-res-body .pbar div{height:100%;background:var(--ac,#ffd84a);width:0%}
-#o-st-pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);border-radius:var(--radius-sm);background:#0a0e2a;image-rendering:pixelated}
+#o-st-pop-hero{width:96px;height:96px;margin:0 auto 10px;border:3px solid var(--fg);border-radius:var(--radius-sm);background:#100a24;image-rendering:pixelated}
 #o-st-pop-body{margin-bottom:10px}
 #o-st-pop-body .stat{display:flex;justify-content:space-between;gap:8px;padding:4px 0;border-bottom:1px solid var(--hi);font-size:var(--fs-sm)}
 #o-st-pop-body .stat:last-child{border-bottom:0}
