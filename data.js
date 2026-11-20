@@ -79,6 +79,25 @@ const Q=[
 {id:"q12",t:"Complete 6 technologies",ok:()=>S.tech.length>=6,r:{credits:2000,crystal:1000}},
 {id:"q13",t:"Conquer the Dark Nexus",ok:()=>S.won.includes(15),r:{credits:5000}}
 ];
+// Daily challenges (v3.9.51) — mirrors backend src/daily.js exactly:
+// same ids, titles, targets, rewards, same UTC-day pick. One challenge
+// per day, same for every player (and the same as online). Reward:
+// credits + 1 Dark Matter. Dark Matter had no balance anywhere before
+// v3.9.51; the ledger is S.dm (fresh saves start at 0, old saves
+// default via Object.assign(fresh(), j) in load()).
+const DAILY=[
+{id:"d-conquer",t:"Conquer a system today",target:1,r:{credits:150},kind:"captures"},
+{id:"d-ships",t:"Build 3 ships today",target:3,r:{credits:100},kind:"ships"},
+{id:"d-research",t:"Research a technology today",target:1,r:{credits:100},kind:"techs"},
+{id:"d-upgrade",t:"Upgrade a building today",target:1,r:{credits:100},kind:"levels"},
+{id:"d-garrison",t:"Station a garrison ship today",target:1,r:{credits:50},kind:"garrisoned"},
+{id:"d-repel",t:"Repel a raid today",target:1,r:{credits:200},kind:"repels"},
+{id:"d-systems",t:"Own 6 systems",target:6,r:{credits:200},kind:"systems"},
+{id:"d-credits",t:"Hold 500 credits at once",target:500,r:{credits:50},kind:"credits"}
+];
+const DAILY_DM=1;
+const dailyDayNum=()=>Math.floor(Date.now()/864e5);
+const dailyForDay=n=>DAILY[((n*2654435761)>>>29)%DAILY.length]; // top 3 bits of the Knuth hash — the low-bit form walks the pool in order (see backend src/daily.js)
 const TT={fleet:"fleet power",econ:"production",build:"faster building and research"};
 const CM={
 vex:{n:"Admiral Vex",t:"fleet",b:.05,c:150,d:"Fleet commander. Boosts fleet power."},
