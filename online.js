@@ -1000,14 +1000,14 @@ function onSetTab(t) {
   document.querySelectorAll("#o-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.otab === t));
 }
 function onCloseAllOverlays() {
-  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests(); onCloseSyndicate();
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests(); onCloseSyndicate(); onCloseChat();
   onSetTab("map");
   onRefresh();
 }
 function onShowTab(t) {
   onTabGen++;
   if (t === "map") { onCloseAllOverlays(); onTogglePanel(false); return; }
-  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests(); onCloseSyndicate();
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests(); onCloseSyndicate(); onCloseChat();
   onSetTab(t);
   const gen = onTabGen;
   if (t === "station") onOpenStation(gen);
@@ -2699,7 +2699,6 @@ async function onDoDailyClaim() {
 let onSyn = null;        // from GET /syndicate: {syndicate, open}
 let onSynOpen = false;
 let onSynName = "";      // typed Syndicate name (poll rebuilds the panel)
-let onSynChat = "";      // typed chat message (same)
 function onClock(at) {
   const d = new Date(at || 0);
   const p2 = (n) => String(n).padStart(2, "0");
@@ -2764,13 +2763,9 @@ function onRenderSyndicate() {
     ? '<div class="ocard"><h2>Weekly Challenge</h2><p><small>Loading this week\u2019s challenge\u2026</small></p></div>'
     : '<div class="ocard"><h2>Weekly Challenge</h2><p><b>' + esc(ch.title) + '</b><br><small>' + (w.progress || 0) + ' / ' + ch.target + ' \u00b7 Reward: ' + esc(ch.rewardText || "") + ' \u00b7 Shared by the whole Syndicate</small></p>' + (w.claimed ? '<span>Claimed \u2713</span>' : w.done ? '<button class="obtn" data-oact="syndicate-claim">Claim</button>' : '<span>Not yet</span>') + '</div>';
   const mrows = (syn.members || []).map((m) => '<div class="row"><div><b>' + esc(m.name) + '</b>' + (m.isFounder ? ' <small>\u00b7 Founder</small>' : '') + '</div>' + (m.playerId === onPlayer ? '<span>You</span>' : '') + '</div>').join("");
-  const chat = (syn.chat || []).map((m) => '<div><small>' + onClock(m.at) + ' <b>' + esc(m.name) + ':</b> ' + esc(m.message) + '</small></div>').join("");
   body.innerHTML = '<div class="ocard"><h2>Syndicate \u2014 ' + esc(syn.name) + '</h2><p><small>' + (syn.members || []).length + ' / 10 members</small></p></div>'
     + wcard
     + '<div class="ocard"><h2>Members</h2>' + mrows + '</div>'
-    + '<div class="ocard"><h2>Chat</h2>' + (chat || '<p><small>No messages yet \u2014 say hello.</small></p>')
-    + '<div class="stack"><input id="o-syn-chat" type="text" placeholder="Message your Syndicate" maxlength="280" autocomplete="off" value="' + esc(onSynChat) + '">'
-    + '<button class="obtn" data-oact="syndicate-chat">Send</button></div></div>'
     + '<div class="ocard"><div class="stack"><button class="obtn ghost" data-oact="syndicate-leave">Leave Syndicate</button>'
     + (syn.isFounder ? '<button class="obtn ghost" data-oact="syndicate-disband">Disband Syndicate</button>' : '') + '</div></div>';
 }
@@ -2823,20 +2818,6 @@ async function onDoSynDisband() {
     await onLoadSyndicate();
   }
 }
-async function onDoSynChat() {
-  const msg = (onSynChat || "").trim();
-  if (!msg) return;
-  const r = await onApi("/syndicate/chat", "POST", { message: msg });
-  if (r.status === 200 && r.data.chat) {
-    if (onSyn && onSyn.syndicate) onSyn.syndicate.chat = r.data.chat;
-    onSynChat = "";
-    onRenderSyndicate();
-  } else {
-    const err = (r.data && r.data.error) || "failed";
-    onToast(err === "invalid_message" ? "Message must be 1\u2013280 characters." : "Could not send: " + err + ".");
-    await onLoadSyndicate();
-  }
-}
 // v3.9.52: claim this week's shared challenge. The server validates
 // and pays exactly once per member; on success the Syndicate panel
 // re-renders from the response and the ribbon costs refresh like a
@@ -2855,6 +2836,114 @@ async function onDoSynClaim() {
   }
 }
 
+// ---------- unified chat (v3.9.59) — Hobbit Kingdoms style ----------
+// A strip above the tab bar shows the latest message across channels;
+// tapping it opens the full history with Global / Syndicate tabs.
+// Syndicate chat lives ONLY here now — the Syndicate tab keeps
+// create/join, members, weekly challenge, leave/disband.
+let onChat = null; // { global: [...], syndicate: [...] | null }
+let onChatOpen = false;
+let onChatChan = "global";
+let onChatMsg = "";
+let onLastChatHtml = null;
+let onLastStripHtml = null;
+
+async function onLoadChat() {
+  if (!onSpawned) return false;
+  const r = await onApi("/chat", "GET");
+  if (r.status !== 200) return false;
+  onChat = r.data || null;
+  onRenderChatStrip();
+  if (onChatOpen) onRenderChat();
+  return true;
+}
+
+function onChatLatest() {
+  if (!onChat) return null;
+  const g = (onChat.global || []).slice(-1)[0];
+  const s = (onChat.syndicate || []).slice(-1)[0];
+  if (g && s) return (g.at || 0) >= (s.at || 0) ? { chan: "Global", m: g } : { chan: "Syndicate", m: s };
+  if (g) return { chan: "Global", m: g };
+  if (s) return { chan: "Syndicate", m: s };
+  return null;
+}
+
+function onRenderChatStrip() {
+  const el = onq("#o-chatstrip");
+  if (!el) return;
+  if (!onSpawned || !onChat) { el.hidden = true; return; }
+  el.hidden = false;
+  const latest = onChatLatest();
+  const html = latest
+    ? "<b>" + latest.chan + "</b> \u00b7 " + onClock(latest.m.at) + " <b>" + esc(latest.m.name) + ":</b> " + esc(latest.m.message)
+    : "Global \u2014 no messages yet. Tap to say hello.";
+  if (html !== onLastStripHtml) { onLastStripHtml = html; el.innerHTML = html; }
+}
+
+function onOpenChat() {
+  if (!onSpawned) { onToast("Found your Home World first."); return; }
+  onChatOpen = true;
+  const ov = onq("#o-chat");
+  if (ov) ov.hidden = false;
+  onRenderChat();
+  const body = onq("#o-chat-body");
+  if (body) body.scrollTop = body.scrollHeight;
+}
+function onCloseChat() {
+  onChatOpen = false;
+  const ov = onq("#o-chat");
+  if (ov) ov.hidden = true;
+}
+function onRenderChat() {
+  const ov = onq("#o-chat");
+  if (!ov || ov.hidden) return;
+  const body = onq("#o-chat-body");
+  if (!body) return;
+  // v3.9.50 pattern: only re-render when the list actually changed,
+  // and if the chat input had focus, give it back (caret to end) —
+  // the 15s poll would otherwise wipe a half-typed message.
+  const foc = document.activeElement && document.activeElement.id === "o-chat-msg";
+  const atBottom = body.scrollHeight - body.scrollTop - body.clientHeight < 40;
+  const chan = onChatChan;
+  const list = chan === "syndicate" ? (onChat && onChat.syndicate) : (onChat && onChat.global);
+  const rows = list == null
+    ? '<p class="syn-empty"><small>You\u2019re not in a Syndicate yet \u2014 join or found one to chat here.</small></p>'
+    : (list.length ? list.map((m) => '<div><small>' + onClock(m.at) + ' <b>' + esc(m.name) + ':</b> ' + esc(m.message) + '</small></div>').join("") : '<p class="syn-empty"><small>No messages yet \u2014 say hello.</small></p>');
+  const html = '<div class="ocard"><h2>Chat</h2><div class="bg">'
+    + '<button class="obtn' + (chan === "global" ? " sel" : "") + '" data-oact="chat-tab" data-chan="global">Global</button>'
+    + '<button class="obtn' + (chan === "syndicate" ? " sel" : "") + '" data-oact="chat-tab" data-chan="syndicate">Syndicate</button>'
+    + '</div></div>'
+    + '<div class="ocard">' + rows + '</div>'
+    + '<div class="ocard"><div class="stack"><input id="o-chat-msg" type="text" placeholder="Message ' + (chan === "syndicate" ? "your Syndicate" : "the galaxy") + '" maxlength="280" autocomplete="off" value="' + esc(onChatMsg) + '">'
+    + '<button class="obtn" data-oact="chat-send">Send</button></div></div>';
+  if (html !== onLastChatHtml) {
+    onLastChatHtml = html;
+    body.innerHTML = html;
+    if (atBottom) body.scrollTop = body.scrollHeight;
+  }
+  if (foc) {
+    const inp = onq("#o-chat-msg");
+    if (inp) { inp.focus(); try { const n = inp.value.length; inp.setSelectionRange(n, n); } catch (e) {} }
+  }
+}
+async function onDoChatSend() {
+  const msg = (onChatMsg || "").trim();
+  if (!msg) return;
+  const r = await onApi("/chat/send", "POST", { channel: onChatChan, message: msg });
+  if (r.status === 200 && r.data) {
+    onChat = r.data;
+    onChatMsg = "";
+    onRenderChatStrip();
+    onRenderChat();
+    const body = onq("#o-chat-body");
+    if (body) body.scrollTop = body.scrollHeight;
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast(err === "cooldown" ? "Slow down \u2014 wait a moment before sending again." : err === "invalid_message" ? "Message must be 1\u2013280 characters." : err === "not_in_syndicate" ? "You\u2019re not in a Syndicate." : "Could not send: " + err + ".");
+    await onLoadChat();
+  }
+}
+
 // Panel inputs (delegated): the 15s poll rebuilds the panel, which would
 // wipe a half-typed name — keep the typed value in a module var and
 // restore it on render (v3.9.23).
@@ -2864,7 +2953,7 @@ document.addEventListener("input", (e) => {
   if (t.id === "o-spawn-name") onSpawnName = t.value;
   if (t.id === "o-rename-name") onRenameName = t.value;
   if (t.id === "o-syn-name") onSynName = t.value;
-  if (t.id === "o-syn-chat") onSynChat = t.value;
+  if (t.id === "o-chat-msg") onChatMsg = t.value;
 });
 
 // Panel + bar clicks (delegated).
@@ -2940,7 +3029,9 @@ document.addEventListener("click", (e) => {
   else if (act === "syndicate-join" && b.dataset.sid) onDoSynJoin(b.dataset.sid);
   else if (act === "syndicate-leave") onDoSynLeave();
   else if (act === "syndicate-disband") onDoSynDisband();
-  else if (act === "syndicate-chat") onDoSynChat();
+  else if (act === "chat-open") onOpenChat();
+  else if (act === "chat-tab" && b.dataset.chan) { onChatChan = b.dataset.chan; onRenderChat(); }
+  else if (act === "chat-send") onDoChatSend();
   else if (act === "syndicate-claim") onDoSynClaim();
   else if (act === "station-mv-cancel") { onStMove = null; onRenderStation(); }
   else if (act === "station-pop-close") { if (Date.now() - onStPopOpenAt >= 350) onCloseStPop(); }
@@ -3058,6 +3149,8 @@ async function onStartGame() {
     // v3.9.52: the Syndicate tab badge (claimable weekly) stays live,
     // and the chat refreshes while the overlay is open.
     await onLoadSyndicate();
+    // v3.9.59: the unified chat strip (latest message) stays live.
+    await onLoadChat();
     // v3.9.22: the map is only refetched when ownership actually
     // changed — /systems is 1,000 rows, so polling it every 15s would
     // burn the shared DO rows-read quota (5.76M/day per player).
