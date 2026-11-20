@@ -1687,20 +1687,26 @@ async function onDoRecover() {
   }
 }
 
-// Profanity pre-check (v3.9.67): the server is authoritative — this
-// only gives instant feedback before sending. Same shape as
-// src/profanity.js: lowercase, leet map, token match on a small common
-// list, spaced-letter concat. A server 400 "profanity" still shows the
-// same message on a miss.
-const ON_PROFANITY = ["fuck", "fucker", "motherfucker", "shit", "bullshit", "bitch", "cunt", "whore", "slut", "dick", "dickhead", "cock", "cocksucker", "pussy", "ass", "asshole", "bastard", "damn", "goddamn", "hell", "crap", "piss", "wank", "twat", "bollocks", "bugger", "douchebag", "jackass", "dumbass", "nigger", "nigga", "faggot", "retard"];
+// Profanity pre-check (v3.9.67, hardened v3.9.68): the server is
+// authoritative — this only gives instant feedback before sending.
+// Same shape as src/profanity.js: NFKC + homoglyph map + zero-width
+// strip + leet, token match, wildcard (masked-letter) match,
+// separator-crossing concat, reversed tokens. A server 400
+// "profanity" still shows the same message on a miss.
+const ON_PROFANITY = ["fuck", "fucker", "motherfucker", "shit", "bullshit", "shithead", "bitch", "cunt", "whore", "slut", "dick", "dickhead", "cock", "cocksucker", "pussy", "ass", "asshole", "bastard", "damn", "goddamn", "goddammit", "hell", "crap", "piss", "wank", "twat", "bollocks", "bugger", "douchebag", "jackass", "dumbass", "nigger", "nigga", "faggot", "retard", "fuk", "fuking", "fukin", "fuken", "fukker", "fack", "fvck", "fcuk", "fook", "shyt", "shite", "sht", "bytch", "biatch", "dik", "kunt", "fuckery", "fuckoff", "fuckyou", "crappy", "pissy", "mierda", "puta", "puto", "joder", "jodido", "jodida", "carajo", "cabron", "chinga", "chingar", "chingada", "chingado", "wtf", "stfu"];
 function onHasProfanity(text) {
   if (typeof text !== "string" || !text) return false;
+  if (text.includes("🖕")) return true;
+  if (/(^|[^a-zñ])coñ(?:o|os|azo)(?![a-zñ])/.test(text.toLowerCase().normalize("NFKC"))) return true;
   const leet = { "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "$": "s", "@": "a", "!": "i" };
-  let s = text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ph/g, "f");
+  const homo = { "а": "a", "е": "e", "о": "o", "р": "p", "с": "c", "х": "x", "у": "y", "і": "i", "ј": "j", "ѕ": "s", "т": "t", "ο": "o", "α": "a", "ε": "e" };
+  let s = text.toLowerCase().normalize("NFKC").replace(/[\u200B\u200C\u200D\uFEFF]/g, "");
+  let h = "";
+  for (const ch of s) h += homo[ch] || ch;
+  h = h.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/ph/g, "f");
   let n = "";
-  for (const ch of s) n += leet[ch] || ch;
-  const toks = n.split(/[^a-z0-9]+/).filter(Boolean);
-  const sq = (w) => w.replace(/(.)\1+/g, "$1");
+  for (const ch of h) n += leet[ch] || ch;
+  const sq = (w) => w.replace(/([a-z])\1+/g, "$1");
   const strip = (w) => {
     if (w.endsWith("ies") && w.length > 3) return w.slice(0, -3) + "y";
     if (w.endsWith("ing") && w.length > 3) return w.slice(0, -3);
@@ -1709,6 +1715,36 @@ function onHasProfanity(text) {
     if (w.endsWith("s") && w.length > 1) return w.slice(0, -1);
     return w;
   };
+  // Wildcard: a non-letter inside a token matches zero or one letter.
+  const wildcardMatch = (pat, word) => {
+    const rec = (pi, wi) => {
+      if (pi === pat.length) return wi === word.length;
+      if (pat[pi] === "?") {
+        if (rec(pi + 1, wi)) return true;
+        if (wi < word.length && rec(pi + 1, wi + 1)) return true;
+        return false;
+      }
+      return wi < word.length && pat[pi] === word[wi] && rec(pi + 1, wi + 1);
+    };
+    return rec(0, 0);
+  };
+  for (let tok of h.split(/\s+/).filter(Boolean)) {
+    tok = tok.replace(/^[.,;:!?'"()[\]{}]+|[.,;:!?'"()[\]{}]+$/g, "");
+    if (!tok) continue;
+    let pat = "";
+    for (const ch of tok) pat += (ch >= "a" && ch <= "z") ? ch : (leet[ch] || "?");
+    if (pat.includes("?")) {
+      for (const w of ON_PROFANITY) if (wildcardMatch(pat, w)) return true;
+      const sp = strip(pat);
+      if (sp !== pat) for (const w of ON_PROFANITY) if (wildcardMatch(sp, w)) return true;
+      if (/([a-z])\1/.test(pat)) {
+        const q = sq(pat);
+        if (q !== pat) for (const w of ON_PROFANITY) if (wildcardMatch(q, w)) return true;
+      }
+    }
+  }
+  const toks = n.split(/[^a-z0-9]+/).filter(Boolean);
+  const revOk = (x) => x !== "wtf" && x !== "stfu" && ON_PROFANITY.includes(x);
   for (const t of toks) {
     if (ON_PROFANITY.includes(t)) return true;
     const st = strip(t);
@@ -1719,9 +1755,54 @@ function onHasProfanity(text) {
       const qs = strip(q);
       if (qs !== q && ON_PROFANITY.includes(qs)) return true;
     }
+    const rev = [...t].reverse().join("");
+    if (revOk(rev)) return true;
+    const rs = strip(rev);
+    if (rs !== rev && revOk(rs)) return true;
+    if (/(.)\1/.test(rev)) {
+      const rq = sq(rev);
+      if (revOk(rq)) return true;
+    }
   }
-  const singles = toks.filter((t) => t.length === 1).join("");
-  return ON_PROFANITY.some((w) => w !== "hell" && singles.includes(w));
+  // Separator-crossing concat: strip separators, look for list words
+  // as substrings — only when the span starts at a token start and
+  // ends at a token end (or just before a known suffix).
+  const letters = [];
+  const tStart = [];
+  const tEnd = [];
+  let inTok = false;
+  for (const ch of n) {
+    const al = (ch >= "a" && ch <= "z") || (ch >= "0" && ch <= "9");
+    if (al) { letters.push(ch); tStart.push(!inTok); tEnd.push(false); inTok = true; }
+    else { if (inTok) tEnd[letters.length - 1] = true; inTok = false; }
+  }
+  if (inTok) tEnd[letters.length - 1] = true;
+  const concatHas = (ls, ts, te, words) => {
+    const j = ls.join("");
+    for (const w of words) {
+      let at = j.indexOf(w);
+      while (at !== -1) {
+        const first = at, last = at + w.length - 1;
+        if (ts[first]) {
+          if (te[last]) return true;
+          let e = last;
+          while (e + 1 < ls.length && !ts[e + 1]) e++;
+          const rest = j.slice(last + 1, e + 1);
+          if (["ing", "ed", "es", "s", "ies"].includes(rest)) return true;
+        }
+        at = j.indexOf(w, at + 1);
+      }
+    }
+    return false;
+  };
+  const noHell = ON_PROFANITY.filter((w) => w !== "hell");
+  if (concatHas(letters, tStart, tEnd, noHell)) return true;
+  const nn = letters.length;
+  const rL = [...letters].reverse();
+  const rS = tEnd.map((_, i) => tEnd[nn - 1 - i]);
+  const rE = tStart.map((_, i) => tStart[nn - 1 - i]);
+  if (concatHas(rL, rS, rE, noHell.filter((w) => w !== "wtf" && w !== "stfu"))) return true;
+  return false;
 }
 
 async function onDoSpawn() {
