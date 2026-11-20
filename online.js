@@ -882,35 +882,49 @@ function onRenderTop() {
 // research. Data comes from the freshest state on hand (station queue,
 // the /empire fleet summary, progress); the 1s ticker re-renders it so
 // the countdowns tick.
+// v3.9.50: the 1s ticker rebuilt the tray rows to tick the countdowns,
+// so the tappable transit row was destroyed and recreated every second
+// (same class as the panel rebuild above). Rebuild only when the job
+// set changes; tick the countdowns in place.
+let onActKey = null;
 function onRenderActivity() {
   const el = onq("#o-activity");
   if (!el) return;
-  const rows = [];
   const bq = (onStation && onStation.bq) || [];
-  if (bq.length) {
-    const j = bq[0];
-    const bl = (onStation.bl || []).find((z) => z.u === j.u);
-    const nm = bl ? ON_ST_B[bl.t].name : "Building";
-    rows.push("🔨 " + nm + " Lv " + (bl ? bl.l + 1 : "?") + " — done in " + onStLeft(Math.max(0, j.end - Date.now())));
-  }
   const sq = (onEmpire && onEmpire.fleet && onEmpire.fleet.sq) || [];
-  if (sq.length) {
-    const j = sq[0];
-    const nm = (ON_FL_SHIPS[j.k] && ON_FL_SHIPS[j.k].name) || j.k;
-    rows.push("🚀 " + nm + " — done in " + onStLeft(Math.max(0, j.end - Date.now())));
-  }
   const rq = (onProgress && onProgress.rq) || null;
-  if (rq) {
-    const t = (typeof TECH !== "undefined" ? TECH : []).find((z) => z.id === rq.id);
-    rows.push("⚙ " + (t ? t.n : rq.id) + " — done in " + onStLeft(Math.max(0, rq.end - Date.now())));
-  }
   const tr = onEmpire && onEmpire.transit;
-  if (tr) {
-    rows.push('<span data-oact="transit-jump" data-sys="' + tr.systemId + '" style="text-decoration:underline">🚀 Fleet en route — ' + esc(tr.systemName || "a system") + ' — arrives in ' + onStLeft(Math.max(0, tr.arriveAt - Date.now())) + '</span>');
+  const key = (bq.length ? bq[0].end : 0) + "|" + (sq.length ? sq[0].end : 0) + "|" + (rq ? rq.id + "@" + rq.end : 0) + "|" + (tr ? tr.arriveAt : 0);
+  if (key !== onActKey) {
+    onActKey = key;
+    const rows = [];
+    if (bq.length) {
+      const j = bq[0];
+      const bl = (onStation.bl || []).find((z) => z.u === j.u);
+      const nm = bl ? ON_ST_B[bl.t].name : "Building";
+      rows.push("🔨 " + nm + " Lv " + (bl ? bl.l + 1 : "?") + " — done in <span data-ocd=\"bq\"></span>");
+    }
+    if (sq.length) {
+      const j = sq[0];
+      const nm = (ON_FL_SHIPS[j.k] && ON_FL_SHIPS[j.k].name) || j.k;
+      rows.push("🚀 " + nm + " — done in <span data-ocd=\"sq\"></span>");
+    }
+    if (rq) {
+      const t = (typeof TECH !== "undefined" ? TECH : []).find((z) => z.id === rq.id);
+      rows.push("⚙ " + (t ? t.n : rq.id) + " — done in <span data-ocd=\"rq\"></span>");
+    }
+    if (tr) {
+      rows.push('<span data-oact="transit-jump" data-sys="' + tr.systemId + '" style="text-decoration:underline">🚀 Fleet en route — ' + esc(tr.systemName || "a system") + ' — arrives in <span data-ocd="tr"></span></span>');
+    }
+    if (!rows.length) { el.hidden = true; el.innerHTML = ""; return; }
+    el.hidden = false;
+    el.innerHTML = rows.map((r) => '<div class="trayrow">' + r + '</div>').join("");
   }
-  if (!rows.length) { el.hidden = true; el.innerHTML = ""; return; }
-  el.hidden = false;
-  el.innerHTML = rows.map((r) => '<div class="trayrow">' + r + '</div>').join("");
+  const tick = (k, end) => { const sp = el.querySelector('[data-ocd="' + k + '"]'); if (sp) sp.textContent = onStLeft(Math.max(0, end - Date.now())); };
+  if (bq.length) tick("bq", bq[0].end);
+  if (sq.length) tick("sq", sq[0].end);
+  if (rq) tick("rq", rq.end);
+  if (tr) tick("tr", tr.arriveAt);
 }
 
 // ---------- tab dock (single-player #tabs) ----------
@@ -963,6 +977,25 @@ function onCloseMenu() {
   setTimeout(() => { m.hidden = true; if (bk) bk.hidden = true; }, 220);
 }
 
+// v3.9.50: the 15s poll re-rendered the panel (and the outcome banner)
+// unconditionally, so the Recovery/Rename buttons and the outcome
+// Dismiss were destroyed and recreated every 15s — and a half-typed
+// recovery code was wiped outright (o-rec-code has no synced var,
+// unlike the name inputs, which only keep their VALUE, not focus).
+// Assign only when the HTML actually changed, and if a panel input
+// had focus, give it back (caret to end).
+let onLastPanelHtml = null, onLastOutcomeHtml = null;
+function onSetPanel(html) {
+  const el = onq("#o-panel");
+  if (!el || html === onLastPanelHtml) return;
+  const foc = document.activeElement && document.activeElement.id;
+  onLastPanelHtml = html;
+  el.innerHTML = html;
+  if (foc === "o-rename-name" || foc === "o-rec-code" || foc === "o-spawn-name") {
+    const inp = onq("#" + foc);
+    if (inp) { inp.focus(); try { const n = inp.value.length; inp.setSelectionRange(n, n); } catch (e) {} }
+  }
+}
 function onRenderPanel() {
   const el = onq("#o-panel");
   if (!el) return;
@@ -972,7 +1005,7 @@ function onRenderPanel() {
   // from any tab but Galaxy. Rendered here (before every early return)
   // so the report is always current, and hidden when there is none.
   const oc = onq("#o-outcome");
-  if (oc) { const o = onRaidOutcomeCard() + onTransitOutcomeCard(); oc.innerHTML = o; oc.hidden = !o; }
+  if (oc) { const o = onRaidOutcomeCard() + onTransitOutcomeCard(); if (o !== onLastOutcomeHtml) { onLastOutcomeHtml = o; oc.innerHTML = o; } oc.hidden = !o; }
   // v3.9.38: the system card is a centered popup (#o-syspop), not a panel
   // card — hide it whenever nothing is selected.
   if (onSelected == null) { const p = onq("#o-syspop"); if (p) p.hidden = true; }
@@ -982,14 +1015,14 @@ function onRenderPanel() {
   // top whenever the card identity changes.
   const panelKey = onShowRecovery ? "recovery" : onShowResetConfirm ? "reset" : !onSpawned ? (onShowRecoverForm ? "recover-form" : "welcome") : (onSelected != null ? "sys:" + onSelected : "empire");
   if (panelKey !== onLastPanelKey) { el.scrollTop = 0; onLastPanelKey = panelKey; const pb = onq("#o-syspop-body"); if (pb) pb.scrollTop = 0; }
-  if (onShowRecovery) { el.innerHTML = onRecoveryCard(); return; }
-  if (onShowResetConfirm) { el.innerHTML = '<div class="ocard"><h2>Reset credits to 10?</h2><p>This sets your credits to 10 — the fresh-spawn amount. It wipes the balance you banked under the old economy, and it can\'t be undone.</p><button class="obtn" data-oact="reset-credits-go">Reset credits</button> <button class="obtn ghost" data-oact="reset-credits-cancel">Cancel</button></div>'; return; }
+  if (onShowRecovery) { onSetPanel(onRecoveryCard()); return; }
+  if (onShowResetConfirm) { onSetPanel('<div class="ocard"><h2>Reset credits to 10?</h2><p>This sets your credits to 10 — the fresh-spawn amount. It wipes the balance you banked under the old economy, and it can\'t be undone.</p><button class="obtn" data-oact="reset-credits-go">Reset credits</button> <button class="obtn ghost" data-oact="reset-credits-cancel">Cancel</button></div>'); return; }
   if (!onSpawned) {
     if (onShowRecoverForm) {
-      el.innerHTML = '<div class="ocard"><h2>Recover your empire</h2><p>Enter the recovery code you saved when you started. It works on any device.</p><input id="o-rec-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><br><button class="obtn" data-oact="recover-go">Recover empire</button> <button class="obtn ghost" data-oact="recover-cancel">Cancel</button>' + (onRecoverErr ? '<br><small style="color:#ff8a80">' + esc(onRecoverErr) + '</small>' : '') + '</div>';
+      onSetPanel('<div class="ocard"><h2>Recover your empire</h2><p>Enter the recovery code you saved when you started. It works on any device.</p><input id="o-rec-code" type="text" placeholder="XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters"><br><button class="obtn" data-oact="recover-go">Recover empire</button> <button class="obtn ghost" data-oact="recover-cancel">Cancel</button>' + (onRecoverErr ? '<br><small style="color:#ff8a80">' + esc(onRecoverErr) + '</small>' : '') + '</div>');
       return;
     }
-    el.innerHTML = '<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Battle to take systems, grow your empire, fight the five factions.</p><p><small>Name your Home World (optional — leave blank to keep the galaxy\'s name):</small><br><input id="o-spawn-name" type="text" placeholder="e.g. New Terra" maxlength="24" autocomplete="off" value="' + esc(onSpawnName) + '"></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>';
+    onSetPanel('<div class="ocard"><h2>Welcome to the shared galaxy</h2><p>One massive galaxy, 1,000 systems, every spawn exactly 15 jumps from the Dark Nexus. Battle to take systems, grow your empire, fight the five factions.</p><p><small>Name your Home World (optional — leave blank to keep the galaxy\'s name):</small><br><input id="o-spawn-name" type="text" placeholder="e.g. New Terra" maxlength="24" autocomplete="off" value="' + esc(onSpawnName) + '"></p><button class="obtn" data-oact="spawn">Found your Home World</button><br><br><button class="obtn ghost" data-oact="recover">Recover an empire</button></div>');
     return;
   }
   const sel = onSelected != null ? onSysById[onSelected] : null;
@@ -1014,7 +1047,7 @@ function onRenderPanel() {
   }
   const e = onEmpire || {};
   const over = Math.max(0, (e.count || 0) - (e.softCap || 25));
-  el.innerHTML = '<div class="ocard"><h2>Your empire</h2><small>' + esc(onGalaxyName()) + '</small>'
+  onSetPanel(banner + '<div class="ocard"><h2>Your empire</h2><small>' + esc(onGalaxyName()) + '</small>'
     + '<small>Credits <b>' + Math.floor(e.credits || 0) + '</b> · Power <b>' + Math.round(e.power || 0) + '</b> · Systems <b>' + (e.count || 0) + ' / ' + (e.softCap || 25) + '</b></small><br>'
     + '<small>Income <b>+' + (e.grossPerSec != null ? e.grossPerSec.toFixed(2) : "?") + '/s</b>'
     + (e.upkeepPerSec ? ' · Upkeep <b>−' + (e.upkeepPerSec * 60).toFixed(1) + '/min</b>' : '')
@@ -1024,8 +1057,7 @@ function onRenderPanel() {
     + '<br><button class="obtn ghost" data-oact="recovery">Recovery code</button> <button class="obtn ghost" data-oact="rename">Rename Home World</button>'
     + '<br><small>Map: <span style="color:#ff7a29">orange dots</span> are other players\' empires; <span style="color:#ffd84a">gold rings</span> mark systems you can attack.</small>'
     + (onShowRename ? '<br><small>Rename your Home World (1–24 characters):</small><br><input id="o-rename-name" type="text" maxlength="24" autocomplete="off" value="' + esc(onRenameName) + '"> <button class="obtn" data-oact="rename-save">Save name</button> <button class="obtn ghost" data-oact="rename-cancel">Cancel</button>' : '')
-    + '</div>' + onTargetsCard();
-  el.innerHTML = banner + el.innerHTML;
+    + '</div>' + onTargetsCard());
 }
 
 // Next best step (single-player nextStep(), corrected order — v3.9.35
@@ -2662,7 +2694,7 @@ async function onInitOnline() {
   try { betaOk = localStorage.getItem(ON_BETA_KEY) === "1"; } catch (e) {}
   if (!betaOk) {
     const el = onq("#o-panel");
-    if (el) el.innerHTML = '<div class="ocard"><h2>Online beta</h2><p>This mode is in closed beta. Enter the access password to continue.</p><input id="o-beta-pw" type="password" placeholder="Beta password" autocomplete="off"><br><button class="obtn" data-oact="beta">Enter</button> <small id="o-beta-err" hidden>Wrong password — try again.</small><br><br><button class="obtn ghost" data-oact="single">‹ Back to Single Player</button></div>';
+    if (el) onSetPanel('<div class="ocard"><h2>Online beta</h2><p>This mode is in closed beta. Enter the access password to continue.</p><input id="o-beta-pw" type="password" placeholder="Beta password" autocomplete="off"><br><button class="obtn" data-oact="beta">Enter</button> <small id="o-beta-err" hidden>Wrong password — try again.</small><br><br><button class="obtn ghost" data-oact="single">‹ Back to Single Player</button></div>');
     const go = async () => {
       const inp = onq("#o-beta-pw");
       const pw = inp ? inp.value : "";
