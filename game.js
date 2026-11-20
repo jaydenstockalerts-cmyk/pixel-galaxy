@@ -434,11 +434,51 @@ function closePopup(){POP=null;const p=$("#pop");if(p)p.hidden=true;update()}
 // popup's primary action (first button) so it stays tappable collapsed.
 let popSheet="half";
 function setSheetState(st){popSheet=st;const p=$("#pop-panel");if(p){p.classList.remove("sheet-peek","sheet-half","sheet-full");p.classList.add("sheet-"+st)}}
-function sheetCycle(){setSheetState(popSheet==="half"?"full":popSheet==="full"?"peek":"half")}
+function sheetCycle(){sheetGestureStep("tap")}
 let sheetPeekHtml="";
 function sheetPeekFill(){const p=$("#pop-panel"),src=$("#pop-actions"),bar=p&&p.querySelector("[data-peekbar]");if(!p||!src||!bar)return;const b=src.querySelector("button");const h=b&&b.outerHTML?b.outerHTML:"";if(sheetPeekHtml!==h){sheetPeekHtml=h;bar.innerHTML=h}}
-let sheetSwipeY=null,sheetSwipeDone=false;
-function sheetDragInit(){document.addEventListener("touchstart",e=>{const g=e.target&&e.target.closest?e.target.closest("[data-sheetgrip]"):null;if(g&&e.touches&&e.touches[0])sheetSwipeY=e.touches[0].clientY},{passive:true});document.addEventListener("touchend",e=>{if(sheetSwipeY==null)return;const y=e.changedTouches&&e.changedTouches[0]?e.changedTouches[0].clientY:sheetSwipeY;const d=y-sheetSwipeY;sheetSwipeY=null;if(d>60){sheetSwipeDone=true;setTimeout(()=>{sheetSwipeDone=false},400);closePopup()}else if(d<-60){setSheetState("full")}},{passive:true})}
+// v3.9.62 SHEET GESTURES — the v3.9.61 grip listened to touch events
+// only, so a mouse drag did nothing useful: dragging up ended over the
+// scrim and the click's common ancestor was the backdrop (dismiss), and
+// dragging down ended inside the panel (no-op). Tap cycling also went
+// through click, which a preceding drag's ghost click could swallow.
+// Now ONE pointer handler owns the gesture for mouse and touch alike:
+// pointerdown captures the grip (so the release never lands on the
+// scrim), pointerup decides — a <60px move is a tap and cycles one
+// state; a >60px drag steps taller (up) or shorter (down), and down
+// from peek dismisses. The click that follows any grip pointerup is
+// swallowed by sheetSwipeDone, so nothing fires twice; a keyboard
+// Enter/Space still cycles via click (no pointer precedes it).
+// Tap order (documented): half -> full -> peek -> half.
+function sheetNextState(cur,dir){
+  if(dir==="tap")return cur==="half"?"full":cur==="full"?"peek":"half";
+  if(dir==="up")return cur==="peek"?"half":"full";
+  if(dir==="down")return cur==="full"?"half":cur==="half"?"peek":"dismiss";
+  return cur;
+}
+let sheetGestY=null,sheetGestId=null,sheetSwipeDone=false;
+function sheetGestureStep(dir){
+  const next=sheetNextState(popSheet,dir);
+  if(next==="dismiss")closePopup();else setSheetState(next);
+}
+function sheetGestureInit(){
+  document.addEventListener("pointerdown",e=>{
+    const g=e.target&&e.target.closest?e.target.closest("[data-sheetgrip]"):null;
+    if(!g||sheetGestId!==null)return;
+    sheetGestY=e.clientY;sheetGestId=e.pointerId;
+    try{g.setPointerCapture(e.pointerId)}catch(_){}
+  });
+  const end=e=>{
+    if(sheetGestId===null||e.pointerId!==sheetGestId)return;
+    const d=e.clientY-sheetGestY;sheetGestId=null;
+    sheetSwipeDone=true;setTimeout(()=>{sheetSwipeDone=false},500);
+    if(d<=-60)sheetGestureStep("up");
+    else if(d>=60)sheetGestureStep("down");
+    else sheetGestureStep("tap");
+  };
+  document.addEventListener("pointerup",end);
+  document.addEventListener("pointercancel",()=>{sheetGestId=null;});
+}
 // v3.9.55: migration popup — the game moved to pixel-galaxy-852.pages.dev.
 // Old host only (github.io), only while this browser holds a single-player
 // save, and only until the player copies it or dismisses it for good.
@@ -704,7 +744,7 @@ const resEl=$("#res");
 // v3.9.61: sheet grip (tap cycles peek/half/full), scrim tap dismisses.
 const _sg=$("#pop-panel .sheetgrip");if(_sg)_sg.addEventListener("click",()=>{if(sheetSwipeDone)return;sheetCycle()});
 const _pop=$("#pop");if(_pop)_pop.addEventListener("click",e=>{if(e.target===_pop){popClickGuard=Date.now()+600;closePopup()}});
-sheetDragInit();
+sheetGestureInit();
 if(resEl)resEl.addEventListener("click",()=>{if(Date.now()<popClickGuard)return; /* v3.4.2: the resource bar's click listener ignored popClickGuard, so tapping a popup's X (which sits over the ribbon on a phone) closed the popup on pointerup and the synthetic click that followed landed on the newly-exposed ribbon and opened the resource details. The guard swallows that ghost click. */resEl.classList.toggle("expanded");const mb=$("#menubtn");if(mb)mb.hidden=resEl.classList.contains("expanded")}); /* v3.4.3: when the resource details are open the bar grows taller and the hamburger (vertically centred in the bar) slides down with it — hide it while the details are open instead; tap the bar again to collapse and it comes back. */
 const _bm=$("#bmenu");if(_bm)_bm.innerHTML=Object.keys(B).map(t=>`<div class="row"><div><b>${B[t].n}</b> <span id="bmn-${t}"></span><br><small>${B[t].d}</small><br><small id="bmc-${t}"></small></div><button data-bnew="${t}" id="bmb-${t}">Place</button></div>`).join("");
 // v3.4 TAB GRAPHICS — the Fleet tab shows each ship's actual sprite
