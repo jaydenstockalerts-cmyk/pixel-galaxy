@@ -123,10 +123,11 @@ const ON_COLONY_MAX = 5;
 function onColUpCost(lv) { return { metal: 50 * lv, crystal: 30 * lv, credits: 100 * lv }; }
 function onColUpDur(lv) { return 60 * lv; } // seconds
 function onColCanAfford(cost) {
-  const res = (onStation && onStation.res) || {};
+  // v3.9.60: the locally-accrued balance (what the ribbon shows), not
+  // the last-polled snapshot.
+  const res = onAccruedRes();
   for (const r in cost) {
-    const have = r === "credits" ? ((onEmpire && onEmpire.credits) || 0) : (res[r] || 0);
-    if (have < cost[r]) return false;
+    if ((res[r] || 0) < cost[r]) return false;
   }
   return true;
 }
@@ -529,7 +530,12 @@ function onSelSig() {
   if (onSelected == null) return "none";
   const s = onSysById[onSelected];
   const tr = onEmpire && onEmpire.transit ? onEmpire.transit.id : "-";
-  return s ? [s.id, s.owner, s.ownerType, s.pw, JSON.stringify(s.garrison || {}), JSON.stringify(s.defence || {}), s.type, s.prod || "", s.colonyLevel || 0, s.colonyUpgradeTo || 0, s.colonyUpgradeDoneAt || 0, "tr:" + tr].join(":") : "gone:" + onSelected;
+  // v3.9.60: the colony Upgrade button's affordability — the panel only
+  // re-renders on a sig change while a system is selected, so without
+  // this the button could stay disabled long after the ribbon covers
+  // its cost. Only for a player-owned system with an upgradeable colony.
+  const colAff = (s && (onEmpire && onEmpire.systems || []).includes(s.id) && (s.colonyLevel || 0) < ON_COLONY_MAX && s.colonyUpgradeTo == null) ? (onColCanAfford(onColUpCost(s.colonyLevel || 1)) ? 1 : 0) : "-";
+  return s ? [s.id, s.owner, s.ownerType, s.pw, JSON.stringify(s.garrison || {}), JSON.stringify(s.defence || {}), s.type, s.prod || "", s.colonyLevel || 0, s.colonyUpgradeTo || 0, s.colonyUpgradeDoneAt || 0, "tr:" + tr, "col:" + colAff].join(":") : "gone:" + onSelected;
 }
 
 // The raid banner: a defender warning (with tribute offer) and/or an
@@ -865,11 +871,26 @@ function onTapGalaxy(e) {
 // consts). onTab tracks the active tab in the bottom dock.
 const ON_RICON = { energy: "⚡", metal: "▣", crystal: "◆", credits: "●" };
 let onTab = "map";
-function onRenderTop() {
-  const el = onq("#o-res");
-  if (!el) return;
-  if (!onSpawned || !onEmpire) { el.innerHTML = ""; return; }
-  const st = onStation, res = (st && st.res) || {}, pps = (st && st.productionPerSec) || {}, cap = (st && st.storageCap) || 0;
+// v3.9.60: ONE source for "how much do I have right now". The ribbon
+// accrues production locally between 15s polls (v3.9.22) and floors it
+// for display — but every affordability check read the raw last-polled
+// snapshot, so the ribbon could show Crystal 60 while the Hangar button
+// stayed disabled (snapshot 59.x; the playtest waited ~1 extra minute
+// past the displayed threshold). onAccruedRes() is the same
+// locally-accrued balance the ribbon displays, and every affordability
+// check reads it — so a button enables exactly when the display says
+// you can afford it. Values are raw floats (the ribbon floors only for
+// display); every cost is an integer, so floor(display) >= cost is
+// exactly accrued >= cost.
+function onAccruedRes() {
+  // Before the station snapshot loads there is nothing to accrue from;
+  // fall back to the fleet payload's snapshot so tabs that render first
+  // are never emptier than they were before this change.
+  if (!onStation) {
+    const fr = (onFleet && onFleet.res) || {};
+    return { energy: fr.energy || 0, metal: fr.metal || 0, crystal: fr.crystal || 0, credits: (onFleet && onFleet.credits) || (onEmpire && onEmpire.credits) || 0 };
+  }
+  const st = onStation, res = st.res || {}, pps = st.productionPerSec || {}, cap = st.storageCap || 0;
   // v3.9.22: accrue locally from the last fetch so the ribbon ticks live
   // between 15s polls (single player ticks every 250ms). The server
   // settles the same interval on the next read, so the display converges
@@ -877,21 +898,31 @@ function onRenderTop() {
   // server. Station resources pause at the cap, like single player.
   const dtE = onEmpireAt ? Math.max(0, Math.min(8 * 3600, (Date.now() - onEmpireAt) / 1000)) : 0;
   const dtS = onStationAt ? Math.max(0, Math.min(8 * 3600, (Date.now() - onStationAt) / 1000)) : 0;
-  // v3.9.29: credits obey the storage cap too (server accrue caps them,
-  // single player caps all four) — pause at/above the cap, never pull an
-  // overflow down, and show the cap on the pill like the other three.
-  const crBase = onEmpire.credits || 0, crNet = onEmpire.netPerSec || 0;
-  const cr = Math.floor(cap > 0 && crNet >= 0 && crBase >= cap ? crBase : (cap > 0 ? Math.min(cap, Math.max(0, crBase + crNet * dtE)) : Math.max(0, crBase + crNet * dtE)));
   // v3.9.27: the station's productionPerSec does NOT include the
   // per-system production choices — those accrue server-side in
   // settleStation and arrive here as sysPerRes (per second). Fold them
-  // into the local accrual and the pill rates so the ribbon ticks live.
+  // into the local accrual so the ribbon ticks live.
   const sysR = (onEmpire && onEmpire.sysPerRes) || {};
-  const acc = {};
+  const out = {};
   for (const k of ["energy", "metal", "crystal"]) {
     const v = (res[k] || 0) + ((pps[k] || 0) + (sysR[k] || 0)) * dtS;
-    acc[k] = cap > 0 ? Math.min(cap, Math.max(0, v)) : Math.max(0, v);
+    out[k] = cap > 0 ? Math.min(cap, Math.max(0, v)) : Math.max(0, v);
   }
+  // v3.9.29: credits obey the storage cap too (server accrue caps them,
+  // single player caps all four) — pause at/above the cap, never pull an
+  // overflow down.
+  const crBase = (onEmpire && onEmpire.credits) || 0, crNet = (onEmpire && onEmpire.netPerSec) || 0;
+  out.credits = cap > 0 && crNet >= 0 && crBase >= cap ? crBase : (cap > 0 ? Math.min(cap, Math.max(0, crBase + crNet * dtE)) : Math.max(0, crBase + crNet * dtE));
+  return out;
+}
+function onRenderTop() {
+  const el = onq("#o-res");
+  if (!el) return;
+  if (!onSpawned || !onEmpire) { el.innerHTML = ""; return; }
+  const st = onStation, pps = (st && st.productionPerSec) || {}, cap = (st && st.storageCap) || 0;
+  const acc = onAccruedRes();
+  const cr = Math.floor(acc.credits);
+  const sysR = (onEmpire && onEmpire.sysPerRes) || {};
   const crRate = (onEmpire.netPerSec || 0) * 60;
   const pill = (key, val, rate, capV) => {
     const pct = capV > 0 ? Math.max(0, Math.min(1, val / capV)) : 0;
@@ -1685,11 +1716,13 @@ function onStPlotReq(x, y) {
 }
 function onStCanAfford(cost) {
   if (!onStation) return false;
-  const res = onStation.res || {};
-  for (const r of ["energy", "metal", "crystal"]) {
+  // v3.9.60: the locally-accrued balance (what the ribbon shows), not
+  // the last-polled snapshot — a button must enable the moment the
+  // display says the cost is covered.
+  const res = onAccruedRes();
+  for (const r of ["energy", "metal", "crystal", "credits"]) {
     if ((cost[r] || 0) > (res[r] || 0)) return false;
   }
-  if ((cost.credits || 0) > Math.floor(onStation.credits || 0)) return false;
   return true;
 }
 function onStUnlockedCount() {
@@ -2166,6 +2199,8 @@ function onTapStation(e) {
 // after online.js, so this file keeps its own copies of those two.
 let onProgress = null;      // from GET /progress
 let onResearchOpen = false;
+let onFlAffordSig = "";  // v3.9.60: last Fleet affordability signature (1s ticker)
+let onResAffordSig = ""; // v3.9.60: last Research affordability signature (1s ticker)
 let onPrevCmdLevels = {};
 
 const ON_TECHLANES = [{ k: "pw", n: "Weapons" }, { k: "eco", n: "Economy" }, { k: "cmax", n: "Command" }, { k: "bld", n: "Builders" }, { k: "slot", n: "Docks" }, { k: "keep", n: "Hull" }, { k: "jump", n: "Jump Drive" }];
@@ -2234,7 +2269,10 @@ function onRenderResearch() {
   const dep = (id) => { if (depth[id]) return depth[id]; const t = techs.find((z) => z.id === id); return depth[id] = t && t.req ? dep(t.req) + 1 : 1; };
   techs.forEach((t) => dep(t.id));
   const costStr = (c) => Object.keys(c).map((r) => c[r] + " " + r).join(", ");
-  const canAfford = (c) => Object.keys(c).every((r) => (r === "credits" ? Math.floor(p.credits || 0) : Math.floor(res[r] || 0)) >= c[r]);
+  // v3.9.60: the locally-accrued balance (what the ribbon shows), not
+  // the progress payload's snapshot — same fix as the station buttons.
+  const accRes = onStation ? onAccruedRes() : null;
+  const canAfford = (c) => Object.keys(c).every((r) => (accRes ? (accRes[r] || 0) : (r === "credits" ? Math.floor(p.credits || 0) : Math.floor(res[r] || 0))) >= c[r]);
   let html = '<div class="ocard"><h2>Research</h2><small id="o-rq">' + (rq ? "Researching: " + ((techs.find((z) => z.id === rq.id) || {}).n || rq.id) + ' (<span id="o-rq-left"></span>). ' : "Lab idle. ") + "Completed " + (p.tech || []).length + " of " + techs.length + '.</small><div class="pbar"><div id="o-pb-res" style="width:0%"></div></div></div>';
   html += '<div class="ocard otree-card"><div class="techtree-wrap"><div class="techtree" id="o-techtree"><svg id="o-techsvg"></svg>'
     + ON_TECHLANES.map((L, li) => '<div class="techlane" style="grid-column:' + (li + 1) + ';grid-row:1"><span class="techic">' + (ON_TECHICON[L.k] || "✦") + "</span>" + L.n + "</div>").join("")
@@ -2260,7 +2298,7 @@ function onRenderResearch() {
   html += '<div class="ocard"><h2>Commanders</h2><small>One officer can be assigned at a time — their bonus applies while assigned, and they level up as you play.</small>';
   for (const cmd of p.commanders || []) {
     const h = cmd.hired, on = cmd.assigned;
-    html += '<div class="row"><div><span class="cmdav cmdav-' + cmd.type + '">' + cmd.name.split(" ").pop()[0] + "</span><b>" + esc(cmd.name) + "</b> " + (h ? "Lv " + cmd.level + (on ? " (assigned)" : "") : "") + "<br><small>" + esc(cmd.desc) + "<br>" + (h ? "Bonus now: +" + cmd.bonus + "% " + ON_TT[cmd.type] + (on ? "" : " (not assigned)") : "Hire cost: " + cmd.cost + " credits") + '</small></div><button data-oact="commander" data-id="' + cmd.id + '"' + (!h && Math.floor(p.credits || 0) < cmd.cost ? " disabled" : "") + ">" + (!h ? "Hire" : on ? "Unassign" : "Assign") + "</button></div>";
+    html += '<div class="row"><div><span class="cmdav cmdav-' + cmd.type + '">' + cmd.name.split(" ").pop()[0] + "</span><b>" + esc(cmd.name) + "</b> " + (h ? "Lv " + cmd.level + (on ? " (assigned)" : "") : "") + "<br><small>" + esc(cmd.desc) + "<br>" + (h ? "Bonus now: +" + cmd.bonus + "% " + ON_TT[cmd.type] + (on ? "" : " (not assigned)") : "Hire cost: " + cmd.cost + " credits") + '</small></div><button data-oact="commander" data-id="' + cmd.id + '"' + (!h && (accRes ? accRes.credits : Math.floor(p.credits || 0)) < cmd.cost ? " disabled" : "") + ">" + (!h ? "Hire" : on ? "Unassign" : "Assign") + "</button></div>";
   }
   html += "</div>";
   body.innerHTML = html;
@@ -2387,10 +2425,12 @@ function onFlCostStr(cost) {
 
 function onFlCanAfford(cost) {
   if (!onFleet) return false;
-  const res = onFleet.res || {};
+  // v3.9.60: the locally-accrued balance (what the ribbon shows), not
+  // the /fleet payload's snapshot. Before the station snapshot loads,
+  // onAccruedRes falls back to that payload.
+  const res = onAccruedRes();
   for (const r in cost) {
-    const have = r === "credits" ? (onFleet.credits || 0) : (res[r] || 0);
-    if (have < cost[r]) return false;
+    if ((res[r] || 0) < cost[r]) return false;
   }
   return true;
 }
@@ -3146,6 +3186,12 @@ async function onStartGame() {
     await onLoadFleet();
     // v3.9.31: the Quests tab badge (claimable count) stays live.
     await onLoadQuests();
+    // v3.9.60: the Daily section used to fetch only when the Quests tab
+    // opened, so its progress froze at the tab-open snapshot while
+    // credits kept ticking up (the playtest saw 206/500 at 357 credits).
+    // Refetch while the tab is open so progress tracks the live balance;
+    // the server already settles before answering /daily.
+    if (onQuestsOpen) await onLoadDaily();
     // v3.9.52: the Syndicate tab badge (claimable weekly) stays live,
     // and the chat refreshes while the overlay is open.
     await onLoadSyndicate();
@@ -3203,6 +3249,26 @@ async function onStartGame() {
     onResTick();
     onRenderActivity();
     onRenderTop(); // v3.9.22: the ribbon accrues live between polls
+    // v3.9.60: an open station popup re-evaluates every second (its key
+    // already includes affordability, so it only rebuilds when a button
+    // actually flips) — the ribbon accrues live, so a Place/Upgrade
+    // button must enable the second the display covers its cost, not at
+    // the next 15s poll. Same for the Fleet and Research views: their
+    // affordability signatures re-render only on a flip, so an open view
+    // never rebuilds (and never loses scroll) on a quiet tick.
+    onRenderStPop();
+    if (onFleetOpen) {
+      const sig = ["fighter", "cruiser", "capital"].map((k) => (onFlCanAfford(ON_FL_SHIPS[k].cost) ? 1 : 0)).join("");
+      if (sig !== onFlAffordSig) { onFlAffordSig = sig; onRenderFleet(); }
+    }
+    if (onResearchOpen && onProgress) {
+      const acc = onStation ? onAccruedRes() : null;
+      const sig = (typeof TECH !== "undefined" ? TECH : []).map((t) => {
+        if ((onProgress.tech || []).includes(t.id)) return "1";
+        return Object.keys(t.c).every((r) => (acc ? (acc[r] || 0) : (r === "credits" ? Math.floor(onProgress.credits || 0) : Math.floor(((onProgress.res) || {})[r] || 0))) >= t.c[r]) ? "1" : "0";
+      }).join("") + "|" + ((onProgress.commanders || []).map((cmd) => (!cmd.hired && (acc ? acc.credits : Math.floor(onProgress.credits || 0)) >= cmd.cost ? "1" : "0")).join(""));
+      if (sig !== onResAffordSig) { onResAffordSig = sig; onRenderResearch(); }
+    }
     onStChips();   // v3.9.22: the build countdown went stale off-ticker
     onTutCheck();  // v3.9.35: tutorial steps auto-advance off the 1s tick
     // v3.9.38: the transit countdown in the open system popup ticks live
