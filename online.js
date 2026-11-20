@@ -3280,8 +3280,16 @@ async function onStartGame() {
   // a dead backend still burns rows on every invocation, and a tight
   // retry loop is how a quota gets eaten right after a reset.
   let onPollFails = 0;
+  // v3.9.63 rows-read burn: /quests + /syndicate used to fire every 15s
+  // even though their state only changes when a player acts (a claim or
+  // a Syndicate action — both refetch immediately themselves). They now
+  // load on tab open (onOpenQuests / onOpenSyndicate) and every 4th
+  // poll (60s); the badges can lag up to a minute, and the poll drops
+  // 2 of its 8 requests per cycle. Chat stays live via /chat every 15s.
+  let onPollTick = 0;
   const onPoll = setInterval(async () => {
     if (!onReady) return;
+    onPollTick++;
     const okE = await onLoadEmpire();
     const okR = await onLoadRaids();
     // v3.9.20: the ribbon (station resources) and the tray (research)
@@ -3292,8 +3300,10 @@ async function onStartGame() {
     // v3.9.22: ship launches need onLoadFleet even when the Fleet view
     // is closed, or their completion toast never fires.
     await onLoadFleet();
-    // v3.9.31: the Quests tab badge (claimable count) stays live.
-    await onLoadQuests();
+    // v3.9.31: the Quests tab badge (claimable count) stays live —
+    // v3.9.63: every 4th poll (60s), not every 15s; tab open still
+    // fetches immediately (onOpenQuests).
+    if (onPollTick % 4 === 0) await onLoadQuests();
     // v3.9.60: the Daily section used to fetch only when the Quests tab
     // opened, so its progress froze at the tab-open snapshot while
     // credits kept ticking up (the playtest saw 206/500 at 357 credits).
@@ -3301,8 +3311,10 @@ async function onStartGame() {
     // the server already settles before answering /daily.
     if (onQuestsOpen) await onLoadDaily();
     // v3.9.52: the Syndicate tab badge (claimable weekly) stays live,
-    // and the chat refreshes while the overlay is open.
-    await onLoadSyndicate();
+    // and the chat refreshes while the overlay is open — v3.9.63: the
+    // Syndicate load is every 4th poll (60s) like /quests; tab open
+    // still fetches immediately (onOpenSyndicate).
+    if (onPollTick % 4 === 0) await onLoadSyndicate();
     // v3.9.59: the unified chat strip (latest message) stays live.
     await onLoadChat();
     // v3.9.22: the map is only refetched when ownership actually
