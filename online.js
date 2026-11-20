@@ -841,11 +841,14 @@ function onRenderTop() {
   if ((sysR.metal || 0) > 0) inc += ' · systems ' + pm(sysR.metal);
   inc += ' · Crystal: station ' + pm(pps.crystal || 0);
   if ((sysR.crystal || 0) > 0) inc += ' · systems ' + pm(sysR.crystal);
+  // v3.9.46: upkeep warning — visible in the ribbon itself (not only in the expanded breakdown), whenever launched-ship upkeep exceeds energy production. pps.energy is NET (production minus upkeep), so net < 0 means upkeep wins.
+  const eNet = (pps.energy || 0) + (sysR.energy || 0);
+  const warn = upkeep > 0 && eNet < 0 ? '<div class="upkeep-warn">⚠ Ship upkeep exceeds energy production — build more Solar Arrays or scrap ships.</div>' : '';
   inc += '</div>';
   el.innerHTML = pill("energy", acc.energy, ((pps.energy || 0) + (sysR.energy || 0)) * 60, cap)
     + pill("metal", acc.metal, ((pps.metal || 0) + (sysR.metal || 0)) * 60, cap)
     + pill("crystal", acc.crystal, ((pps.crystal || 0) + (sysR.crystal || 0)) * 60, cap)
-    + pill("credits", cr, crRate, cap) + inc;
+    + pill("credits", cr, crRate, cap) + inc + warn;
 }
 
 // ---------- activity tray (single-player #activity) ----------
@@ -2334,9 +2337,9 @@ function onRenderFleet() {
     + '<small>' + _sub + '</small><br>'
     + '<small><b>Counters:</b> Fighters +50% vs swarm, Cruisers +50% vs armored, Capital ships +50% vs fortress.</small><br>'
     + '<small>Ship slots: <b>' + used + ' / ' + slotCap + '</b> (Hangar Lv ' + hangarLv + ' — ' + (7 + onSlotBonus()) + ' slots per level).</small>'
-    // v3.9.26: fleets drain energy like single player — 0.05/s per
+    // v3.9.26: fleets drain energy like single player — 0.025/s per (v3.9.46: halved from 0.05/s)
     // occupied slot (launched ships only), read per minute.
-    + (((f.energyUpkeepPerSec || 0) > 0) ? '<br><small>Ship upkeep: <b>−' + ((f.energyUpkeepPerSec || 0) * 60).toFixed(1) + ' energy/min</b> (0.05/s per ship slot).</small>' : '');
+    + (((f.energyUpkeepPerSec || 0) > 0) ? '<br><small>Ship upkeep: <b>−' + ((f.energyUpkeepPerSec || 0) * 60).toFixed(1) + ' energy/min</b> (0.025/s per ship slot).</small>' : '');
   if (hangarLv < 1) html += '<br><small><b>No Hangar yet</b> — build one at your station to start building ships.</small>';
   if (total === 0 && hangarLv >= 1) html += '<br><small>No ships yet — build a Fighter to start your fleet.</small>';
   html += '</div>';
