@@ -928,9 +928,10 @@ function onRenderActivity() {
 }
 
 // ---------- tab dock (single-player #tabs) ----------
-// Galaxy / Station / Fleet / Research / Quests switch views (v3.9.27:
-// Crew is gone — Jayden removed crew assignment; commanders live on
-// Research now. v3.9.31: Quests opens its panel, like single player).
+// Galaxy / Station / Fleet / Research / Quests / Syndicate switch views
+// (v3.9.27: Crew is gone — Jayden removed crew assignment; commanders
+// live on Research now. v3.9.31: Quests opens its panel, like single
+// player. v3.9.52: Syndicate opens its panel, online only.)
 // v3.9.26: every view is a full-screen overlay at the same z-index, so
 // the DOM order decides what paints on top — switching tabs used to
 // leave the old view visible (research is last in the DOM, so
@@ -945,20 +946,21 @@ function onSetTab(t) {
   document.querySelectorAll("#o-tabs button").forEach((b) => b.classList.toggle("on", b.dataset.otab === t));
 }
 function onCloseAllOverlays() {
-  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests();
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests(); onCloseSyndicate();
   onSetTab("map");
   onRefresh();
 }
 function onShowTab(t) {
   onTabGen++;
   if (t === "map") { onCloseAllOverlays(); return; }
-  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests();
+  onCloseStation(); onCloseFleet(); onCloseResearch(); onCloseQuests(); onCloseSyndicate();
   onSetTab(t);
   const gen = onTabGen;
   if (t === "station") onOpenStation(gen);
   else if (t === "fleet") onOpenFleet(gen);
   else if (t === "research") onOpenResearch(gen);
   else if (t === "quests") onOpenQuests(gen);
+  else if (t === "syndicate") onOpenSyndicate(gen);
 }
 
 // ---------- online menu (single-player #menu) ----------
@@ -2614,6 +2616,168 @@ async function onDoDailyClaim() {
   }
 }
 
+// Syndicates (v3.9.52) — player groups, online only. A Syndicate
+// holds up to 10 members; one Syndicate per player. The tab button
+// carries a badge when this week's shared challenge is claimable.
+let onSyn = null;        // from GET /syndicate: {syndicate, open}
+let onSynOpen = false;
+let onSynName = "";      // typed Syndicate name (poll rebuilds the panel)
+let onSynChat = "";      // typed chat message (same)
+function onClock(at) {
+  const d = new Date(at || 0);
+  const p2 = (n) => String(n).padStart(2, "0");
+  return p2(d.getHours()) + ":" + p2(d.getMinutes());
+}
+function onSynBadge() {
+  const badge = onq("#o-s-badge");
+  if (!badge) return;
+  const w = onSyn && onSyn.syndicate && onSyn.syndicate.weekly;
+  const n = w && w.done && !w.claimed ? 1 : 0;
+  badge.hidden = n < 1;
+  badge.textContent = String(n);
+}
+async function onLoadSyndicate() {
+  if (!onSpawned) return false;
+  const r = await onApi("/syndicate", "GET");
+  if (r.status !== 200) return false;
+  onSyn = r.data || null;
+  onSynBadge();
+  if (onSynOpen) onRenderSyndicate();
+  return true;
+}
+async function onOpenSyndicate(gen) {
+  if (!onSpawned) { onToast("Found your Home World first."); return; }
+  onSynOpen = true;
+  const ov = onq("#o-syndicate");
+  if (ov) ov.hidden = false;
+  onSetTab("syndicate");
+  onRenderSyndicate();
+  const ok = await onLoadSyndicate();
+  if (gen !== undefined && gen !== onTabGen) return; // superseded by a newer tab tap
+  if (!ok && !onSyn) { onToast("Could not load Syndicates — check your connection."); onCloseSyndicate(); onSetTab("map"); return; }
+  onRenderSyndicate();
+}
+function onCloseSyndicate() {
+  onSynOpen = false;
+  const ov = onq("#o-syndicate");
+  if (ov) ov.hidden = true;
+}
+function onRenderSyndicate() {
+  const ov = onq("#o-syndicate");
+  if (!ov || ov.hidden) return;
+  const body = onq("#o-syn-body");
+  if (!body) return;
+  if (!onSyn) { body.innerHTML = '<div class="ocard"><p>Loading Syndicates\u2026</p></div>'; return; }
+  const syn = onSyn.syndicate;
+  if (!syn) {
+    const open = (onSyn.open || []).map((o) => {
+      const full = o.memberCount >= 10;
+      return '<div class="row"><div><b>' + esc(o.name) + '</b><br><small>' + o.memberCount + ' / 10 members \u00b7 Founded by ' + esc(o.founderName || "") + '</small></div>'
+        + (full ? '<span>Full</span>' : '<button class="obtn" data-oact="syndicate-join" data-sid="' + esc(o.id) + '">Join</button>') + '</div>';
+    }).join("");
+    body.innerHTML = '<div class="ocard"><h2>Syndicates</h2><p><small>Team up with up to 10 players. A Syndicate shares one weekly challenge — finish it together and every member claims credits + Dark Matter.</small></p>'
+      + '<input id="o-syn-name" type="text" placeholder="Name your Syndicate" maxlength="24" autocomplete="off" value="' + esc(onSynName) + '">'
+      + '<button class="obtn" data-oact="syndicate-create">Create Syndicate</button></div>'
+      + '<div class="ocard"><h2>Open Syndicates</h2>' + (open || '<p><small>No Syndicates yet — found the first one.</small></p>') + '</div>';
+    return;
+  }
+  const w = syn.weekly || {};
+  const ch = w.challenge || {};
+  const wcard = !ch.id
+    ? '<div class="ocard"><h2>Weekly Challenge</h2><p><small>Loading this week\u2019s challenge\u2026</small></p></div>'
+    : '<div class="ocard"><h2>Weekly Challenge</h2><p><b>' + esc(ch.title) + '</b><br><small>' + (w.progress || 0) + ' / ' + ch.target + ' \u00b7 Reward: ' + esc(ch.rewardText || "") + ' \u00b7 Shared by the whole Syndicate</small></p>' + (w.claimed ? '<span>Claimed \u2713</span>' : w.done ? '<button class="obtn" data-oact="syndicate-claim">Claim</button>' : '<span>Not yet</span>') + '</div>';
+  const mrows = (syn.members || []).map((m) => '<div class="row"><div><b>' + esc(m.name) + '</b>' + (m.isFounder ? ' <small>\u00b7 Founder</small>' : '') + '</div>' + (m.playerId === onPlayer ? '<span>You</span>' : '') + '</div>').join("");
+  const chat = (syn.chat || []).map((m) => '<div><small>' + onClock(m.at) + ' <b>' + esc(m.name) + ':</b> ' + esc(m.message) + '</small></div>').join("");
+  body.innerHTML = '<div class="ocard"><h2>Syndicate \u2014 ' + esc(syn.name) + '</h2><p><small>' + (syn.members || []).length + ' / 10 members</small></p></div>'
+    + wcard
+    + '<div class="ocard"><h2>Members</h2>' + mrows + '</div>'
+    + '<div class="ocard"><h2>Chat</h2>' + (chat || '<p><small>No messages yet \u2014 say hello.</small></p>')
+    + '<input id="o-syn-chat" type="text" placeholder="Message your Syndicate" maxlength="280" autocomplete="off" value="' + esc(onSynChat) + '">'
+    + '<button class="obtn" data-oact="syndicate-chat">Send</button></div>'
+    + '<div class="ocard"><button class="obtn ghost" data-oact="syndicate-leave">Leave Syndicate</button>'
+    + (syn.isFounder ? ' <button class="obtn ghost" data-oact="syndicate-disband">Disband Syndicate</button>' : '') + '</div>';
+}
+async function onDoSynCreate() {
+  const r = await onApi("/syndicate/create", "POST", { name: onSynName });
+  if (r.status === 200 && r.data.syndicate) {
+    onSyn = { syndicate: r.data.syndicate, open: [] };
+    onSynName = "";
+    onToast("Syndicate founded: " + r.data.syndicate.name + ".");
+    onRenderSyndicate();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast(err === "invalid_name" ? "Name must be 1\u201324 characters." : err === "name_taken" ? "That name is taken." : err === "already_in_syndicate" ? "You are already in a Syndicate." : "Could not create Syndicate: " + err + ".");
+    await onLoadSyndicate();
+  }
+}
+async function onDoSynJoin(id) {
+  const r = await onApi("/syndicate/join", "POST", { syndicateId: id });
+  if (r.status === 200 && r.data.syndicate) {
+    onSyn = { syndicate: r.data.syndicate, open: [] };
+    onToast("You joined the Syndicate.");
+    onRenderSyndicate();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast(err === "syndicate_full" ? "That Syndicate is full." : err === "not_found" ? "That Syndicate no longer exists." : err === "already_in_syndicate" ? "You are already in a Syndicate." : "Could not join: " + err + ".");
+    await onLoadSyndicate();
+  }
+}
+async function onDoSynLeave() {
+  const r = await onApi("/syndicate/leave", "POST", {});
+  if (r.status === 200) {
+    onSyn = r.data || null;
+    onToast("You left the Syndicate.");
+    onRenderSyndicate();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast("Could not leave: " + err + ".");
+    await onLoadSyndicate();
+  }
+}
+async function onDoSynDisband() {
+  const r = await onApi("/syndicate/disband", "POST", {});
+  if (r.status === 200) {
+    onSyn = r.data || null;
+    onToast("Syndicate disbanded.");
+    onRenderSyndicate();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast("Could not disband: " + err + ".");
+    await onLoadSyndicate();
+  }
+}
+async function onDoSynChat() {
+  const msg = (onSynChat || "").trim();
+  if (!msg) return;
+  const r = await onApi("/syndicate/chat", "POST", { message: msg });
+  if (r.status === 200 && r.data.chat) {
+    if (onSyn && onSyn.syndicate) onSyn.syndicate.chat = r.data.chat;
+    onSynChat = "";
+    onRenderSyndicate();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast(err === "invalid_message" ? "Message must be 1\u2013280 characters." : "Could not send: " + err + ".");
+    await onLoadSyndicate();
+  }
+}
+// v3.9.52: claim this week's shared challenge. The server validates
+// and pays exactly once per member; on success the Syndicate panel
+// re-renders from the response and the ribbon costs refresh like a
+// quest or daily claim.
+async function onDoSynClaim() {
+  const r = await onApi("/syndicate/claim", "POST", {});
+  if (r.status === 200 && r.data.syndicate) {
+    onSyn = { syndicate: r.data.syndicate, open: [] };
+    onToast("Weekly challenge complete: +" + (r.data.rewardText || "") + "!");
+    onRenderSyndicate();
+    await onRefreshCosts();
+  } else {
+    const err = (r.data && r.data.error) || "failed";
+    onToast(err === "already_claimed" ? "Already claimed." : err === "not_complete" ? "Not complete yet." : "Claim failed: " + err + ".");
+    await onLoadSyndicate();
+  }
+}
+
 // Panel inputs (delegated): the 15s poll rebuilds the panel, which would
 // wipe a half-typed name — keep the typed value in a module var and
 // restore it on render (v3.9.23).
@@ -2622,6 +2786,8 @@ document.addEventListener("input", (e) => {
   if (!t || !t.id) return;
   if (t.id === "o-spawn-name") onSpawnName = t.value;
   if (t.id === "o-rename-name") onRenameName = t.value;
+  if (t.id === "o-syn-name") onSynName = t.value;
+  if (t.id === "o-syn-chat") onSynChat = t.value;
 });
 
 // Panel + bar clicks (delegated).
@@ -2690,6 +2856,12 @@ document.addEventListener("click", (e) => {
   else if (act === "fleet-scrap" && b.dataset.type) onDoFleetScrap(b.dataset.type);
   else if (act === "quest-claim" && b.dataset.qid) onDoQuestClaim(b.dataset.qid);
   else if (act === "daily-claim") onDoDailyClaim();
+  else if (act === "syndicate-create") onDoSynCreate();
+  else if (act === "syndicate-join" && b.dataset.sid) onDoSynJoin(b.dataset.sid);
+  else if (act === "syndicate-leave") onDoSynLeave();
+  else if (act === "syndicate-disband") onDoSynDisband();
+  else if (act === "syndicate-chat") onDoSynChat();
+  else if (act === "syndicate-claim") onDoSynClaim();
   else if (act === "station-mv-cancel") { onStMove = null; onRenderStation(); }
   else if (act === "station-pop-close") { if (Date.now() - onStPopOpenAt >= 350) onCloseStPop(); }
   else if (act === "station-pop-upgrade" && b.dataset.u) { if (Date.now() - onStPopOpenAt >= 350) onDoStationUpgrade(Number(b.dataset.u)); }
@@ -2798,6 +2970,9 @@ async function onStartGame() {
     await onLoadFleet();
     // v3.9.31: the Quests tab badge (claimable count) stays live.
     await onLoadQuests();
+    // v3.9.52: the Syndicate tab badge (claimable weekly) stays live,
+    // and the chat refreshes while the overlay is open.
+    await onLoadSyndicate();
     // v3.9.22: the map is only refetched when ownership actually
     // changed — /systems is 1,000 rows, so polling it every 15s would
     // burn the shared DO rows-read quota (5.76M/day per player).
