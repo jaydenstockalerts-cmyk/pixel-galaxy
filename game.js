@@ -1277,7 +1277,7 @@ const title=$("#pop-title"),hero=$("#pop-hero"),body=$("#pop-body"),acts=$("#pop
 if(!title||!hero||!body||!acts)return;
 body.scrollTop=0; // v3.9.26: a fresh popup always starts at the top (close button visible)
 const hq=hero.getContext("2d");
-if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#0a0e2a";hq.fillRect(0,0,96,96)}
+if(hq){hq.imageSmoothingEnabled=false;hq.fillStyle="#100a24";hq.fillRect(0,0,96,96)}
 if(POP.kind==="system"){
 const i=S.sel,s=SYS[i],own=S.won.includes(i),av=avail(i);
 title.textContent=s.n;
@@ -1468,12 +1468,12 @@ function progressBars(){const now=Date.now();const set=(id,p)=>{const el=$(id);i
 const bq=S.bq.filter(j=>j.u!==undefined).slice().sort((a,b)=>a.end-b.end)[0];set("#pb-build",bq&&bq.s?(now-bq.s)/(bq.end-bq.s):0); // v2.6: colony jobs use the tray, not the station build bar
 if(S.rq){const t=TECH.find(z=>z.id===S.rq.id);set("#pb-res",t?1-(S.rq.end-now)/(t.t*1000*tmul()):0)}else set("#pb-res",0);
 const sq=S.sq[0];set("#pb-ship",sq?1-(sq.end-now)/(DUR[sq.k]*1000*tmul()):0)}
-function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#0a0e2a";q.fillRect(0,0,96,120);const MMCOL={c:"#e0584a",v:"#b07cf0",k:"#ffb02e",a:"#4fc3f7",m:"#ff7ad9"};SYS.forEach((s,i)=>{if(secOf(i)!==SEC)return;const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o?MMCOL[o]||"#7c849c":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=cv.width/sc/WORLD.w*96,vh=safeH()/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
+function drawMinimap(){const mm=$("#mm");if(!mm)return;const q=mm.getContext("2d");if(!q||!q.fillRect)return;q.fillStyle="#100a24";q.fillRect(0,0,96,120);const MMCOL={c:"#e0584a",v:"#b07cf0",k:"#a3e635",a:"#5b8cff",m:"#ff7ad9"};SYS.forEach((s,i)=>{if(secOf(i)!==SEC)return;const own=S.won.includes(i),o=S.own[i];q.fillStyle=own?"#6ee7f5":o?MMCOL[o]||"#7c849c":"#7c849c";q.fillRect(Math.round(s.x*WORLD.px/WORLD.w*96)-2,Math.round(s.y*WORLD.px/WORLD.h*120)-2,4,4)});const sc=camScale(),vw=cv.width/sc/WORLD.w*96,vh=safeH()/sc/WORLD.h*120,vx=CAM.cx/WORLD.w*96-vw/2,vy=CAM.cy/WORLD.h*120-vh/2;q.fillStyle="rgba(255,224,102,.9)";q.fillRect(vx,vy,Math.max(4,vw),1);q.fillRect(vx,vy+vh-1,Math.max(4,vw),1);q.fillRect(vx,vy,1,Math.max(4,vh));q.fillRect(vx+vw-1,vy,1,Math.max(4,vh))}
 function upd2(){const now=Date.now();showTab();
 $("#fpw").textContent="Fleet power: "+Math.round(fpt())+". Vs swarm "+Math.round(fpt("swarm"))+", armored "+Math.round(fpt("armored"))+", fortress "+Math.round(fpt("fortress"))+".";
 // v3.2.7: show where the power comes from — the totals above were correct but unexplained (base x Command x research x officer). Only nonzero bonuses are listed.
 const _fpwSub=$("#fpw-sub");if(_fpwSub){let _base=0;for(const k in U)_base+=S.ships[k]*U[k].pw;const _parts=["Base "+_base],_cb0=.2*(S.b.command-1),_pw0=tsum("pw"),_fl0=cb("fleet");if(_cb0>0)_parts.push("Command +"+Math.round(_cb0*100)+"%");if(_pw0>0)_parts.push("Research +"+Math.round(_pw0*100)+"%");if(_fl0>0)_parts.push("Officer +"+Math.round(_fl0*100)+"%");_fpwSub.textContent=_parts.join(" · ")+(_parts.length>2?" (bonuses multiply)":"")}
-const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
+const rvEl=$("#rvs");if(rvEl)rvEl.innerHTML=Object.keys(RV).map(id=>{const k=Object.keys(S.own).filter(j=>S.own[j]===id).length;return "<b>"+RV[id].n+"</b>: "+(k?k+" systems, power "+Math.round(rstr(id)):"defeated")+"<br><small>"+RV[id].about+"</small>"}).join("<br>")+"<br>Rivals claim neutral systems next to their territory and raid yours. Raids start after about 10 minutes of play. A strong home fleet repels them.";
 // v2.9: ALL 18 tech rows always render — a locked row is visible but
 // greyed, names its requirement, and its button is disabled; a done row
 // reads "Researched". (Hiding locked rows left a fresh save showing 6
